@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -26,7 +26,8 @@ export class FileBrowser implements OnInit {
 
   constructor(
     private readonly fileApiService: FileApiService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly changeDetectorRef: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -39,15 +40,18 @@ export class FileBrowser implements OnInit {
   loadItems(): void {
     this.loading = true;
     this.error = null;
+    this.changeDetectorRef.detectChanges();
 
     this.fileApiService.listItems(this.currentPath).subscribe({
       next: (items: FileItem[]) => {
         this.items = items;
         this.loading = false;
+        this.changeDetectorRef.detectChanges();
       },
       error: (err: Error) => {
         this.error = 'Failed to load items: ' + err.message;
         this.loading = false;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }
@@ -118,6 +122,7 @@ export class FileBrowser implements OnInit {
       },
       error: (err: Error) => {
         this.error = 'Failed to create file: ' + err.message;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }
@@ -151,6 +156,7 @@ export class FileBrowser implements OnInit {
       },
       error: (err: Error) => {
         this.error = 'Failed to create folder: ' + err.message;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }
@@ -173,6 +179,7 @@ export class FileBrowser implements OnInit {
       },
       error: (err: Error) => {
         this.error = `Failed to delete ${item.name}: ` + err.message;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }

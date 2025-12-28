@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -25,7 +25,8 @@ export class FileEditor implements OnInit {
   constructor(
     private readonly fileApiService: FileApiService,
     private readonly route: ActivatedRoute,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly changeDetectorRef: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -43,16 +44,19 @@ export class FileEditor implements OnInit {
   loadFile(): void {
     this.loading = true;
     this.error = null;
+    this.changeDetectorRef.detectChanges();
 
     this.fileApiService.readFile(this.filePath).subscribe({
       next: (response: { content: string }) => {
         this.fileContent = response.content;
         this.originalContent = response.content;
         this.loading = false;
+        this.changeDetectorRef.detectChanges();
       },
       error: (err: Error) => {
         this.error = 'Failed to load file: ' + err.message;
         this.loading = false;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }
@@ -64,19 +68,23 @@ export class FileEditor implements OnInit {
     this.saving = true;
     this.error = null;
     this.successMessage = null;
+    this.changeDetectorRef.detectChanges();
 
     this.fileApiService.writeFile(this.filePath, this.fileContent).subscribe({
       next: () => {
         this.originalContent = this.fileContent;
         this.successMessage = 'File saved successfully!';
         this.saving = false;
+        this.changeDetectorRef.detectChanges();
         setTimeout(() => {
           this.successMessage = null;
+          this.changeDetectorRef.detectChanges();
         }, 3000);
       },
       error: (err: Error) => {
         this.error = 'Failed to save file: ' + err.message;
         this.saving = false;
+        this.changeDetectorRef.detectChanges();
       }
     });
   }
