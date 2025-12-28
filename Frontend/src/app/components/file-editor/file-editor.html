@@ -1,0 +1,54 @@
+<div class="container-fluid mt-4">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">{{ fileName }}</h4>
+      <div>
+        <button 
+          class="btn btn-primary btn-sm me-2" 
+          [disabled]="!isModified || saving"
+          (click)="saveFile()">
+          <span *ngIf="!saving">Save</span>
+          <span *ngIf="saving">Saving...</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" (click)="goBack()">
+          Back
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- Success message -->
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="successMessage = null"></button>
+      </div>
+
+      <!-- Error message -->
+      <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="error = null"></button>
+      </div>
+
+      <!-- Loading spinner -->
+      <div *ngIf="loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+
+      <!-- Text editor -->
+      <div *ngIf="!loading">
+        <textarea 
+          class="form-control font-monospace" 
+          [(ngModel)]="fileContent"
+          rows="20"
+          style="resize: vertical;"
+          placeholder="Enter file content..."></textarea>
+        
+        <div class="mt-2 text-muted">
+          <small *ngIf="isModified">⚠️ Unsaved changes</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

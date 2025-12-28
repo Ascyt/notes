@@ -52,3 +52,17 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Backend Files folder
+Backend/Files/
+
+# Angular / Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.angular/
+dist/
+.cache/
+.vscode/
+.DS_Store
+Thumbs.db
