@@ -1,12 +1,12 @@
 namespace Notes.Core.Directories;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualBasic.FileIO;
 
 [ApiController]
 [Route("api/dir")]
-public class DirectoryController(Options options) : ControllerBase
+public class DirectoryController(Options options, IDirectoryDeletionService deletionService) : ControllerBase
 {
     private readonly Options _options = options;
+    private readonly IDirectoryDeletionService _deletionService = deletionService;
 
     [HttpGet("{*path}")]
     [ProducesResponseType(StatusCodes.Status200OK)] 
@@ -104,23 +104,7 @@ public class DirectoryController(Options options) : ControllerBase
         }
 
         bool movedToRecycleBin = false;
-        if (OperatingSystem.IsWindows())
-        {
-            try
-            {
-                FileSystem.DeleteDirectory(fullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                movedToRecycleBin = true;
-            }
-            catch
-            {
-                // Fall back to permanent delete below.
-            }
-        }
-
-        if (!movedToRecycleBin)
-        {
-            Directory.Delete(fullPath, recursive: true);
-        }
+        movedToRecycleBin = _deletionService.DeleteDirectory(fullPath);
 
         return Ok(new
         {
