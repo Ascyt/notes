@@ -24,6 +24,9 @@ if (string.IsNullOrEmpty(options.Directory))
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+// Make the parsed command-line options available via DI.
+builder.Services.AddSingleton(options!);
+
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
