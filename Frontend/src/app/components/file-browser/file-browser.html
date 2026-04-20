@@ -1,0 +1,107 @@
+<div class="container-fluid mt-4">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">File Manager</h4>
+      <div>
+        <button class="btn btn-primary btn-sm me-2" (click)="showNewFile()">
+          <i class="bi bi-file-plus"></i> New File
+        </button>
+        <button class="btn btn-success btn-sm" (click)="showNewFolder()">
+          <i class="bi bi-folder-plus"></i> New Folder
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- Breadcrumb navigation -->
+      <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="javascript:void(0)" (click)="navigateToPath(-1)">Root</a>
+          </li>
+          <li 
+            *ngFor="let segment of pathSegments; let i = index" 
+            class="breadcrumb-item"
+            [class.active]="i === pathSegments.length - 1">
+            <a 
+              *ngIf="i < pathSegments.length - 1" 
+              href="javascript:void(0)" 
+              (click)="navigateToPath(i)">{{ segment }}</a>
+            <span *ngIf="i === pathSegments.length - 1">{{ segment }}</span>
+          </li>
+        </ol>
+      </nav>
+
+      <!-- Error message -->
+      <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" (click)="error = null"></button>
+      </div>
+
+      <!-- Loading spinner -->
+      <div *ngIf="loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+
+      <!-- New file input -->
+      <div *ngIf="showNewFileInput" class="mb-3">
+        <div class="input-group">
+          <input 
+            type="text" 
+            class="form-control" 
+            [(ngModel)]="newFileName" 
+            placeholder="Enter file name"
+            (keyup.enter)="createFile()"
+            (keyup.escape)="cancelInput()">
+          <button class="btn btn-primary" (click)="createFile()">Create</button>
+          <button class="btn btn-secondary" (click)="cancelInput()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- New folder input -->
+      <div *ngIf="showNewFolderInput" class="mb-3">
+        <div class="input-group">
+          <input 
+            type="text" 
+            class="form-control" 
+            [(ngModel)]="newFolderName" 
+            placeholder="Enter folder name"
+            (keyup.enter)="createFolder()"
+            (keyup.escape)="cancelInput()">
+          <button class="btn btn-success" (click)="createFolder()">Create</button>
+          <button class="btn btn-secondary" (click)="cancelInput()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- File list -->
+      <div *ngIf="!loading && items.length === 0" class="text-center text-muted py-5">
+        <p>No files or folders found.</p>
+      </div>
+
+      <div *ngIf="!loading && items.length > 0" class="list-group">
+        <div 
+          *ngFor="let item of items" 
+          class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center flex-grow-1" style="cursor: pointer;">
+            <span 
+              *ngIf="item.isDirectory" 
+              (click)="openFolder(item)"
+              class="me-2">📁 {{ item.name }}</span>
+            <span 
+              *ngIf="!item.isDirectory" 
+              (click)="openFile(item)"
+              class="me-2">📄 {{ item.name }}</span>
+            <small class="text-muted ms-3">{{ formatSize(item.size) }}</small>
+          </div>
+          <button 
+            class="btn btn-danger btn-sm" 
+            (click)="deleteItem(item)">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
