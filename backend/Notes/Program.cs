@@ -40,6 +40,7 @@ WebApplication app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    // http://localhost:5162/scalar/
     app.MapScalarApiReference();
 }
 

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Notes.Core.Directories;
+using Notes.Core.Disk.Directory;
 using Xunit;
 
-namespace Notes.Tests.Core.Directories;
+namespace Notes.Tests.Core.Disk.Directory;
 
 public class DirectoryControllerTests
 {
@@ -12,7 +12,7 @@ public class DirectoryControllerTests
         public TempDir()
         {
             Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "NotesTests_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Path);
+            System.IO.Directory.CreateDirectory(Path);
         }
 
         public string Path { get; }
@@ -21,9 +21,9 @@ public class DirectoryControllerTests
         {
             try
             {
-                if (Directory.Exists(Path))
+                if (System.IO.Directory.Exists(Path))
                 {
-                    Directory.Delete(Path, recursive: true);
+                    System.IO.Directory.Delete(Path, recursive: true);
                 }
             }
             catch
@@ -33,26 +33,26 @@ public class DirectoryControllerTests
         }
     }
 
-    private sealed class PermanentDeleteService : IDirectoryDeletionService
+    private sealed class PermanentTrashService : Notes.Core.Disk.Trash.IService
     {
         public bool DeleteDirectory(string fullPath)
         {
-            Directory.Delete(fullPath, recursive: true);
+            System.IO.Directory.Delete(fullPath, recursive: true);
             return false;
         }
     }
 
-    private static DirectoryController CreateController(string rootDir)
+    private static Notes.Core.Disk.Directory.Controller CreateController(string rootDir)
     {
         Options options = new() { Directory = rootDir };
-        return new DirectoryController(options, new PermanentDeleteService());
+        return new Notes.Core.Disk.Directory.Controller(options, new PermanentTrashService());
     }
 
     [Fact]
     public void Get_Returns500_WhenRootDirectoryNotConfigured()
     {
         Options options = new() { Directory = "" };
-        DirectoryController controller = new(options, new PermanentDeleteService());
+        Notes.Core.Disk.Directory.Controller controller = new(options, new PermanentTrashService());
 
         IActionResult result = controller.Get("/");
 
@@ -64,7 +64,7 @@ public class DirectoryControllerTests
     public void Get_ReturnsBadRequest_WhenPathDoesNotStartWithSlash()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Get("sub");
 
@@ -76,7 +76,7 @@ public class DirectoryControllerTests
     public void Get_ReturnsBadRequest_WhenResolvedPathEscapesRoot()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Get("/../outside");
 
@@ -88,7 +88,7 @@ public class DirectoryControllerTests
     public void Get_ReturnsNotFound_ForMissingDirectory()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Get("/does-not-exist");
 
@@ -103,7 +103,7 @@ public class DirectoryControllerTests
         string filePath = System.IO.Path.Combine(root.Path, "a.txt");
         File.WriteAllText(filePath, "hello");
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Get("/a.txt");
 
@@ -115,10 +115,10 @@ public class DirectoryControllerTests
     public void Get_ReturnsDirectoryListing_ForRoot()
     {
         using TempDir root = new();
-        Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "child"));
+        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "child"));
         File.WriteAllText(System.IO.Path.Combine(root.Path, "a.txt"), "hello");
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Get("/");
 
@@ -144,7 +144,7 @@ public class DirectoryControllerTests
     public void Create_RefusesRoot()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Create("/");
 
@@ -156,9 +156,9 @@ public class DirectoryControllerTests
     public void Create_ReturnsConflict_WhenDirectoryAlreadyExists()
     {
         using TempDir root = new();
-        Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "child"));
+        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "child"));
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Create("/child");
 
@@ -172,7 +172,7 @@ public class DirectoryControllerTests
         using TempDir root = new();
         File.WriteAllText(System.IO.Path.Combine(root.Path, "a.txt"), "hello");
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Create("/a.txt");
 
@@ -184,12 +184,12 @@ public class DirectoryControllerTests
     public void Create_CreatesDirectory_AndReturnsCreatedAtAction()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Create("/newdir");
 
         CreatedAtActionResult created = Assert.IsType<CreatedAtActionResult>(result);
-        Assert.Equal(nameof(DirectoryController.Get), created.ActionName);
+        Assert.Equal(nameof(Notes.Core.Disk.Directory.Controller.Get), created.ActionName);
 
         Assert.NotNull(created.Value);
         object payload = created.Value!;
@@ -197,7 +197,7 @@ public class DirectoryControllerTests
         string physicalPath = (string)payload.GetType().GetProperty("PhysicalPath")!.GetValue(payload)!;
 
         Assert.Equal("/newdir", virtualPath);
-        Assert.True(Directory.Exists(System.IO.Path.Combine(root.Path, "newdir")));
+        Assert.True(System.IO.Directory.Exists(System.IO.Path.Combine(root.Path, "newdir")));
         Assert.Equal(System.IO.Path.GetFullPath(System.IO.Path.Combine(root.Path, "newdir")), physicalPath);
     }
 
@@ -205,7 +205,7 @@ public class DirectoryControllerTests
     public void Delete_RefusesRoot()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Delete("/");
 
@@ -217,7 +217,7 @@ public class DirectoryControllerTests
     public void Delete_ReturnsNotFound_ForMissingDirectory()
     {
         using TempDir root = new();
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Delete("/missing");
 
@@ -231,7 +231,7 @@ public class DirectoryControllerTests
         using TempDir root = new();
         File.WriteAllText(System.IO.Path.Combine(root.Path, "a.txt"), "hello");
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Delete("/a.txt");
 
@@ -244,15 +244,15 @@ public class DirectoryControllerTests
     {
         using TempDir root = new();
         string targetDir = System.IO.Path.Combine(root.Path, "todelete");
-        Directory.CreateDirectory(targetDir);
-        File.WriteAllText(System.IO.Path.Combine(targetDir, "a.txt"), "hello");
+        System.IO.Directory.CreateDirectory(targetDir);
+        System.IO.File.WriteAllText(System.IO.Path.Combine(targetDir, "a.txt"), "hello");
 
-        DirectoryController controller = CreateController(root.Path);
+        Notes.Core.Disk.Directory.Controller controller = CreateController(root.Path);
 
         IActionResult result = controller.Delete("/todelete");
 
         OkObjectResult ok = Assert.IsType<OkObjectResult>(result);
-        Assert.False(Directory.Exists(targetDir));
+        Assert.False(System.IO.Directory.Exists(targetDir));
 
         Assert.NotNull(ok.Value);
         object payload = ok.Value!;

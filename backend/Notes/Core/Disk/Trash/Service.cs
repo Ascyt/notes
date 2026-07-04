@@ -1,8 +1,8 @@
 using Microsoft.VisualBasic.FileIO;
 
-namespace Notes.Core.Directories;
+namespace Notes.Core.Disk.Trash;
 
-public sealed class DirectoryDeletionService : IDirectoryDeletionService
+public sealed class Service : IService
 {
     public bool DeleteDirectory(string fullPath)
     {
@@ -19,7 +19,7 @@ public sealed class DirectoryDeletionService : IDirectoryDeletionService
             }
         }
 
-        Directory.Delete(fullPath, recursive: true);
+        System.IO.Directory.Delete(fullPath, recursive: true);
         return false;
     }
 }

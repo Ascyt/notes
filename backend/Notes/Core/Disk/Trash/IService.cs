@@ -1,6 +1,6 @@
-namespace Notes.Core.Directories;
+namespace Notes.Core.Disk.Trash;
 
-public interface IDirectoryDeletionService
+public interface IService
 {
     /// <summary>
     /// Deletes the directory at <paramref name="fullPath"/>.

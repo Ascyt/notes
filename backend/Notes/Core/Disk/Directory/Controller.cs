@@ -1,12 +1,12 @@
-namespace Notes.Core.Directories;
+namespace Notes.Core.Disk.Directory;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
-[Route("api/dir")]
-public class DirectoryController(Options options, IDirectoryDeletionService deletionService) : ControllerBase
+[Route("api/disk/dir")]
+public sealed class Controller(Options options, Trash.IService trashService) : ControllerBase
 {
     private readonly Options _options = options;
-    private readonly IDirectoryDeletionService _deletionService = deletionService;
+    private readonly Trash.IService _trashService = trashService;
 
     [HttpGet("{*path}")]
     [ProducesResponseType(StatusCodes.Status200OK)] 
@@ -17,25 +17,25 @@ public class DirectoryController(Options options, IDirectoryDeletionService dele
             return errorResult!;
         }
 
-        if (Directory.Exists(fullPath))
+        if (System.IO.Directory.Exists(fullPath))
         {
-            List<object> items = [..Directory.EnumerateFileSystemEntries(fullPath)
+            List<object> items = [..System.IO.Directory.EnumerateFileSystemEntries(fullPath)
                 .Select(entry =>
                 {
                     FileAttributes attributes = System.IO.File.GetAttributes(entry);
                     return new
                     {
-                        Name = Path.GetFileName(entry),
-                        SizeBytes = attributes.HasFlag(FileAttributes.Directory) ? 0 : new FileInfo(entry).Length,
-                        LastModified = new FileInfo(entry).LastWriteTime,
-                        IsDirectory = attributes.HasFlag(FileAttributes.Directory)
+                        Name = System.IO.Path.GetFileName(entry),
+                        SizeBytes = attributes.HasFlag(System.IO.FileAttributes.Directory) ? 0 : new System.IO.FileInfo(entry).Length,
+                        LastModified = new System.IO.FileInfo(entry).LastWriteTime,
+                        IsDirectory = attributes.HasFlag(System.IO.FileAttributes.Directory)
                     };
                 })];
 
             return Ok(new
             {
                 VirtualPath = virtualPath,
-                PhysicalPath = Path.GetFullPath(fullPath),
+                PhysicalPath = System.IO.Path.GetFullPath(fullPath),
                 Items = items
             });
         }
@@ -65,17 +65,17 @@ public class DirectoryController(Options options, IDirectoryDeletionService dele
             return UnprocessableEntity($"The path points to a file, not a directory: `{fullPath}`");
         }
 
-        if (Directory.Exists(fullPath))
+        if (System.IO.Directory.Exists(fullPath))
         {
             return Conflict($"Directory already exists: `{fullPath}`");
         }
 
-        Directory.CreateDirectory(fullPath);
+        System.IO.Directory.CreateDirectory(fullPath);
 
         return CreatedAtAction(nameof(Get), new { path = virtualPath.TrimStart('/') }, new
         {
             VirtualPath = virtualPath,
-            PhysicalPath = Path.GetFullPath(fullPath),
+            PhysicalPath = System.IO.Path.GetFullPath(fullPath),
         });
     }
 
@@ -98,18 +98,17 @@ public class DirectoryController(Options options, IDirectoryDeletionService dele
             return UnprocessableEntity($"The path points to a file, not a directory: `{fullPath}`");
         }
 
-        if (!Directory.Exists(fullPath))
+        if (!System.IO.Directory.Exists(fullPath))
         {
             return NotFound($"Not found: `{fullPath}`");
         }
 
-        bool movedToRecycleBin = false;
-        movedToRecycleBin = _deletionService.DeleteDirectory(fullPath);
+        bool movedToRecycleBin = _trashService.DeleteDirectory(fullPath);
 
         return Ok(new
         {
             VirtualPath = virtualPath,
-            PhysicalPath = Path.GetFullPath(fullPath),
+            PhysicalPath = System.IO.Path.GetFullPath(fullPath),
             Recycled = movedToRecycleBin
         });
     }
