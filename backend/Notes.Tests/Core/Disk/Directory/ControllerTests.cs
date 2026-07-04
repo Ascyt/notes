@@ -1,11 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Notes.Core.Disk.Directory;
 using Xunit;
 
 namespace Notes.Tests.Core.Disk.Directory;
 
-public class DirectoryControllerTests
+public class ControllerTests
 {
     private sealed class TempDir : IDisposable
     {
