@@ -3,14 +3,16 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/disk/dir")]
-public sealed class Controller(Options options, Trash.IService trashService) : ControllerBase
+public sealed class Controller(Options options, Trash.IService trashService, Config.IService configService, Naming.IService namingService) : ControllerBase
 {
     private readonly Options _options = options;
     private readonly Trash.IService _trashService = trashService;
+    private readonly Config.IService _configService = configService;
+    private readonly Naming.IService _namingService = namingService;
 
     [HttpGet("{*path}")]
     [ProducesResponseType(StatusCodes.Status200OK)] 
-    public IActionResult Get(string? path)
+    public async Task<IActionResult> GetAsync(string? path)
     {
         if (!TryResolvePath(path, out string virtualPath, out string fullPath, out IActionResult? errorResult))
         {
@@ -48,7 +50,7 @@ public sealed class Controller(Options options, Trash.IService trashService) : C
 
     [HttpPost("{*path}")]
     [ProducesResponseType(StatusCodes.Status201Created)]
-    public IActionResult Create(string? path)
+    public async Task<IActionResult> CreateAsync(string? path)
     {
         if (!TryResolvePath(path, out string virtualPath, out string fullPath, out IActionResult? errorResult))
         {
@@ -58,21 +60,29 @@ public sealed class Controller(Options options, Trash.IService trashService) : C
         if (virtualPath == "/")
         {
             return BadRequest("Refusing to create the root directory.");
-        }
+        }   
 
         if (System.IO.File.Exists(fullPath))
         {
             return UnprocessableEntity($"The path points to a file, not a directory: `{fullPath}`");
         }
 
-        if (System.IO.Directory.Exists(fullPath))
+        if (!System.IO.Directory.Exists(fullPath))
         {
-            return Conflict($"Directory already exists: `{fullPath}`");
+            return NotFound($"Directory does not exist: `{fullPath}`");
         }
 
-        System.IO.Directory.CreateDirectory(fullPath);
+        string newDirName = _namingService.GetFormattedName(fullPath, null);
 
-        return CreatedAtAction(nameof(Get), new { path = virtualPath.TrimStart('/') }, new
+        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullPath, newDirName));
+
+        await _configService.SaveConfigAsync(fullPath, new Config.Model
+        {
+            Name = "Untitled",
+            Files = []
+        });
+
+        return CreatedAtAction(nameof(GetAsync), new { path = virtualPath.TrimStart('/') }, new
         {
             VirtualPath = virtualPath,
             PhysicalPath = System.IO.Path.GetFullPath(fullPath),
@@ -81,7 +91,7 @@ public sealed class Controller(Options options, Trash.IService trashService) : C
 
     [HttpDelete("{*path}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult Delete(string? path)
+    public async Task<IActionResult> DeleteAsync(string? path)
     {
         if (!TryResolvePath(path, out string virtualPath, out string fullPath, out IActionResult? errorResult))
         {

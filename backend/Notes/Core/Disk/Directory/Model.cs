@@ -5,6 +5,6 @@ namespace Notes.Core.Disk.Directory;
 /// </summary>
 public sealed class Model
 {
-    public string? Path { get; set; } = null;
-    public required string Name { get; set; }
+    public required string Path { get; set; }
+    public required Config.Model Config { get; set; }
 }

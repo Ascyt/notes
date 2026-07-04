@@ -28,6 +28,8 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(options!);
 builder.Services.AddSingleton<Notes.Core.Disk.Data.IService, Notes.Core.Disk.Data.Service>();
 builder.Services.AddSingleton<Notes.Core.Disk.Trash.IService, Notes.Core.Disk.Trash.Service>();
+builder.Services.AddSingleton<Notes.Core.Disk.Config.IService, Notes.Core.Disk.Config.Service>();
+builder.Services.AddSingleton<Notes.Core.Disk.Naming.IService, Notes.Core.Disk.Naming.Service>();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
