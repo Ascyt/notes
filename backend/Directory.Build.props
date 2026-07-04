@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Centralize C# language version for all backend projects; use preview if SDK doesn't yet expose 15.0 -->
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+</Project>

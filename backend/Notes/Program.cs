@@ -1,7 +1,6 @@
 using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
 using Notes;
-using Notes.Core.Directories;
 using CommandLine;
 [assembly: ApiController]
 
@@ -27,7 +26,8 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Make the parsed command-line options available via DI.
 builder.Services.AddSingleton(options!);
-builder.Services.AddSingleton<IDirectoryDeletionService, DirectoryDeletionService>();
+builder.Services.AddSingleton<Notes.Core.Disk.Data.IService, Notes.Core.Disk.Data.Service>();
+builder.Services.AddSingleton<Notes.Core.Disk.Trash.IService, Notes.Core.Disk.Trash.Service>();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
