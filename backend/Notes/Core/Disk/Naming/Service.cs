@@ -18,7 +18,8 @@ public sealed class Service : IService
         
         int? attempts = 0;
         string tempFormattedName = formattedName;
-        while (File.Exists(System.IO.Path.Combine(dir, tempFormattedName + ".md")) || System.IO.Directory.Exists(System.IO.Path.Combine(dir, tempFormattedName)))
+        while (System.IO.File.Exists(System.IO.Path.Combine(dir, tempFormattedName + ".md")) || 
+            System.IO.Directory.Exists(System.IO.Path.Combine(dir, tempFormattedName)))
         {
             attempts++;
 

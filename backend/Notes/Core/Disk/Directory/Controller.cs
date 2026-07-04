@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/disk/dir")]
-public sealed class Controller(Options options, Trash.IService trashService, Config.IService configService, Naming.IService namingService) : ControllerBase
+public sealed class Controller(Options options, IService service, Trash.IService trashService, Naming.IService namingService) : ControllerBase
 {
     private readonly Options _options = options;
+    private readonly IService _service = service;
     private readonly Trash.IService _trashService = trashService;
-    private readonly Config.IService _configService = configService;
     private readonly Naming.IService _namingService = namingService;
 
     [HttpGet("{*path}")]
@@ -21,24 +21,11 @@ public sealed class Controller(Options options, Trash.IService trashService, Con
 
         if (System.IO.Directory.Exists(fullPath))
         {
-            List<object> items = [..System.IO.Directory.EnumerateFileSystemEntries(fullPath)
-                .Select(entry =>
-                {
-                    FileAttributes attributes = System.IO.File.GetAttributes(entry);
-                    return new
-                    {
-                        Name = System.IO.Path.GetFileName(entry),
-                        SizeBytes = attributes.HasFlag(System.IO.FileAttributes.Directory) ? 0 : new System.IO.FileInfo(entry).Length,
-                        LastModified = new System.IO.FileInfo(entry).LastWriteTime,
-                        IsDirectory = attributes.HasFlag(System.IO.FileAttributes.Directory)
-                    };
-                })];
-
             return Ok(new
             {
                 VirtualPath = virtualPath,
                 PhysicalPath = System.IO.Path.GetFullPath(fullPath),
-                Items = items
+                Model = await _service.LoadModelAsync(fullPath)
             });
         }
         
@@ -76,7 +63,7 @@ public sealed class Controller(Options options, Trash.IService trashService, Con
 
         System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullPath, newDirName));
 
-        await _configService.SaveConfigAsync(fullPath, new Config.Model
+        await _service.SaveModelAsync(fullPath, new Model
         {
             Name = "Untitled",
             Files = []
