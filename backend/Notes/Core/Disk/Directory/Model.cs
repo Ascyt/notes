@@ -6,15 +6,18 @@ namespace Notes.Core.Disk.Directory;
 public sealed class Model
 {
     public required string Name { get; set; }
-    public required Dictionary<string, File.Model> Files { get; set; }
+    public Dictionary<string, File.Model>? Files { get; set; } = null;
+    public Dictionary<string, Model?>? Subdirectories { get; set; } = null;
     public bool? EnableTrash { get; set; } = null;
 
-    public Model WithUpper(Model other)
+    public Model WithCombinedSettingsFrom(Model? other)
     {
-        if (other == null) 
-            return this;
-
-        EnableTrash = other.EnableTrash ?? EnableTrash;
-        return this;
+        return new()
+        {
+            Name = Name,
+            Files = Files,
+            Subdirectories = Subdirectories,
+            EnableTrash = EnableTrash ?? other?.EnableTrash,
+        };
     }
 }

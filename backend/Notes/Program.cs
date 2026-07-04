@@ -29,7 +29,6 @@ builder.Services.AddSingleton(options!);
 builder.Services.AddSingleton<Notes.Core.Disk.Data.IService, Notes.Core.Disk.Data.Service>();
 builder.Services.AddSingleton<Notes.Core.Disk.Directory.IService, Notes.Core.Disk.Directory.Service>();
 builder.Services.AddSingleton<Notes.Core.Disk.Trash.IService, Notes.Core.Disk.Trash.Service>();
-builder.Services.AddSingleton<Notes.Core.Disk.Config.IService, Notes.Core.Disk.Config.Service>();
 builder.Services.AddSingleton<Notes.Core.Disk.Naming.IService, Notes.Core.Disk.Naming.Service>();
 
 // Add services to the container.
@@ -52,5 +51,7 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+await app.Services.GetRequiredService<Notes.Core.Disk.Directory.IService>().RefreshTreeAsync();
 
 app.Run();

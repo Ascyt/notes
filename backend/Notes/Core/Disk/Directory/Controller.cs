@@ -25,7 +25,7 @@ public sealed class Controller(Options options, IService service, Trash.IService
             {
                 VirtualPath = virtualPath,
                 PhysicalPath = System.IO.Path.GetFullPath(fullPath),
-                Model = await _service.LoadModelAsync(fullPath)
+                Model = await _service.LoadRootModelAsync(fullPath)
             });
         }
         
@@ -44,11 +44,6 @@ public sealed class Controller(Options options, IService service, Trash.IService
             return errorResult!;
         }
 
-        if (virtualPath == "/")
-        {
-            return BadRequest("Refusing to create the root directory.");
-        }   
-
         if (System.IO.File.Exists(fullPath))
         {
             return UnprocessableEntity($"The path points to a file, not a directory: `{fullPath}`");
@@ -61,12 +56,13 @@ public sealed class Controller(Options options, IService service, Trash.IService
 
         string newDirName = _namingService.GetFormattedName(fullPath, null);
 
-        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullPath, newDirName));
+        string newDirPath = System.IO.Path.Combine(fullPath, newDirName);
+        System.IO.Directory.CreateDirectory(newDirPath);
 
-        await _service.SaveModelAsync(fullPath, new Model
+        await _service.SaveModelAsync(newDirPath, new Model
         {
-            Name = "Untitled",
-            Files = []
+            Name = newDirName,
+            EnableTrash = null
         });
 
         return CreatedAtAction(nameof(GetAsync), new { path = virtualPath.TrimStart('/') }, new
@@ -100,7 +96,20 @@ public sealed class Controller(Options options, IService service, Trash.IService
             return NotFound($"Not found: `{fullPath}`");
         }
 
-        bool movedToRecycleBin = _trashService.DeleteDirectory(fullPath);
+        bool? enableTrash = await _service.ResolveEnableTrashAsync(fullPath);
+
+        bool movedToRecycleBin;
+        if (enableTrash == false)
+        {
+            System.IO.Directory.Delete(fullPath, recursive: true);
+            movedToRecycleBin = false;
+        }
+        else
+        {
+            movedToRecycleBin = _trashService.DeleteDirectory(fullPath);
+        }
+
+        await _service.RefreshTreeAsync();
 
         return Ok(new
         {
