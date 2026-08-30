@@ -1,0 +1,22 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Client-side libraries restored via LibMan (see notes/libman.json)
+**/wwwroot/lib/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
