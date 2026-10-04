@@ -2,6 +2,19 @@
 
 <p>Current File: /@Model.VirtualPath</p>
 
-<pre>
-    @Model.Contents
-</pre>
+<div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
+
+<script src="~/lib/monaco-editor/min/vs/loader.js"></script>
+<script>
+    require.config({ paths: { vs: '@Url.Content("~/lib/monaco-editor/min/vs")' } });
+
+    require(['vs/editor/editor.main'], function () {
+        window.editor = monaco.editor.create(document.getElementById('editor'), {
+            value: @Json.Serialize(Model.Contents),
+            language: @Json.Serialize(Model.Language),
+            theme: 'vs',
+            readonly: false,
+            automaticLayout: true
+        });
+    });
+</script>
