@@ -4,9 +4,8 @@
     ViewData["Title"] = Model.VirtualPath;
 }
 
-@if (Model.NDirectory is not null)
+@if (Model.Directory is not null)
 {
-    <partial name="Partials/NDirectory" model="Model.NDirectory"/>
+    <partial name="Partials/Directory" model="Model.Directory"/>
 }
 
-<p>@Model.PhysicalPath</p>

@@ -1,0 +1,28 @@
+@model notes.Pages.Partials.Directory
+
+<p>Current directory: /@Model.VirtualPath</p>
+
+<div>
+    <table class="table">
+        <tbody>
+        @foreach (string path in Model.Directories)
+        {
+            <tr>
+                @{
+                    string virtualPath = Model.ToVirtualPath(path);
+                }
+                <td><a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+            </tr>
+        }
+        @foreach (string path in Model.Files)
+        {
+            <tr>
+                @{
+                    string virtualPath = Model.ToVirtualPath(path);
+                }
+                <td><a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
