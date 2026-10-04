@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Pages.Services;
 
-namespace notes.Pages.Partials;
+namespace notes.Pages.View;
 
 public class Directory(Config config, IPathService path) : PageModel
 {

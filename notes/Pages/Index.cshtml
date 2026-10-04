@@ -6,6 +6,9 @@
 
 @if (Model.Directory is not null)
 {
-    <partial name="Partials/Directory" model="Model.Directory"/>
+    <partial name="View/Directory" model="Model.Directory"/>
 }
-
+else if (Model.File is not null)
+{
+    <partial name="View/File" model="Model.File"/>
+}
