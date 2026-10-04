@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Pages;
+namespace notes.Pages._;
 
-public class PrivacyModel : PageModel
+public sealed class AboutModel : PageModel
 {
     public void OnGet()
     {

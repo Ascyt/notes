@@ -13,4 +13,8 @@
       </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Pages\Notes\Index.cshtml" />
+    </ItemGroup>
+
 </Project>

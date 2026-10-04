@@ -2,11 +2,11 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Pages;
+namespace notes.Pages._;
 
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
-public class ErrorModel : PageModel
+public sealed class ErrorModel : PageModel
 {
     public string? RequestId { get; set; }
 
