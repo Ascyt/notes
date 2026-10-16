@@ -2,7 +2,14 @@
 
 <p>Current File: /@Model.VirtualPath</p>
 
+@Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
+<div class="mt-2">
+    <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()">
+        Save
+    </button>
+    <span id="save-loading" class="spinner-border spinner-border-sm text-secondary" style="display: none;" aria-hidden="true"></span>
+</div>
 
 <script src="~/lib/monaco-editor/min/vs/loader.js"></script>
 <script>
@@ -16,5 +23,68 @@
             readonly: false,
             automaticLayout: true
         });
+
+        savedVersionId = window.editor.getModel().getAlternativeVersionId();
+        window.editor.onDidChangeModelContent(updateDirty);
+
+        window.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+    });
+
+    let savedVersionId = null;
+    let isDirty = false;
+    let isSaving = false;
+
+    function updateDirty() {
+        isDirty = window.editor.getModel().getAlternativeVersionId() !== savedVersionId;
+        document.getElementById('save-button').style.display = isDirty ? '' : 'none';
+    }
+
+    function setSaving(saving) {
+        isSaving = saving;
+        document.getElementById('save-loading').style.display = saving ? '' : 'none';
+        if (saving)
+            document.getElementById('save-button').style.display = 'none';
+    }
+
+    async function saveFile() {
+        if (!window.editor || isSaving)
+            return;
+
+        setSaving(true);
+        
+        const versionId = window.editor.getModel().getAlternativeVersionId();
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        let response;
+        try {
+            response = await fetch(window.location.pathname, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token, 'Content-Type': 'text/plain; charset=utf-8' },
+                body: window.editor.getValue()
+            });
+        } catch {
+            response = { ok: false, status: 'network error' };
+        } finally {
+            setSaving(false);
+        }
+        if (!response.ok) {
+            alert('Failed to save file (' + response.status + ').');
+            return;
+        }
+        savedVersionId = versionId;
+        updateDirty();
+    }
+
+    // Built-in browser prompt when leaving with unsaved changes
+    window.addEventListener('beforeunload', function (e) {
+        if (isDirty)
+            e.preventDefault();
+    });
+
+    // Also intercept Ctrl+S when focus is outside the editor
+    document.addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            saveFile();
+        }
     });
 </script>

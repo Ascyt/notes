@@ -2,5 +2,6 @@
 
 public sealed class Config
 {
-    public required string Dir { get; init; } 
+    public required string Dir { get; init; }
+    public string Title { get; init; } = "Notes";
 }

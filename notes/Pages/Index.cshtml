@@ -1,7 +1,9 @@
 @page "{**path}"
+@using notes.Pages.Extensions
 @model notes.Pages.IndexModel
+@inject Config Config
 @{
-    ViewData["Title"] = Model.VirtualPath;
+    ViewData["Title"] = Model.VirtualPath.NormalizedWith(Config.Title);
 }
 
 @if (Model.Directory is not null)

@@ -43,4 +43,22 @@ public sealed class IndexModel(Config config, IPathService path) : PageModel
 
         return Page();
     }
+
+    public async Task<IActionResult> OnPostAsync()
+    {
+        VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
+        if (VirtualPath.StartsWith("_/"))
+            return NotFound("Page not found.");
+
+        PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+
+        if (!System.IO.File.Exists(PhysicalPath))
+            return NotFound("File not found.");
+
+        using StreamReader reader = new(Request.Body, System.Text.Encoding.UTF8);
+        string contents = await reader.ReadToEndAsync();
+        await System.IO.File.WriteAllTextAsync(PhysicalPath, contents);
+
+        return new OkResult();
+    }
 }
