@@ -4,7 +4,10 @@ using notes.Pages.Services;
 
 namespace notes.Pages;
 
-public sealed class IndexModel(Config config, IPathService path) : PageModel
+public sealed class IndexModel(Config config, 
+    IPathService path, 
+    IFileService fileService, 
+    IDirectoryService directoryService) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -52,12 +55,21 @@ public sealed class IndexModel(Config config, IPathService path) : PageModel
 
         PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
 
+        string? create = Request.Query["create"];
+        if (create is not null)
+        {
+            if (!System.IO.Directory.Exists(PhysicalPath))
+                return NotFound("Directory not found.");
+            if (create is not ("file" or "directory"))
+                return BadRequest("Invalid create kind.");
+
+            return Redirect("/" + directoryService.CreateEntry(PhysicalPath, create == "file"));
+        }
+
         if (!System.IO.File.Exists(PhysicalPath))
             return NotFound("File not found.");
 
-        using StreamReader reader = new(Request.Body, System.Text.Encoding.UTF8);
-        string contents = await reader.ReadToEndAsync();
-        await System.IO.File.WriteAllTextAsync(PhysicalPath, contents);
+        await fileService.SaveAsync(PhysicalPath, Request.Body);
 
         return new OkResult();
     }

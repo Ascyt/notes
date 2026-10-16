@@ -10,6 +10,8 @@ Config config = builder.Configuration.GetSection("Config").Get<Config>()!;
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<IPathService, PathService>();
+builder.Services.AddSingleton<IFileService, FileService>();
+builder.Services.AddSingleton<IDirectoryService, DirectoryService>();
 
 WebApplication app = builder.Build();
 string dir = Path.GetFullPath(config.Dir);

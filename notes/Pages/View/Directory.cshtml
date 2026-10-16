@@ -14,6 +14,17 @@
                 <td><i class="fa-regular fa-folder"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
             </tr>
         }
+        <tr>
+            <td class="border-bottom-0">
+                <form method="post" class="d-flex gap-3">
+                    <button type="submit" formaction="?create=directory" class="btn btn-sm p-0"><i class="fa-regular fa-square-plus"></i> Create subdirectory</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <table class="table">
+        <tbody>
         @foreach (string path in Model.Files)
         {
             <tr>
@@ -23,6 +34,13 @@
                 <td><i class="fa-regular fa-file"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
             </tr>
         }
+        <tr>
+            <td class="border-bottom-0">
+                <form method="post" class="d-flex gap-3">
+                    <button type="submit" formaction="?create=file" class="btn btn-sm p-0"><i class="fa-regular fa-square-plus"></i> Create file</button>
+                </form>
+            </td>
+        </tr>
         </tbody>
     </table>
 </div>
