@@ -38,6 +38,7 @@
             window.editor.onDidChangeModelContent(updateDirty);
 
             window.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+            window.editor.focus();
         });
     }
 
