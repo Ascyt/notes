@@ -2,6 +2,11 @@
 
 <p>Current directory: /@Model.VirtualPath</p>
 
+@if (Model.VirtualPath != "")
+{
+    <partial name="View/RenameInput" model="new RenameInput { Name = System.IO.Path.GetFileName(Model.PhysicalPath) }"/>
+}
+
 <div>
     <table class="table">
         <tbody>

@@ -1,6 +1,8 @@
 @model notes.Pages.View.File
 
-<p>Current File: /@Model.VirtualPath</p>
+<p>Current file: /@Model.VirtualPath</p>
+
+<partial name="View/RenameInput" model='new notes.Pages.View.RenameInput { Name = System.IO.Path.GetFileName(Model.PhysicalPath) }'/>
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
@@ -88,6 +90,12 @@
     // Deleting needs confirmation unless the file is empty and has no unsaved changes
     window.needsDeleteConfirmation = () => !window.editor || isDirty || window.editor.getValue() !== '';
     window.onEntryDeleted = () => { isDirty = false; };
+    window.beforeRename = () => {
+        if (isDirty || isSaving) {
+            alert('The file has unsaved changes. Save it before renaming.');
+            return false;
+        }
+    };
 
     // Built-in browser prompt when leaving with unsaved changes
     window.addEventListener('beforeunload', function (e) {

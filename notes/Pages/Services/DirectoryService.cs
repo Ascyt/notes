@@ -22,10 +22,23 @@ public sealed class DirectoryService(Config config, IPathService path) : IDirect
 
     public void Delete(string physicalPath)
         => Directory.Delete(physicalPath, recursive: true);
+
+    public string? Rename(string physicalPath, string newName)
+    {
+        string newPhysicalPath = Path.Combine(Path.GetDirectoryName(physicalPath)!, newName);
+        if (Path.Exists(newPhysicalPath) && !string.Equals(newPhysicalPath, physicalPath, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        Directory.Move(physicalPath, newPhysicalPath);
+        return path.ToVirtualPath(config.Dir, newPhysicalPath);
+    }
 }
 
 public interface IDirectoryService
 {
+    /// <summary>Renames the directory and returns its new virtual path, or null if the name is already taken.</summary>
+    string? Rename(string physicalPath, string newName);
+
     /// <summary>Deletes the directory and everything in it.</summary>
     void Delete(string physicalPath);
 

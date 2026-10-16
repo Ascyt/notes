@@ -66,6 +66,27 @@ public sealed class IndexModel(Config config,
             return Redirect("/" + directoryService.CreateEntry(PhysicalPath, create == "file"));
         }
 
+        string? rename = Request.Query["rename"];
+        if (rename is not null)
+        {
+            if (VirtualPath == "")
+                return BadRequest("Cannot rename the root directory.");
+            if (!path.IsValidName(rename))
+                return BadRequest("Invalid name.");
+
+            string? newVirtualPath;
+            if (System.IO.Directory.Exists(PhysicalPath))
+                newVirtualPath = directoryService.Rename(PhysicalPath, rename);
+            else if (System.IO.File.Exists(PhysicalPath))
+                newVirtualPath = fileService.Rename(PhysicalPath, rename);
+            else
+                return NotFound("Path not found.");
+
+            return newVirtualPath is null
+                ? new ConflictObjectResult("A file or directory with that name already exists.")
+                : Content("/" + newVirtualPath);
+        }
+
         if (!System.IO.File.Exists(PhysicalPath))
             return NotFound("File not found.");
 
