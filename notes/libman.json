@@ -24,6 +24,17 @@
       "files": [
         "min/vs/**"
       ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "@fortawesome/fontawesome-free@7.3.1",
+      "destination": "wwwroot/lib/fontawesome",
+      "files": [
+        "css/all.min.css",
+        "webfonts/fa-solid-900.woff2",
+        "webfonts/fa-regular-400.woff2",
+        "webfonts/fa-brands-400.woff2"
+      ]
     }
   ]
 }

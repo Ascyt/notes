@@ -11,7 +11,7 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+                <td><i class="fa-regular fa-folder"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
             </tr>
         }
         @foreach (string path in Model.Files)
@@ -20,7 +20,7 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+                <td><i class="fa-regular fa-file"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
             </tr>
         }
         </tbody>
