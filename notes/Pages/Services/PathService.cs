@@ -14,7 +14,7 @@ public sealed class PathService : IPathService
 
     public string ToVirtualPath(string dir, string physicalPath)
     {
-        string s = physicalPath.TrimStart(Path.GetFullPath(dir)).ToString();
+        string s = Path.GetRelativePath(Path.GetFullPath(dir), physicalPath);
         return s.Replace('\\', '/');
     }
 }

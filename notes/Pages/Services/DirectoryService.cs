@@ -19,10 +19,16 @@ public sealed class DirectoryService(Config config, IPathService path) : IDirect
 
         return path.ToVirtualPath(config.Dir, newPhysicalPath);
     }
+
+    public void Delete(string physicalPath)
+        => Directory.Delete(physicalPath, recursive: true);
 }
 
 public interface IDirectoryService
 {
+    /// <summary>Deletes the directory and everything in it.</summary>
+    void Delete(string physicalPath);
+
     /// <summary>Creates a timestamp-named file or directory and returns its virtual path.</summary>
     string CreateEntry(string physicalDirectory, bool isFile);
 }

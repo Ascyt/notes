@@ -9,26 +9,37 @@
         <i class="fa-solid fa-floppy-disk"></i> Save
     </button>
     <span id="save-loading" class="spinner-border spinner-border-sm text-secondary" style="display: none;" aria-hidden="true"></span>
+    <partial name="View/DeleteButton" model='new notes.Pages.View.DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
 </div>
 
-<script src="~/lib/monaco-editor/min/vs/loader.js"></script>
 <script>
-    require.config({ paths: { vs: '@Url.Content("~/lib/monaco-editor/min/vs")' } });
-
-    require(['vs/editor/editor.main'], function () {
-        window.editor = monaco.editor.create(document.getElementById('editor'), {
-            value: @Json.Serialize(Model.Contents),
-            language: @Json.Serialize(Model.Language),
-            theme: 'vs',
-            readonly: false,
-            automaticLayout: true
-        });
-
-        savedVersionId = window.editor.getModel().getAlternativeVersionId();
-        window.editor.onDidChangeModelContent(updateDirty);
-
-        window.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+    // Monaco's loader defines a global AMD `define`, which makes the Bootstrap bundle register as a module
+    // instead of setting window.bootstrap. Load it only once all page scripts (incl. Bootstrap) have run.
+    document.addEventListener('DOMContentLoaded', function () {
+        const loader = document.createElement('script');
+        loader.src = '@Url.Content("~/lib/monaco-editor/min/vs/loader.js")';
+        loader.onload = initEditor;
+        document.head.appendChild(loader);
     });
+
+    function initEditor() {
+        require.config({ paths: { vs: '@Url.Content("~/lib/monaco-editor/min/vs")' } });
+
+        require(['vs/editor/editor.main'], function () {
+            window.editor = monaco.editor.create(document.getElementById('editor'), {
+                value: @Json.Serialize(Model.Contents),
+                language: @Json.Serialize(Model.Language),
+                theme: 'vs',
+                readonly: false,
+                automaticLayout: true
+            });
+
+            savedVersionId = window.editor.getModel().getAlternativeVersionId();
+            window.editor.onDidChangeModelContent(updateDirty);
+
+            window.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+        });
+    }
 
     let savedVersionId = null;
     let isDirty = false;
@@ -73,6 +84,10 @@
         savedVersionId = versionId;
         updateDirty();
     }
+
+    // Deleting needs confirmation unless the file is empty and has no unsaved changes
+    window.needsDeleteConfirmation = () => !window.editor || isDirty || window.editor.getValue() !== '';
+    window.onEntryDeleted = () => { isDirty = false; };
 
     // Built-in browser prompt when leaving with unsaved changes
     window.addEventListener('beforeunload', function (e) {

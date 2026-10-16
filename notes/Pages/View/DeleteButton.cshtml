@@ -1,0 +1,62 @@
+@model notes.Pages.View.DeleteButton
+
+@Html.AntiForgeryToken()
+<button type="button" class="btn btn-sm btn-outline-danger" onclick="requestDelete()">
+    <i class="fa-regular fa-trash-can"></i> Delete
+</button>
+
+<div class="modal fade" id="delete-modal" tabindex="-1" aria-labelledby="delete-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="delete-modal-title">Confirm deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the current @Model.Kind? This cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteEntry()">
+                    <i class="fa-regular fa-trash-can"></i> Delete @Model.Kind
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function requestDelete() {
+        const needsConfirmation = typeof window.needsDeleteConfirmation === 'function'
+            ? window.needsDeleteConfirmation()
+            : @Json.Serialize(Model.NeedsConfirmation);
+
+        if (needsConfirmation)
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('delete-modal')).show();
+        else
+            deleteEntry();
+    }
+
+    async function deleteEntry() {
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        let response;
+        try {
+            response = await fetch(window.location.pathname, {
+                method: 'DELETE',
+                headers: { 'RequestVerificationToken': token }
+            });
+        } catch {
+            response = { ok: false, status: 'network error' };
+        }
+        if (!response.ok) {
+            alert('Failed to delete (' + response.status + ').');
+            return;
+        }
+
+        // Don't prompt about unsaved changes of a file that no longer exists
+        if (typeof window.onEntryDeleted === 'function')
+            window.onEntryDeleted();
+        const parent = window.location.pathname.replace(/\/+$/, '').replace(/\/[^\/]*$/, '');
+        window.location.href = parent === '' ? '/' : parent;
+    }
+</script>

@@ -73,4 +73,24 @@ public sealed class IndexModel(Config config,
 
         return new OkResult();
     }
+
+    public IActionResult OnDelete()
+    {
+        VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
+        if (VirtualPath.StartsWith("_/"))
+            return NotFound("Page not found.");
+        if (VirtualPath == "")
+            return BadRequest("Cannot delete the root directory.");
+
+        PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+
+        if (System.IO.Directory.Exists(PhysicalPath))
+            directoryService.Delete(PhysicalPath);
+        else if (System.IO.File.Exists(PhysicalPath))
+            fileService.Delete(PhysicalPath);
+        else
+            return NotFound("Path not found.");
+
+        return new OkResult();
+    }
 }

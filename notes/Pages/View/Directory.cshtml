@@ -11,13 +11,13 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-folder"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+                <td><i class="fa-regular fa-folder"></i> <a href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
                 <form method="post" class="d-flex gap-3">
-                    <button type="submit" formaction="?create=directory" class="btn btn-sm p-0"><i class="fa-regular fa-square-plus"></i> Create subdirectory</button>
+                    <button type="submit" formaction="?create=directory" class="btn btn-sm p-0"><i class="fa-solid fa-plus"></i> Create subdirectory</button>
                 </form>
             </td>
         </tr>
@@ -31,16 +31,20 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-file"></i> <a href="/@virtualPath">@virtualPath.TrimStart(Model.VirtualPath + '/').ToString()</a></td>
+                <td><i class="fa-regular fa-file"></i> <a href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
                 <form method="post" class="d-flex gap-3">
-                    <button type="submit" formaction="?create=file" class="btn btn-sm p-0"><i class="fa-regular fa-square-plus"></i> Create file</button>
+                    <button type="submit" formaction="?create=file" class="btn btn-sm p-0"><i class="fa-solid fa-plus"></i> Create file</button>
                 </form>
             </td>
         </tr>
         </tbody>
     </table>
+    @if (Model.VirtualPath != "")
+    {
+        <partial name="View/DeleteButton" model='new notes.Pages.View.DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
+    }
 </div>
