@@ -1,10 +1,8 @@
 @model notes.Pages.View.Directory
 
-<p>Current directory: /@Model.VirtualPath</p>
-
 @if (Model.VirtualPath != "")
 {
-    <partial name="View/RenameInput" model="new RenameInput { Name = System.IO.Path.GetFileName(Model.PhysicalPath) }"/>
+    <partial name="View/Breadcrumb" model="new Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
 }
 
 <div>
@@ -16,7 +14,7 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-folder"></i> <a href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
+                <td><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
@@ -36,7 +34,7 @@
                 @{
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-file"></i> <a href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
+                <td><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>

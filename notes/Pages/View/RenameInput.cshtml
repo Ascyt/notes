@@ -1,6 +1,6 @@
 @model notes.Pages.View.RenameInput
 
-<div id="rename" class="input-group input-group-sm mb-3" style="max-width: 32rem;">
+<div id="rename" class="input-group input-group-sm" style="max-width: 32rem;">
     @Html.AntiForgeryToken()
     <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" autocomplete="off" spellcheck="false"/>
     <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="Reset" onclick="resetRename()">

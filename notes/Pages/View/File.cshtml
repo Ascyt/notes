@@ -1,8 +1,6 @@
 @model notes.Pages.View.File
 
-<p>Current file: /@Model.VirtualPath</p>
-
-<partial name="View/RenameInput" model='new notes.Pages.View.RenameInput { Name = System.IO.Path.GetFileName(Model.PhysicalPath) }'/>
+<partial name="View/Breadcrumb" model="new Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
