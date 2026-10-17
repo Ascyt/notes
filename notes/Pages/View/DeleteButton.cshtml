@@ -1,7 +1,7 @@
 @model notes.Pages.View.DeleteButton
 
 @Html.AntiForgeryToken()
-<button type="button" class="btn btn-sm btn-outline-danger" onclick="requestDelete()">
+<button type="button" class="btn btn-sm btn-outline-danger" onclick="requestDelete()" key="Delete">
     <i class="fa-regular fa-trash-can"></i> Delete
 </button>
 
@@ -16,8 +16,8 @@
                 Are you sure you want to delete the current @Model.Kind? This cannot be undone.
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" onclick="deleteEntry()">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteEntry()" key="Enter">
                     <i class="fa-regular fa-trash-can"></i> Delete @Model.Kind
                 </button>
             </div>

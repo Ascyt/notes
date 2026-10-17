@@ -21,6 +21,16 @@ body {
   margin-bottom: 60px;
 }
 
+/* Position of an entry in a directory listing, shown left of its icon */
+.entry-index {
+  display: inline-block;
+  min-width: 2ch;
+  margin-right: 0.5rem;
+  text-align: right;
+  font-size: 0.75em;
+  opacity: 0.5;
+}
+
 /* Shortcut tooltips shown while the hint key is held (see js/shortcuts.js) */
 .key-hint {
   position: fixed;
@@ -31,7 +41,8 @@ body {
   color: #fff;
   font-family: var(--bs-font-monospace, monospace);
   font-size: 0.75rem;
-  white-space: nowrap;
+  white-space: pre;
+  text-align: center;
   pointer-events: none;
 }
 

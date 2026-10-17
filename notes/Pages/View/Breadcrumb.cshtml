@@ -1,11 +1,11 @@
 @model notes.Pages.View.Breadcrumb
 
 <div class="d-flex align-items-center gap-1 mb-3">
-    <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@(Model.ParentVirtualPath == "" ? "!ArrowUp" : null)"><i class="fa-regular fa-house fa-xs"></i></a>
+    <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@(Model.ParentVirtualPath == "" ? "!ArrowUp Backspace" : null)"><i class="fa-regular fa-house fa-xs"></i></a>
     <span class="text-secondary opacity-50">/</span>
     @foreach ((string name, string virtualPath) in Model.Parents)
     {
-        <a class="text-decoration-none" href="/@virtualPath" key="@(virtualPath == Model.ParentVirtualPath ? "!ArrowUp" : null)">@name</a>
+        <a class="text-decoration-none" href="/@virtualPath" key="@(virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null)">@name</a>
         <span class="text-secondary opacity-50">/</span>
     }
     @if (!Model.IsRoot)

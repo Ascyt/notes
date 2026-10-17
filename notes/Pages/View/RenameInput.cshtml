@@ -2,11 +2,11 @@
 
 <div id="rename" class="input-group input-group-sm" style="max-width: 32rem;">
     @Html.AntiForgeryToken()
-    <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" autocomplete="off" spellcheck="false"/>
-    <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="Reset" onclick="resetRename()">
+    <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" autocomplete="off" spellcheck="false" key="F2"/>
+    <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="Reset" onclick="resetRename()" key="Escape">
         <i class="fa-solid fa-xmark"></i>
     </button>
-    <button id="rename-confirm" type="button" class="btn btn-success" style="display: none;" title="Rename" onclick="renameEntry()">
+    <button id="rename-confirm" type="button" class="btn btn-success" style="display: none;" title="Rename" onclick="renameEntry()" key="Enter">
         <i class="fa-solid fa-check"></i>
     </button>
 </div>

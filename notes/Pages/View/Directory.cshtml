@@ -8,19 +8,20 @@
 <div>
     <table class="table">
         <tbody>
-        @foreach (string path in Model.Directories)
+        @for (int i = 0; i < Model.Directories.Length; i++)
         {
             <tr>
                 @{
+                    string path = Model.Directories[i];
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
+                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@notes.Pages.View.Directory.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
                 <form method="post" class="d-flex gap-3">
-                    <button type="submit" formaction="?create=directory" class="btn btn-sm p-0"><i class="fa-solid fa-plus"></i> Create subdirectory</button>
+                    <button type="submit" formaction="?create=directory" class="btn btn-sm p-0" key="n" key-anchor="i"><i class="fa-solid fa-plus"></i> Create subdirectory</button>
                 </form>
             </td>
         </tr>
@@ -28,19 +29,20 @@
     </table>
     <table class="table">
         <tbody>
-        @foreach (string path in Model.Files)
+        @for (int i = 0; i < Model.Files.Length; i++)
         {
             <tr>
                 @{
+                    string path = Model.Files[i];
                     string virtualPath = Model.ToVirtualPath(path);
                 }
-                <td><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath">@System.IO.Path.GetFileName(path)</a></td>
+                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@notes.Pages.View.Directory.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
                 <form method="post" class="d-flex gap-3">
-                    <button type="submit" formaction="?create=file" class="btn btn-sm p-0"><i class="fa-solid fa-plus"></i> Create file</button>
+                    <button type="submit" formaction="?create=file" class="btn btn-sm p-0" key="+n" key-anchor="i"><i class="fa-solid fa-plus"></i> Create file</button>
                 </form>
             </td>
         </tr>

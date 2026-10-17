@@ -3,7 +3,7 @@
 <partial name="View/Breadcrumb" model="new Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 
 @Html.AntiForgeryToken()
-<div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
+<div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
 <div class="mt-2">
     <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()" key="^S">
         <i class="fa-solid fa-floppy-disk"></i> Save
@@ -37,9 +37,21 @@
             savedVersionId = window.editor.getModel().getAlternativeVersionId();
             window.editor.onDidChangeModelContent(updateDirty);
 
+            // Escape leaves the editor, unless Monaco needs it to close a widget or drop extra cursors
+            window.editor.addCommand(monaco.KeyCode.Escape, function () {
+                document.activeElement.blur();
+            }, '!findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !inSnippetMode && !renameInputVisible && !hasMultipleSelections && !editorHasSelection');
+
             window.editor.focus();
         });
     }
+
+    // The editor's key shortcut (see shortcuts.js) focuses it
+    document.getElementById('editor').addEventListener('shortcut', function (e) {
+        e.preventDefault();
+        if (window.editor)
+            window.editor.focus();
+    });
 
     let savedVersionId = null;
     let isDirty = false;

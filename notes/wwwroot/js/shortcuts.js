@@ -12,18 +12,26 @@
 //   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values
 //
 // Triggering clicks the element, or focuses it if it is a text field. Disabled elements are skipped.
+// To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
+// and call preventDefault() to skip the default action:
+//   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
 // A shortcut without Ctrl/Alt/Meta is ignored while typing in a field.
 // Shortcuts are captured before the page (and Monaco) sees them, so they take precedence over those.
+// Escape in a form field (except Monaco) also unfocuses it.
 //
-// While HINT_KEY is held, a tooltip with its shortcut is shown on every visible element that has one.
+// While any of HINT_KEYS is held, a tooltip with its shortcut is shown on every visible element that has one,
+// alternative shortcuts under each other. By default it is centered on the element; to place it over another
+// one, add `key-anchor` with a CSS selector, searched within the element's parent first, then the document:
+//   <td><i class="icon"></i> <a href=".." key="^1" key-anchor=".icon">Notes</a></td>   shows over the icon
 (function () {
-    const HINT_KEY = 'ControlRight'; // a KeyboardEvent.code
+    const HINT_KEYS = ['ControlRight']; // KeyboardEvent.code values
+    const heldHintKeys = new Set();
 
     // Symbols shown in the hint tooltip. Key names that aren't listed are shown as written.
     const MODIFIER_SYMBOLS = { ctrlKey: '⎈', altKey: '⎇', shiftKey: '⇧', metaKey: '❖' };
     const KEY_SYMBOLS = {
         arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', space: '␣', escape: '⎋',
-        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦'
+        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦', home: '⇱', end: '⇲'
     };
 
     const MODIFIERS = { '^': 'ctrlKey', '!': 'altKey', '+': 'shiftKey', '#': 'metaKey' };
@@ -72,6 +80,10 @@
     }
 
     function trigger(el) {
+        // A page can take over the action: listen for `shortcut` on the element and call preventDefault()
+        if (!el.dispatchEvent(new CustomEvent('shortcut', { cancelable: true })))
+            return;
+
         if (el.matches('input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]), textarea, select')) {
             el.focus();
             if (typeof el.select === 'function' && el.matches('input, textarea'))
@@ -100,16 +112,41 @@
 
     let hints = [];
 
+    function isRendered(el) {
+        const rect = el.getBoundingClientRect();
+        return rect.width !== 0 || rect.height !== 0;
+    }
+
+    // The element the hint is centered on: the one `key-anchor` selects, otherwise the element itself
+    function anchorOf(el) {
+        const selector = el.getAttribute('key-anchor');
+        if (selector) {
+            const anchor = (el.parentElement && el.parentElement.querySelector(selector)) || document.querySelector(selector);
+            if (anchor && isRendered(anchor))
+                return anchor;
+        }
+        return el;
+    }
+
+    // Elements whose shortcuts are currently live. While a modal is open only its own shortcuts are,
+    // so e.g. Escape and Enter reach the modal's buttons instead of whatever is behind it.
+    function activeElements() {
+        const modal = document.querySelector('.modal.show');
+        return [...document.querySelectorAll('[key]')].filter(el => !modal || modal.contains(el));
+    }
+
     function showHints() {
         hideHints();
-        for (const el of document.querySelectorAll('[key]')) {
-            const rect = el.getBoundingClientRect();
-            if (rect.width === 0 && rect.height === 0)
+        for (const el of activeElements()) {
+            const anchor = anchorOf(el);
+            if (!isRendered(anchor))
                 continue; // not rendered (e.g. display: none), nothing to anchor the tooltip to
+            const rect = anchor.getBoundingClientRect();
 
+            // Alternative shortcuts are listed under each other
             const hint = document.createElement('div');
             hint.className = 'key-hint';
-            hint.textContent = parseAll(el.getAttribute('key')).map(symbols).join(' ');
+            hint.textContent = parseAll(el.getAttribute('key')).map(symbols).join('\n');
             document.body.appendChild(hint);
 
             // Centered on the element, kept inside the viewport
@@ -127,34 +164,49 @@
     }
 
     document.addEventListener('keydown', function (e) {
-        if (e.code === HINT_KEY && !e.repeat)
+        if (HINT_KEYS.includes(e.code) && !e.repeat) {
+            heldHintKeys.add(e.code);
             showHints();
+        }
         if (e.repeat || e.isComposing)
             return;
 
-        const typing = isEditable(e.target);
-        for (const el of document.querySelectorAll('[key]')) {
-            if (el.disabled)
-                continue;
-            for (const combo of parseAll(el.getAttribute('key'))) {
-                if (!matches(combo, e))
-                    continue;
-                if (typing && !combo.mods.ctrlKey && !combo.mods.altKey && !combo.mods.metaKey)
-                    continue;
+        const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button or link
+        if (plain && (isEditable(e.target)
+            || ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary'))))
+            return;
 
-                e.preventDefault();
-                e.stopPropagation();
-                trigger(el);
-                return;
-            }
-        }
+        // The same key may be set on several elements (e.g. Enter confirms whichever dialog or form
+        // is relevant): prefer one that is visible, in DOM order
+        const candidates = activeElements().filter(el => !el.disabled
+            && parseAll(el.getAttribute('key')).some(combo => matches(combo, e)));
+        const el = candidates.find(isRendered) || candidates[0];
+        if (!el)
+            return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        trigger(el);
     }, true);
+
+    // Escape leaves a form field. Bubble phase, so a field's own Escape handling runs first and can
+    // opt out with preventDefault(). Monaco's textarea is excluded: it needs Escape for its widgets.
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing
+            && e.target.matches('input, textarea, select') && !e.target.closest('.monaco-editor'))
+            e.target.blur();
+    });
 
     document.addEventListener('keyup', function (e) {
-        if (e.code === HINT_KEY)
+        heldHintKeys.delete(e.code);
+        if (heldHintKeys.size === 0)
             hideHints();
     }, true);
-    window.addEventListener('blur', hideHints);
+    window.addEventListener('blur', function () {
+        heldHintKeys.clear();
+        hideHints();
+    });
 
     // Expose each shortcut to assistive technology
     document.addEventListener('DOMContentLoaded', function () {
