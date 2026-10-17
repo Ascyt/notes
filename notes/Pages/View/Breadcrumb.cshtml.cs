@@ -16,6 +16,9 @@ public class Breadcrumb : PageModel
     /// <summary>Name of the current entry, shown as the rename input.</summary>
     public string Name => IsRoot ? "" : Names[^1];
 
+    /// <summary>Virtual path of the parent directory ("" for the root), or null when the current entry is the root.</summary>
+    public string? ParentVirtualPath => IsRoot ? null : string.Join('/', Names[..^1]);
+
     /// <summary>Each parent of the current entry with the virtual path it links to.</summary>
     public IEnumerable<(string Name, string Path)> Parents
     {

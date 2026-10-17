@@ -5,7 +5,7 @@
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;"></div>
 <div class="mt-2">
-    <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()">
+    <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()" key="^S">
         <i class="fa-solid fa-floppy-disk"></i> Save
     </button>
     <span id="save-loading" class="spinner-border spinner-border-sm text-secondary" style="display: none;" aria-hidden="true"></span>
@@ -37,7 +37,6 @@
             savedVersionId = window.editor.getModel().getAlternativeVersionId();
             window.editor.onDidChangeModelContent(updateDirty);
 
-            window.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
             window.editor.focus();
         });
     }
@@ -100,13 +99,5 @@
     window.addEventListener('beforeunload', function (e) {
         if (isDirty)
             e.preventDefault();
-    });
-
-    // Also intercept Ctrl+S when focus is outside the editor
-    document.addEventListener('keydown', function (e) {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            saveFile();
-        }
     });
 </script>
