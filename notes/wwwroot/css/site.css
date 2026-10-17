@@ -21,6 +21,20 @@ body {
   margin-bottom: 60px;
 }
 
+/* Shortcut tooltips shown while the hint key is held (see js/shortcuts.js) */
+.key-hint {
+  position: fixed;
+  z-index: 2000;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-family: var(--bs-font-monospace, monospace);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
   color: var(--bs-secondary-color);
   text-align: end;

@@ -12,7 +12,10 @@
 // Triggering clicks the element, or focuses it if it is a text field. Disabled elements are skipped.
 // A shortcut without Ctrl/Alt/Meta is ignored while typing in a field.
 // Shortcuts are captured before the page (and Monaco) sees them, so they take precedence over those.
+//
+// While HINT_KEY is held, a tooltip with its shortcut is shown on every visible element that has one.
 (function () {
+    const HINT_KEY = 'ControlRight'; // a KeyboardEvent.code
     const MODIFIERS = { '^': 'ctrlKey', '!': 'altKey', '+': 'shiftKey', '#': 'metaKey' };
     const ALIASES = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', esc: 'Escape' };
     const DISPLAY = { ctrlKey: 'Ctrl', altKey: 'Alt', shiftKey: 'Shift', metaKey: 'Meta' };
@@ -70,13 +73,55 @@
         }
     }
 
+    const MODIFIER_SYMBOLS = { ctrlKey: '⎈', altKey: '⎇', shiftKey: '⇧', metaKey: '❖' };
+    const KEY_SYMBOLS = {
+        up: '↑', down: '↓', left: '←', right: '→', space: '␣', esc: '⎋', escape: '⎋',
+        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦'
+    };
+
+    // Compact form for the on-screen hint, e.g. "⎇↑"
+    function symbols(combo) {
+        const mods = Object.keys(combo.mods).filter(m => combo.mods[m]).map(m => MODIFIER_SYMBOLS[m]).join('');
+        return mods + (KEY_SYMBOLS[combo.name.toLowerCase()] || combo.name.toUpperCase());
+    }
+
     function describe(combo, names, aria) {
         const parts = Object.keys(combo.mods).filter(m => combo.mods[m]).map(m => names[m]);
         parts.push(combo.name.length === 1 ? combo.name.toUpperCase() : (aria ? combo.code : combo.name));
         return parts.join('+');
     }
 
+    let hints = [];
+
+    function showHints() {
+        hideHints();
+        for (const el of document.querySelectorAll('[key]')) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0)
+                continue; // not rendered (e.g. display: none), nothing to anchor the tooltip to
+
+            const hint = document.createElement('div');
+            hint.className = 'key-hint';
+            hint.textContent = parseAll(el.getAttribute('key')).map(symbols).join(' ');
+            document.body.appendChild(hint);
+
+            // Centered on the element, kept inside the viewport
+            const left = rect.left + rect.width / 2 - hint.offsetWidth / 2;
+            hint.style.left = Math.max(4, Math.min(left, document.documentElement.clientWidth - hint.offsetWidth - 4)) + 'px';
+            hint.style.top = (rect.top + rect.height / 2 - hint.offsetHeight / 2) + 'px';
+            hints.push(hint);
+        }
+    }
+
+    function hideHints() {
+        for (const hint of hints)
+            hint.remove();
+        hints = [];
+    }
+
     document.addEventListener('keydown', function (e) {
+        if (e.code === HINT_KEY && !e.repeat)
+            showHints();
         if (e.repeat || e.isComposing)
             return;
 
@@ -97,6 +142,12 @@
             }
         }
     }, true);
+
+    document.addEventListener('keyup', function (e) {
+        if (e.code === HINT_KEY)
+            hideHints();
+    }, true);
+    window.addEventListener('blur', hideHints);
 
     // Expose each shortcut to assistive technology and as a tooltip hint
     document.addEventListener('DOMContentLoaded', function () {
