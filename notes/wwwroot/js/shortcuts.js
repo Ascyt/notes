@@ -1,13 +1,15 @@
 // Declarative keyboard shortcuts: put a `key` attribute on any button, link or form field.
 //
-//   <button key="^S">Save</button>      Ctrl+S
-//   <a key="!Up" href="..">Parent</a>   Alt+Up
-//   <input key="^!T" />                 Ctrl+Alt+T (focuses the field)
-//   <button key="^S !S">...</button>    Several shortcuts, separated by spaces
+//   <button key="^S">Save</button>           Ctrl+S
+//   <a key="!ArrowUp" href="..">Parent</a>   Alt+ArrowUp
+//   <input key="^!T" />                      Ctrl+Alt+T (focuses the field)
+//   <button key="^S !S">...</button>         Several shortcuts, separated by spaces
 //
 // Modifiers (prefix, any combination, matched exactly): ^ Ctrl, ! Alt, + Shift, # Meta (Win/Cmd).
-// Keys: a letter or digit, any other single character ("/", ","), or a name: Up, Down, Left, Right,
-// Enter, Esc, Tab, Space, Backspace, Delete, Home, End, PageUp, PageDown, F1..F12.
+// Keys: a letter or digit, any other single character ("/", ","), or a key name exactly as listed in
+// the official docs (case-insensitive), matching either a key value or a physical key code:
+//   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values
+//   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values
 //
 // Triggering clicks the element, or focuses it if it is a text field. Disabled elements are skipped.
 // A shortcut without Ctrl/Alt/Meta is ignored while typing in a field.
@@ -16,10 +18,16 @@
 // While HINT_KEY is held, a tooltip with its shortcut is shown on every visible element that has one.
 (function () {
     const HINT_KEY = 'ControlRight'; // a KeyboardEvent.code
+
+    // Symbols shown in the hint tooltip. Key names that aren't listed are shown as written.
+    const MODIFIER_SYMBOLS = { ctrlKey: '⎈', altKey: '⎇', shiftKey: '⇧', metaKey: '❖' };
+    const KEY_SYMBOLS = {
+        arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', space: '␣', escape: '⎋',
+        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦'
+    };
+
     const MODIFIERS = { '^': 'ctrlKey', '!': 'altKey', '+': 'shiftKey', '#': 'metaKey' };
-    const ALIASES = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', esc: 'Escape' };
-    const DISPLAY = { ctrlKey: 'Ctrl', altKey: 'Alt', shiftKey: 'Shift', metaKey: 'Meta' };
-    const ARIA = { ctrlKey: 'Control', altKey: 'Alt', shiftKey: 'Shift', metaKey: 'Meta' };
+    const MODIFIER_NAMES = { ctrlKey: 'Control', altKey: 'Alt', shiftKey: 'Shift', metaKey: 'Meta' };
 
     function parse(spec) {
         const mods = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false };
@@ -29,13 +37,12 @@
             mods[MODIFIERS[spec[i++]]] = true;
 
         const name = spec.slice(i);
+        // Physical key of a letter or digit, used when the layout doesn't produce a Latin character
         let code = null;
         if (/^[a-z]$/i.test(name))
             code = 'Key' + name.toUpperCase();
         else if (/^\d$/.test(name))
             code = 'Digit' + name;
-        else if (name.length > 1)
-            code = ALIASES[name.toLowerCase()] || name;
         return { mods, name, code };
     }
 
@@ -47,15 +54,16 @@
         for (const mod in combo.mods)
             if (combo.mods[mod] !== e[mod])
                 return false;
+
+        const name = combo.name.toLowerCase();
+        if (name.length > 1)
+            return name === e.key.toLowerCase() || name === e.code.toLowerCase();
         if (combo.code === null)
             return combo.name === e.key;
-        // Named keys (arrows, Enter, ...) are layout-independent
-        if (combo.name.length > 1)
-            return combo.code.toLowerCase() === e.code.toLowerCase();
         // Letters and digits follow the typed character, so non-QWERTY layouts work. Only when that isn't
         // a plain Latin letter/digit (non-Latin layout, Alt dead keys on macOS) fall back to the physical key.
         if (/^[a-z0-9]$/i.test(e.key))
-            return e.key.toLowerCase() === combo.name.toLowerCase();
+            return e.key.toLowerCase() === name;
         return combo.code.toLowerCase() === e.code.toLowerCase();
     }
 
@@ -73,21 +81,20 @@
         }
     }
 
-    const MODIFIER_SYMBOLS = { ctrlKey: '⎈', altKey: '⎇', shiftKey: '⇧', metaKey: '❖' };
-    const KEY_SYMBOLS = {
-        up: '↑', down: '↓', left: '←', right: '→', space: '␣', esc: '⎋', escape: '⎋',
-        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦'
-    };
+    function keyText(combo) {
+        return combo.name.length === 1 ? combo.name.toUpperCase() : combo.name;
+    }
 
     // Compact form for the on-screen hint, e.g. "⎇↑"
     function symbols(combo) {
         const mods = Object.keys(combo.mods).filter(m => combo.mods[m]).map(m => MODIFIER_SYMBOLS[m]).join('');
-        return mods + (KEY_SYMBOLS[combo.name.toLowerCase()] || combo.name.toUpperCase());
+        return mods + (KEY_SYMBOLS[combo.name.toLowerCase()] || keyText(combo));
     }
 
-    function describe(combo, names, aria) {
-        const parts = Object.keys(combo.mods).filter(m => combo.mods[m]).map(m => names[m]);
-        parts.push(combo.name.length === 1 ? combo.name.toUpperCase() : (aria ? combo.code : combo.name));
+    // Text form, e.g. "Alt+ArrowUp" (also the aria-keyshortcuts format)
+    function describe(combo) {
+        const parts = Object.keys(combo.mods).filter(m => combo.mods[m]).map(m => MODIFIER_NAMES[m]);
+        parts.push(keyText(combo));
         return parts.join('+');
     }
 
@@ -149,15 +156,9 @@
     }, true);
     window.addEventListener('blur', hideHints);
 
-    // Expose each shortcut to assistive technology and as a tooltip hint
+    // Expose each shortcut to assistive technology
     document.addEventListener('DOMContentLoaded', function () {
-        for (const el of document.querySelectorAll('[key]')) {
-            const combos = parseAll(el.getAttribute('key'));
-            el.setAttribute('aria-keyshortcuts', combos.map(c => describe(c, ARIA, true)).join(' '));
-
-            const hint = combos.map(c => describe(c, DISPLAY)).join(', ');
-            const title = el.getAttribute('title');
-            el.setAttribute('title', title ? title + ' (' + hint + ')' : hint);
-        }
+        for (const el of document.querySelectorAll('[key]'))
+            el.setAttribute('aria-keyshortcuts', parseAll(el.getAttribute('key')).map(describe).join(' '));
     });
 })();
