@@ -1,6 +1,6 @@
 @model notes.Pages.View.File
 
-<partial name="View/Breadcrumb" model="new Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
+<partial name="View/_Breadcrumb" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
@@ -9,7 +9,7 @@
         <i class="fa-solid fa-floppy-disk"></i> Save
     </button>
     <span id="save-loading" class="spinner-border spinner-border-sm text-secondary" style="display: none;" aria-hidden="true"></span>
-    <partial name="View/DeleteButton" model='new notes.Pages.View.DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
+    <partial name="View/_DeleteButton" model='new notes.Pages.View._DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
 </div>
 
 <script>
@@ -31,7 +31,8 @@
                 language: @Json.Serialize(Model.Language),
                 theme: 'vs',
                 readonly: false,
-                automaticLayout: true
+                automaticLayout: true,
+                wordWrap: 'on'
             });
 
             savedVersionId = window.editor.getModel().getAlternativeVersionId();
@@ -41,6 +42,12 @@
             window.editor.addCommand(monaco.KeyCode.Escape, function () {
                 document.activeElement.blur();
             }, '!findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !inSnippetMode && !renameInputVisible && !hasMultipleSelections && !editorHasSelection');
+
+            // Alt+Z toggles word wrap
+            window.editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyZ, function () {
+                const isOn = window.editor.getOption(monaco.editor.EditorOption.wordWrap) !== 'off';
+                window.editor.updateOptions({ wordWrap: isOn ? 'off' : 'on' });
+            });
 
             window.editor.focus();
         });

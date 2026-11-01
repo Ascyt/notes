@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace notes.Pages.View;
 
-public class Breadcrumb : PageModel
+public class _Breadcrumb : PageModel
 {
     /// <summary>Whether the current entry is a file (otherwise a directory), used for the icon.</summary>
     public bool IsFile { get; init; }

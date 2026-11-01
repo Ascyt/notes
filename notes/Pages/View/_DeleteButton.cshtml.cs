@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace notes.Pages.View;
 
-public class DeleteButton : PageModel
+public class _DeleteButton : PageModel
 {
     /// <summary>Whether deleting asks for confirmation by default. A page may override this by defining window.needsDeleteConfirmation().</summary>
     public bool NeedsConfirmation { get; init; }

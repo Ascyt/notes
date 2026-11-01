@@ -2,7 +2,7 @@
 
 @if (Model.VirtualPath != "")
 {
-    <partial name="View/Breadcrumb" model="new Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
+    <partial name="View/_Breadcrumb" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
 }
 
 <div>
@@ -50,6 +50,6 @@
     </table>
     @if (Model.VirtualPath != "")
     {
-        <partial name="View/DeleteButton" model='new notes.Pages.View.DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
+        <partial name="View/_DeleteButton" model='new notes.Pages.View._DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
     }
 </div>
