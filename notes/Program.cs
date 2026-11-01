@@ -1,5 +1,6 @@
 #pragma warning disable CA1873
 using notes;
+using notes.Auth;
 using notes.Pages.Services;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,7 @@ Config config = builder.Configuration.GetSection("Config").Get<Config>()!;
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddNotesAuth(config.Auth, requireHttpsMetadata: !builder.Environment.IsDevelopment());
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IFileService, FileService>();
@@ -35,6 +37,7 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();

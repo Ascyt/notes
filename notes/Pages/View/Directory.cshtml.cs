@@ -10,8 +10,14 @@ public class Directory(Config config, IPathService path) : PageModel
     public string[] Directories { get; private set; } = []; 
     public string[] Files { get; private set; } = [];
 
+    /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
+    public bool CanBrowse { get; init; }
+
     public void InitAsync()
     {
+        if (!CanBrowse)
+            return;
+
         Directories = System.IO.Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly);
         Files = System.IO.Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly);
     }

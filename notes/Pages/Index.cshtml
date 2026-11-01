@@ -6,7 +6,11 @@
     ViewData["Title"] = Model.VirtualPath.NormalizedWith(Config.Title);
 }
 
-@if (Model.Directory is not null)
+@if (Model.Directory is { CanBrowse: false })
+{
+    <p class="text-muted">Log in with an administrator account to browse notes.</p>
+}
+else if (Model.Directory is not null)
 {
     <partial name="View/Directory" model="Model.Directory"/>
 }

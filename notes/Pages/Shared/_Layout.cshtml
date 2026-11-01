@@ -26,6 +26,7 @@
                         <a class="nav-link text-dark" asp-area="" asp-page="/_/About" key="F1">About</a>
                     </li>
                 </ul>
+                <partial name="_Account" model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, UserName = User.Identity?.Name ?? "", ReturnUrl = Context.Request.Path + Context.Request.QueryString }'/>
             </div>
         </div>
     </nav>

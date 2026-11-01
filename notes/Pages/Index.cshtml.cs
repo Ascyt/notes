@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using notes.Auth;
 using notes.Pages.Services;
 
 namespace notes.Pages;
 
+[Authorize(Policy = NotesAccess.PolicyName)]
 public sealed class IndexModel(Config config, 
     IPathService path, 
     IFileService fileService, 
@@ -30,7 +33,8 @@ public sealed class IndexModel(Config config,
             Directory = new View.Directory(config, path)
             {
                 VirtualPath = VirtualPath,
-                PhysicalPath = PhysicalPath
+                PhysicalPath = PhysicalPath,
+                CanBrowse = User.IsInRole(NotesAccess.AdminRole)
             };
             Directory.InitAsync();
         }
