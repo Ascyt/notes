@@ -23,10 +23,11 @@ public sealed class IndexModel(Config config,
         if (VirtualPath.StartsWith("_/"))
             return NotFound("Page not found.");
         
-        PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
-        
-        if (!System.IO.Path.Exists(PhysicalPath))
+        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        if (physicalPath is null || !System.IO.Path.Exists(physicalPath))
             return NotFound("Path not found.");
+
+        PhysicalPath = physicalPath;
 
         if (System.IO.Directory.Exists(PhysicalPath))
         {
@@ -57,7 +58,11 @@ public sealed class IndexModel(Config config,
         if (VirtualPath.StartsWith("_/"))
             return NotFound("Page not found.");
 
-        PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        if (physicalPath is null)
+            return NotFound("Path not found.");
+
+        PhysicalPath = physicalPath;
 
         string? create = Request.Query["create"];
         if (create is not null)
@@ -107,7 +112,11 @@ public sealed class IndexModel(Config config,
         if (VirtualPath == "")
             return BadRequest("Cannot delete the root directory.");
 
-        PhysicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        if (physicalPath is null)
+            return NotFound("Path not found.");
+
+        PhysicalPath = physicalPath;
 
         if (System.IO.Directory.Exists(PhysicalPath))
             directoryService.Delete(PhysicalPath);
