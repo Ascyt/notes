@@ -23,3 +23,6 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Notes and other runtime data of the compose stack
+data/

@@ -4,6 +4,21 @@
     build:
       context: .
       dockerfile: notes/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+    environment:
+      Config__Dir: /data
+      Config__KeysDir: /keys
+      Config__Auth__ClientId: notes-web
+      Config__Auth__ClientSecret: ${NOTES_CLIENT_SECRET:?set in .env}
+      # Must be the issuer Keycloak puts in its tokens, i.e. the public URL
+      Config__Auth__Authority: https://${AUTH_HOST:?set in .env}/realms/notes
+      # The app itself talks to Keycloak directly over the internal network instead of going through Cloudflare
+      Config__Auth__MetadataAddress: http://keycloak:8080/realms/notes/.well-known/openid-configuration
+    volumes:
+      - ${NOTES_DIR:-./data/notes}:/data
+      - notes-keys:/keys
 
   keycloak-db:
     image: postgres:17
@@ -23,8 +38,7 @@
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.1
     restart: unless-stopped
-    # start-dev is for local development only (plain HTTP, relaxed hostname checks).
-    command: ["start-dev", "--import-realm"]
+    command: ["start", "--import-realm"]
     depends_on:
       keycloak-db:
         condition: service_healthy
@@ -35,12 +49,46 @@
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in .env}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?set in .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in .env}
-      # Substituted into ${NOTES_CLIENT_SECRET} in the realm file on import
+      # Public URL of Keycloak. Behind the proxy only plain HTTP arrives, and the proxy always sets the forwarded headers.
+      KC_HOSTNAME: https://${AUTH_HOST:?set in .env}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      # Requests from the notes container (internal address) get internal endpoint URLs, while the issuer stays public
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # The admin console lives on the host only (the proxy doesn't expose it)
+      KC_HOSTNAME_ADMIN: http://localhost:8080
+      # Substituted into ${NOTES_CLIENT_SECRET} and ${NOTES_HOST} in the realm file on import
       NOTES_CLIENT_SECRET: ${NOTES_CLIENT_SECRET:?set in .env}
+      NOTES_HOST: ${NOTES_HOST:?set in .env}
     volumes:
       - ./keycloak/notes-realm.json:/opt/keycloak/data/import/notes-realm.json:ro
     ports:
       - "127.0.0.1:8080:8080"
 
+  # Only this container is reachable from the tunnel; nothing is published to the host except Keycloak's localhost port above
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    depends_on:
+      - notes
+      - keycloak
+    environment:
+      NOTES_HOST: ${NOTES_HOST:?set in .env}
+      AUTH_HOST: ${AUTH_HOST:?set in .env}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+
+  # Outbound-only connection to Cloudflare, so the machine needs no public IP or open port.
+  # The public hostnames of the tunnel are configured in the Cloudflare dashboard (see README).
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    depends_on:
+      - caddy
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set in .env}
+
 volumes:
   keycloak-db-data:
+  notes-keys:

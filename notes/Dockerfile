@@ -1,4 +1,6 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Mount points for the notes and the data protection keys, writable by the app user (named volumes copy this ownership)
+RUN mkdir /data /keys && chown $APP_UID:$APP_UID /data /keys
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080

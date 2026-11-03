@@ -1,0 +1,43 @@
+# Routes the two public hostnames (arriving through the Cloudflare tunnel) to their containers.
+# TLS ends at Cloudflare, so everything in here is plain HTTP on the internal Docker network.
+{
+	auto_https off
+	admin off
+
+	# The visitor's address comes from the header Cloudflare sets, which is only trusted from the private Docker network
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+# Everything that reaches the upstreams came through Cloudflare over HTTPS, and only cloudflared can reach Caddy
+(forward) {
+	header_up X-Forwarded-Proto https
+	header_up X-Forwarded-For {client_ip}
+}
+
+http:// {
+	respond "Path not found." 404
+}
+
+http://{$NOTES_HOST} {
+	reverse_proxy notes:8080 {
+		import forward
+	}
+}
+
+http://{$AUTH_HOST} {
+	# Only the notes realm is public. The admin console and the master realm stay unreachable from the internet;
+	# use them on the host through http://localhost:8080 instead.
+	@public path /realms/notes /realms/notes/* /resources/*
+	handle @public {
+		reverse_proxy keycloak:8080 {
+			import forward
+		}
+	}
+
+	handle {
+		respond "Path not found." 404
+	}
+}

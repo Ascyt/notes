@@ -29,13 +29,14 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
+        "https://${NOTES_HOST}/signin-oidc",
         "http://localhost:5243/signin-oidc",
         "https://localhost:7094/signin-oidc"
       ],
       "webOrigins": [],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5243/signout-callback-oidc##https://localhost:7094/signout-callback-oidc"
+        "post.logout.redirect.uris": "https://${NOTES_HOST}/signout-callback-oidc##http://localhost:5243/signout-callback-oidc##https://localhost:7094/signout-callback-oidc"
       },
       "protocolMappers": [
         {

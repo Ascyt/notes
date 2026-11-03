@@ -24,6 +24,8 @@ public static class AuthExtensions
             .AddOpenIdConnect(options =>
             {
                 options.Authority = auth.Authority;
+                if (auth.MetadataAddress is not null)
+                    options.MetadataAddress = auth.MetadataAddress;
                 options.ClientId = auth.ClientId;
                 options.ClientSecret = auth.ClientSecret;
                 options.RequireHttpsMetadata = requireHttpsMetadata;
