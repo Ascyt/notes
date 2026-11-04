@@ -32,7 +32,8 @@
                 theme: 'vs',
                 readonly: false,
                 automaticLayout: true,
-                wordWrap: 'on'
+                wordWrap: 'on',
+                mouseWheelZoom: true // Ctrl+scroll zooms the editor
             });
 
             savedVersionId = window.editor.getModel().getAlternativeVersionId();
@@ -48,6 +49,22 @@
                 const isOn = window.editor.getOption(monaco.editor.EditorOption.wordWrap) !== 'off';
                 window.editor.updateOptions({ wordWrap: isOn ? 'off' : 'on' });
             });
+
+            // Ctrl+Plus / Ctrl+Minus / Ctrl+0 zoom the editor instead of the page while it is focused
+            const zoomBindings = [
+                ['editor.action.fontZoomIn', [monaco.KeyCode.Equal, monaco.KeyCode.NumpadAdd]],
+                ['editor.action.fontZoomOut', [monaco.KeyCode.Minus, monaco.KeyCode.NumpadSubtract]],
+                ['editor.action.fontZoomReset', [monaco.KeyCode.Digit0, monaco.KeyCode.Numpad0]]
+            ];
+            for (const [actionId, keys] of zoomBindings) {
+                for (const key of keys) {
+                    for (const shift of [0, monaco.KeyMod.Shift]) {
+                        window.editor.addCommand(monaco.KeyMod.CtrlCmd | shift | key, function () {
+                            window.editor.getAction(actionId).run();
+                        });
+                    }
+                }
+            }
 
             window.editor.focus();
         });
