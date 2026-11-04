@@ -75,6 +75,44 @@ public sealed class IndexModel(Config config,
             return Redirect("/" + directoryService.CreateEntry(PhysicalPath, create == "file"));
         }
 
+        // Uploads: ?upload=start returns an id made by the server, then the file follows as a sequence of raw chunks
+        // (?upload=<id>&name=..&offset=..&last=..) so that neither memory nor the request size limits of the server
+        // or proxies cap the file size. ?upload=<id>&abort discards an upload.
+        string? upload = Request.Query["upload"];
+        if (upload is not null)
+        {
+            if (!System.IO.Directory.Exists(PhysicalPath))
+                return NotFound("Directory not found.");
+
+            // The user's own folder holds their uploads, so the id means nothing to anyone else
+            string? userId = User.FindFirst("sub")?.Value;
+            if (userId is null)
+                return Forbid();
+
+            if (upload == "start")
+                return Content(fileService.StartUpload(userId));
+
+            if (!Guid.TryParse(upload, out Guid uploadId))
+                return BadRequest("Invalid upload id.");
+
+            if (Request.Query["abort"].Count > 0)
+            {
+                fileService.AbortUpload(userId, uploadId);
+                return new OkResult();
+            }
+
+            string name = Request.Query["name"].ToString();
+            if (!path.IsValidName(name))
+                return BadRequest("Invalid file name.");
+            if (!long.TryParse(Request.Query["offset"], out long offset) || offset < 0)
+                return BadRequest("Invalid offset.");
+
+            string? result = await fileService.UploadChunkAsync(userId, uploadId, PhysicalPath, name, offset, Request.Query["last"].Count > 0, Request.Body);
+            return result is null
+                ? new ConflictObjectResult("No such upload, or the chunk does not continue it.")
+                : Content(result);
+        }
+
         string? rename = Request.Query["rename"];
         if (rename is not null)
         {

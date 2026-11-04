@@ -1,8 +1,10 @@
 #pragma warning disable CA1873
+using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using notes;
 using notes.Auth;
+using notes.Jobs;
 using notes.Pages.Services;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -27,6 +29,11 @@ builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IFileService, FileService>();
 builder.Services.AddSingleton<IDirectoryService, DirectoryService>();
+
+// Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
+builder.Services.AddHangfire(options => options.UseInMemoryStorage());
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<ClearStaleUploadsJob>();
 
 WebApplication app = builder.Build();
 string dir = Path.GetFullPath(config.Dir);
@@ -57,5 +64,12 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapRazorPages()
     .WithStaticAssets();
+
+// Admins only. Going through the app's own policy (instead of Hangfire's filter) answers everyone else with the usual 404.
+app.MapHangfireDashboard("/_/Hangfire", new DashboardOptions { Authorization = [] })
+    .RequireAuthorization(NotesAccess.PolicyName);
+
+app.Services.GetRequiredService<IRecurringJobManager>()
+    .AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), Cron.Hourly);
 
 app.Run();

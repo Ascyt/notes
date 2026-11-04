@@ -8,7 +8,7 @@
 
 @if (Model.Directory is { CanBrowse: false })
 {
-    <p class="text-muted">Log in with an administrator account to browse notes.</p>
+    <p class="text-muted"><a href="/_/Login">Log in</a> with an administrator account to browse notes.</p>
 }
 else if (Model.Directory is not null)
 {

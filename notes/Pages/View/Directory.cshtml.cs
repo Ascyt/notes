@@ -18,7 +18,8 @@ public class Directory(Config config, IPathService path) : PageModel
         if (!CanBrowse)
             return;
 
-        Directories = System.IO.Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly);
+        Directories = [..System.IO.Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
+            .Where(directory => System.IO.Path.GetFileName(directory) != PathService.ReservedName)];
         Files = System.IO.Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly);
     }
 

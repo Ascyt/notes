@@ -1,5 +1,17 @@
 namespace notes.Pages.Services;
 
+public interface IDirectoryService
+{
+    /// <summary>Renames the directory and returns its new virtual path, or null if the name is already taken.</summary>
+    string? Rename(string physicalPath, string newName);
+
+    /// <summary>Deletes the directory and everything in it.</summary>
+    void Delete(string physicalPath);
+
+    /// <summary>Creates a timestamp-named file or directory and returns its virtual path.</summary>
+    string CreateEntry(string physicalDirectory, bool isFile);
+}
+
 public sealed class DirectoryService(Config config, IPathService path) : IDirectoryService
 {
     public string CreateEntry(string physicalDirectory, bool isFile)
@@ -32,16 +44,4 @@ public sealed class DirectoryService(Config config, IPathService path) : IDirect
         Directory.Move(physicalPath, newPhysicalPath);
         return path.ToVirtualPath(config.Dir, newPhysicalPath);
     }
-}
-
-public interface IDirectoryService
-{
-    /// <summary>Renames the directory and returns its new virtual path, or null if the name is already taken.</summary>
-    string? Rename(string physicalPath, string newName);
-
-    /// <summary>Deletes the directory and everything in it.</summary>
-    void Delete(string physicalPath);
-
-    /// <summary>Creates a timestamp-named file or directory and returns its virtual path.</summary>
-    string CreateEntry(string physicalDirectory, bool isFile);
 }

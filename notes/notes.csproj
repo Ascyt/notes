@@ -19,7 +19,14 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+      <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
       <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="notes-test\_\temp\user\5346e029-f3a8-45c6-874e-ad55ec42b920\" />
     </ItemGroup>
 
 </Project>
