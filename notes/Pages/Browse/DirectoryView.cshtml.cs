@@ -19,7 +19,8 @@ public class DirectoryView(Config config, IPathService path) : PageModel
             return;
 
         Directories = [..Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)];
+            .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)
+            .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)];
         Files = Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly);
     }
 

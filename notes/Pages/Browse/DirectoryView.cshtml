@@ -3,7 +3,8 @@
 @using notes.Features.Components.Delete
 @using notes.Features.Components.Download
 @using notes.Features.Components.Upload
-@model DirectoryView
+@using notes.Features.View.Browse
+@model notes.Features.View.Browse.DirectoryView
 
 <style>
     /* Position of an entry in the listing, shown left of its icon */
@@ -21,11 +22,6 @@
 {
     <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
 }
-
-<div class="mb-3 d-flex gap-2">
-    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = false }"/>
-    <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload()"/>
-</div>
 
 <div>
     <table class="table">
@@ -70,4 +66,9 @@
     {
         <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
     }
+</div>
+
+<div class="mt-3 d-flex gap-2">
+    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = false }"/>
+    <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload()"/>
 </div>

@@ -28,6 +28,12 @@
                     <li class="nav-item">
                         <a class="nav-link text-dark" asp-area="" asp-page="/_/About" key="F1">About</a>
                     </li>
+                    @if (User.IsInRole(NotesAccess.AdminRole))
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" href="/_/Hangfire">Hangfire</a>
+                        </li>
+                    }
                 </ul>
                 <partial name="/Features/Auth/_Account.cshtml"model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, UserName = User.Identity?.Name ?? "", ReturnUrl = Context.OriginalPathAndQuery }'/>
             </div>
@@ -40,11 +46,13 @@
     </main>
 </div>
 
-@* <footer class="border-top footer text-muted"> *@
-@*     <div class="container"> *@
-@*         <a asp-area="" asp-page="/_/About">About</a> *@
-@*     </div> *@
-@* </footer> *@
+<footer class="container pb-3 small text-secondary">
+    <div>Right control to show keyboard shortcuts.</div>
+    <div>
+        Licensed under <a class="text-secondary" href="https://github.com/Ascyt/notes/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+        • <a class="text-secondary" href="https://github.com/Ascyt/notes" target="_blank">Source code</a>
+    </div>
+</footer>
 
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

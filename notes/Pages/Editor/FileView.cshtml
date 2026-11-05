@@ -1,7 +1,7 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Delete
 @using notes.Features.Components.Download
-@model FileView
+@model notes.Features.View.Editor.FileView
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 

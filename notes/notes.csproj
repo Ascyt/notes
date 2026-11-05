@@ -23,6 +23,8 @@
       <_ContentIncludedByDefault Remove="Features\Breadcrumb\_Breadcrumb.cshtml" />
       <_ContentIncludedByDefault Remove="Features\Auth\_Account.cshtml" />
       <_ContentIncludedByDefault Remove="Features\Components\Auth\_Account.cshtml" />
+      <_ContentIncludedByDefault Remove="Features\View\Browse\DirectoryView.cshtml" />
+      <_ContentIncludedByDefault Remove="Features\View\Editor\FileView.cshtml" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,7 +36,6 @@
 
     <ItemGroup>
       <Folder Include="Features\Components\" />
-      <Folder Include="Features\View\" />
       <Folder Include="notes-test\_\temp\user\5346e029-f3a8-45c6-874e-ad55ec42b920\" />
     </ItemGroup>
 
@@ -46,8 +47,6 @@
       <AdditionalFiles Include="Features\Components\Download\_Download.cshtml" />
       <AdditionalFiles Include="Features\Components\Rename\_RenameInput.cshtml" />
       <AdditionalFiles Include="Features\Components\Upload\_Upload.cshtml" />
-      <AdditionalFiles Include="Features\View\Browse\DirectoryView.cshtml" />
-      <AdditionalFiles Include="Features\View\Editor\FileView.cshtml" />
     </ItemGroup>
 
 </Project>
