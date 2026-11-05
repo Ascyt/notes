@@ -15,7 +15,7 @@ namespace notes.Pages._;
 [IgnoreAntiforgeryToken]
 public sealed class ErrorModel : PageModel
 {
-    public int StatusCode { get; private set; }
+    public new int StatusCode { get; private set; }
     public string Reason { get; private set; } = "";
     public string Description { get; private set; } = "";
 

@@ -1,12 +1,10 @@
 @model notes.Pages.View._Upload
 
 @Html.AntiForgeryToken()
-<div class="mb-3">
-    <button type="button" id="upload-button" class="btn btn-sm btn-outline-primary" key="u">
-        <i class="fa-solid fa-upload"></i> Upload
-    </button>
-    <input type="file" id="upload-input" multiple hidden/>
-</div>
+<button type="button" id="upload-button" class="btn btn-sm btn-outline-primary" key="u">
+    <i class="fa-solid fa-upload"></i> Upload
+</button>
+<input type="file" id="upload-input" multiple hidden/>
 
 <div id="upload-drop-overlay" class="upload-drop-overlay" hidden>
     <div class="upload-drop-message"><i class="fa-solid fa-upload"></i> Drop files to upload</div>

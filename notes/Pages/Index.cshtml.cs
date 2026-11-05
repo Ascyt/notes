@@ -30,6 +30,27 @@ public sealed class IndexModel(Config config,
 
         PhysicalPath = physicalPath;
 
+        if (Request.Query.ContainsKey("download"))
+        {
+            // The policy lets anyone view the root page, so this must not rely on it
+            if (!User.IsInRole(NotesAccess.AdminRole))
+                return NotFound();
+
+            if (System.IO.File.Exists(PhysicalPath))
+                return new PhysicalFileResult(PhysicalPath, "application/octet-stream")
+                {
+                    FileDownloadName = System.IO.Path.GetFileName(PhysicalPath),
+                    EnableRangeProcessing = true
+                };
+
+            // The root has no name of its own
+            string directoryName = VirtualPath == "" ? config.Title : System.IO.Path.GetFileName(PhysicalPath);
+            directoryName = System.IO.Path.GetInvalidFileNameChars()
+                .Aggregate(directoryName, 
+                    (current, invalid) => current.Replace(invalid, '_'));
+            return new ZipDirectoryResult(directoryService, PhysicalPath, directoryName + ".zip");
+        }
+
         if (System.IO.Directory.Exists(PhysicalPath))
         {
             Directory = new View.Directory(config, path)

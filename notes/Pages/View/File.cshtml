@@ -3,6 +3,9 @@
 <partial name="View/_Breadcrumb" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 
 @Html.AntiForgeryToken()
+<div class="mb-3">
+    <partial name="View/_Download" model="new _Download { IsFile = true }"/>
+</div>
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
 <div class="mt-2">
     <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()" key="^S">

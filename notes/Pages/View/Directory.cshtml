@@ -5,7 +5,10 @@
     <partial name="View/_Breadcrumb" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
 }
 
-<partial name="View/_Upload" model="new _Upload()"/>
+<div class="mb-3 d-flex gap-2">
+    <partial name="View/_Download" model="new _Download { IsFile = false }"/>
+    <partial name="View/_Upload" model="new _Upload()"/>
+</div>
 
 <div>
     <table class="table">
