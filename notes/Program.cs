@@ -3,9 +3,14 @@ using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using notes;
-using notes.Auth;
-using notes.Jobs;
-using notes.Pages.Services;
+using notes.Features.Auth;
+using notes.Features.Components.Create;
+using notes.Features.Components.Delete;
+using notes.Features.Components.Download;
+using notes.Features.Components.Rename;
+using notes.Features.Components.Upload;
+using notes.Features.Helpers;
+using notes.Features.View.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -27,8 +32,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<IPathService, PathService>();
-builder.Services.AddSingleton<IFileService, FileService>();
-builder.Services.AddSingleton<IDirectoryService, DirectoryService>();
+builder.Services.AddSingleton<IZipService, ZipService>();
+builder.Services.AddSingleton<IUploadService, UploadService>();
+builder.Services.AddSingleton<DownloadHandler>();
+builder.Services.AddSingleton<UploadHandler>();
+builder.Services.AddSingleton<CreateHandler>();
+builder.Services.AddSingleton<RenameHandler>();
+builder.Services.AddSingleton<SaveHandler>();
+builder.Services.AddSingleton<DeleteHandler>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());

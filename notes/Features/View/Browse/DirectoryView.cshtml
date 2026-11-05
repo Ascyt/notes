@@ -1,0 +1,73 @@
+@using notes.Features.Components.Breadcrumb
+@using notes.Features.Components.Create
+@using notes.Features.Components.Delete
+@using notes.Features.Components.Download
+@using notes.Features.Components.Upload
+@model DirectoryView
+
+<style>
+    /* Position of an entry in the listing, shown left of its icon */
+    .entry-index {
+        display: inline-block;
+        min-width: 2ch;
+        margin-right: 0.5rem;
+        text-align: right;
+        font-size: 0.75em;
+        opacity: 0.5;
+    }
+</style>
+
+@if (Model.VirtualPath != "")
+{
+    <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
+}
+
+<div class="mb-3 d-flex gap-2">
+    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = false }"/>
+    <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload()"/>
+</div>
+
+<div>
+    <table class="table">
+        <tbody>
+        @for (int i = 0; i < Model.Directories.Length; i++)
+        {
+            <tr>
+                @{
+                    string path = Model.Directories[i];
+                    string virtualPath = Model.ToVirtualPath(path);
+                }
+                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+            </tr>
+        }
+        <tr>
+            <td class="border-bottom-0">
+                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false }"/>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <table class="table">
+        <tbody>
+        @for (int i = 0; i < Model.Files.Length; i++)
+        {
+            <tr>
+                @{
+                    string path = Model.Files[i];
+                    string virtualPath = Model.ToVirtualPath(path);
+                }
+                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+            </tr>
+        }
+        <tr>
+            <td class="border-bottom-0">
+                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true }"/>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    @if (Model.VirtualPath != "")
+    {
+        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
+    }
+</div>

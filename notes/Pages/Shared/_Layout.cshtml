@@ -1,4 +1,5 @@
-﻿@using notes.Pages.Extensions
+﻿@using notes.Extensions
+@using notes.Features.Auth
 @inject Config Config
 <!DOCTYPE html>
 <html lang="en">
@@ -10,6 +11,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css"/>
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css"/>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
+    <link rel="stylesheet" href="~/shortcuts/shortcuts.css" asp-append-version="true"/>
     @* <link rel="stylesheet" href="~/notes.styles.css" asp-append-version="true"/> *@
 </head>
 <body>
@@ -27,7 +29,7 @@
                         <a class="nav-link text-dark" asp-area="" asp-page="/_/About" key="F1">About</a>
                     </li>
                 </ul>
-                <partial name="_Account" model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, UserName = User.Identity?.Name ?? "", ReturnUrl = Context.OriginalPathAndQuery }'/>
+                <partial name="/Features/Auth/_Account.cshtml"model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, UserName = User.Identity?.Name ?? "", ReturnUrl = Context.OriginalPathAndQuery }'/>
             </div>
         </div>
     </nav>
@@ -47,7 +49,7 @@
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/js/site.js" asp-append-version="true"></script>
-<script src="~/js/shortcuts.js" asp-append-version="true"></script>
+<script src="~/shortcuts/shortcuts.js"asp-append-version="true"></script>
 
 @await RenderSectionAsync("Scripts", required: false)
 </body>

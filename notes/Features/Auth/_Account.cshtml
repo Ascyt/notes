@@ -1,0 +1,19 @@
+@model notes.Features.Auth._Account
+
+<ul class="navbar-nav align-items-sm-center gap-sm-2">
+    @if (Model.IsAuthenticated)
+    {
+        <li class="nav-item"><span class="navbar-text"><i class="fa-regular fa-user"></i> @Model.UserName</span></li>
+        <li class="nav-item">
+            <form method="post" asp-page="/_/Logout">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" key="!L"><i class="fa-solid fa-right-from-bracket"></i> Log out</button>
+            </form>
+        </li>
+    }
+    else
+    {
+        <li class="nav-item">
+            <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.ReturnUrl" key="!L"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
+        </li>
+    }
+</ul>

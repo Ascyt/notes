@@ -1,0 +1,5 @@
+@model _CreateButton
+
+<form method="post" class="d-flex gap-3">
+    <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")" key-anchor="i"><i class="fa-solid fa-plus"></i> @(Model.IsFile ? "Create file" : "Create subdirectory")</button>
+</form>

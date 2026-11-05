@@ -2,8 +2,8 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
-using notes.Auth;
-using notes.Pages.Extensions;
+using notes.Extensions;
+using notes.Features.Auth;
 
 namespace notes.Pages._;
 
