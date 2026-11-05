@@ -49,10 +49,16 @@ app.Logger.LogInformation("In working dir: {dir}", dir);
 app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler("/_/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
+// Empty error responses (404 and the like) get the error page. Only for requests a browser navigates to: the
+// scripts of the pages just look at the status code.
+app.UseWhen(
+    context => HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method),
+    branch => branch.UseStatusCodePagesWithReExecute("/_/Error"));
 
 app.UseHttpsRedirection();
 

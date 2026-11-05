@@ -42,8 +42,7 @@ public sealed class NotFoundAuthorizationResultHandler : IAuthorizationMiddlewar
             return;
         }
 
+        // No body: the error page (status code pages) fills it in, identically to a missing path
         context.Response.StatusCode = StatusCodes.Status404NotFound;
-        context.Response.ContentType = "text/plain; charset=utf-8";
-        await context.Response.WriteAsync("Path not found.");
     }
 }

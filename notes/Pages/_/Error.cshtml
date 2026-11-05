@@ -1,26 +1,44 @@
 ﻿@page
 @model notes.Pages._.ErrorModel
 @{
-    ViewData["Title"] = "Error";
+    ViewData["Title"] = $"{Model.StatusCode} {Model.Reason}";
 }
 
-<h1 class="text-danger">Error.</h1>
-<h2 class="text-danger">An error occurred while processing your request.</h2>
+<div class="py-4">
+    <p class="display-1 fw-bold mb-0 @(Model.IsServerError ? "text-danger" : "text-secondary")">@Model.StatusCode</p>
+    <h1 class="h3">@Model.Reason</h1>
+    <p class="lead">@Model.Description</p>
 
-@if (Model.ShowRequestId)
-{
-    <p>
-        <strong>Request ID:</strong> <code>@Model.RequestId</code>
-    </p>
-}
+    @if (Model.MayNeedLogin)
+    {
+        <div class="alert alert-info d-flex gap-3 align-items-start" role="alert">
+            <i class="fa-solid fa-circle-info mt-1"></i>
+            <div>
+                @if (!Model.IsAuthenticated)
+                {
+                    <p class="mb-2">
+                        You are not logged in. Some files can only be seen once you log in.
+                    </p>
+                    <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
+                }
+            </div>
+        </div>
+    }
 
-<h3>Development Mode</h3>
-<p>
-    Swapping to the <strong>Development</strong> environment displays detailed information about the error that occurred.
-</p>
-<p>
-    <strong>The Development environment shouldn't be enabled for deployed applications.</strong>
-    It can result in displaying sensitive information from exceptions to end users.
-    For local debugging, enable the <strong>Development</strong> environment by setting the <strong>ASPNETCORE_ENVIRONMENT</strong> environment variable to <strong>Development</strong>
-    and restarting the app.
-</p>
+    <div class="mt-4">
+        <a class="btn btn-outline-secondary" href="/"><i class="fa-solid fa-house"></i> Back to start</a>
+        @if (Model.IsServerError)
+        {
+            <a class="btn btn-outline-secondary" href="@Model.RequestedPath"><i class="fa-solid fa-rotate-right"></i> Try again</a>
+        }
+    </div>
+
+    <dl class="row small text-muted mt-5 mb-0">
+        <dt class="col-sm-2">Requested</dt>
+        <dd class="col-sm-10"><code>@Model.RequestedPath</code></dd>
+        <dt class="col-sm-2">Request ID</dt>
+        <dd class="col-sm-10"><code>@Model.RequestId</code></dd>
+        <dt class="col-sm-2">Time</dt>
+        <dd class="col-sm-10">@Model.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") UTC</dd>
+    </dl>
+</div>

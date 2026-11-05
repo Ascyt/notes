@@ -20,12 +20,13 @@ public sealed class IndexModel(Config config,
     public async Task<IActionResult> OnGetAsync()
     {
         VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
+        // No body, so the error page is shown instead
         if (VirtualPath.StartsWith("_/"))
-            return NotFound("Page not found.");
-        
+            return NotFound();
+
         string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
         if (physicalPath is null || !System.IO.Path.Exists(physicalPath))
-            return NotFound("Path not found.");
+            return NotFound();
 
         PhysicalPath = physicalPath;
 
