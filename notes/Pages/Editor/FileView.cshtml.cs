@@ -11,6 +11,16 @@ public class FileView : PageModel
 
     public string VirtualPath { get; init; } = "";
     public string PhysicalPath { get; init; } = "";
+
+    /// <summary>Whether the user may change the contents. Without it the editor is read-only and there is no saving.</summary>
+    public bool CanWrite { get; init; }
+
+    /// <summary>Why the user can't delete the file, or null if they can.</summary>
+    public string? DeleteDeniedReason { get; init; }
+
+    /// <summary>Why the user can't rename the file, or null if they can.</summary>
+    public string? RenameDeniedReason { get; init; }
+
     public string Contents { get; private set; } = "";
     public bool IsBinary { get; private set; }
     public long Size { get; private set; }

@@ -1,0 +1,392 @@
+@model _SelectionBar
+
+@* The card at the bottom of a directory listing, and the script behind all of the selecting: the checkboxes of the listing
+   (.entry-row with a .entry-select, and a .entry-select-all above each group of them) are plain markup in DirectoryView. *@
+
+@* The card is one of the floating cards (see _Toasts): the script moves it into their stack, below the messages. *@
+
+@Html.AntiForgeryToken()
+<div id="selection-bar" class="floating-card card shadow" data-directory="@Model.DirectoryPath" data-create-denied="@Model.CreateDeniedReason" hidden>
+    <div class="card-body d-flex align-items-center flex-wrap gap-3 py-2 px-3">
+        <span id="selection-count"></span>
+        <div id="selection-actions" class="d-flex gap-2">
+            @* Either Copy and Move (selection from elsewhere) or Delete (selection in this very directory), never both. Which ones there are
+               is up to the script, which also gives them their shortcuts (data-key) only while they are there. Those that are there but
+               can't be used (permissions) are disabled with the reason, like the toolbar buttons (site.js). *@
+            <button type="button" id="selection-copy" class="btn btn-sm btn-outline-primary d-none" data-key="v" data-label="Copy here"><i class="fa-regular fa-copy"></i> Copy here</button>
+            <button type="button" id="selection-move" class="btn btn-sm btn-outline-primary d-none" data-key="+v" data-label="Move here"><i class="fa-solid fa-arrow-right-to-bracket"></i> Move here</button>
+            <button type="button" id="selection-delete" class="btn btn-sm btn-outline-danger d-none" data-key="Delete" data-label="Delete"><i class="fa-regular fa-trash-can"></i> Delete</button>
+        </div>
+        <span id="selection-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-label="Working"></span>
+        <button type="button" id="selection-clear" class="btn-close" aria-label="Clear selection" title="Clear selection" data-key="Escape"></button>
+    </div>
+</div>
+
+<div class="modal fade" id="selection-delete-modal" tabindex="-1" aria-labelledby="selection-delete-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="selection-delete-title">Confirm deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong id="selection-delete-count"></strong><span id="selection-delete-inside"></span>? This cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">Cancel</button>
+                <button type="button" id="selection-delete-confirm" class="btn btn-danger" key="Enter">
+                    <i class="fa-regular fa-trash-can"></i> Delete selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const bar = document.getElementById('selection-bar');
+        document.getElementById('floating-cards').append(bar); // last, so the messages that come in are above it
+        const countText = document.getElementById('selection-count');
+        const actions = document.getElementById('selection-actions');
+        const copyButton = document.getElementById('selection-copy');
+        const moveButton = document.getElementById('selection-move');
+        const deleteButton = document.getElementById('selection-delete');
+        const deleteModal = document.getElementById('selection-delete-modal');
+        const directoryDeleteButton = document.getElementById('delete-button'); // deletes the directory itself (not part of this component)
+        const directoryDeleteReason = directoryDeleteButton ? directoryDeleteButton.dataset.disabledReason || null : null; // why it can't be, apart from the selection
+        const spinner = document.getElementById('selection-spinner');
+        const clearButton = document.getElementById('selection-clear');
+        const directory = bar.dataset.directory;
+        const createDeniedReason = bar.dataset.createDenied || null; // nothing may be copied or moved into this directory
+        const rows = [...document.querySelectorAll('tr.entry-row')];
+        const headers = [...document.querySelectorAll('.entry-select-all')];
+
+        // What the server last said the selection is. Version and paths are only ever replaced as a whole by an answer of the server.
+        let state = @Json.Serialize(Model.Selection);
+        let selected = new Set(state.paths);
+        let pending = 0;          // requests to change the selection that are on their way
+        let queue = Promise.resolve();
+        let isTransferring = false; // a copy or move started by this tab is running
+        let pollTimer = null;
+
+        const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const isBusy = () => state.busy || isTransferring;
+        const checkboxOf = row => row.querySelector('.entry-select');
+        const isChecked = row => checkboxOf(row).checked;
+        const parentOf = path => path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+
+        // ---- Showing the selection ----
+
+        const BUSY_REASON = 'A copy, move or delete of the selection is in progress.';
+
+        function render() {
+            for (const row of rows) {
+                const checked = selected.has(row.dataset.path);
+                checkboxOf(row).checked = checked;
+                checkboxOf(row).disabled = isBusy();
+                row.title = isBusy() ? BUSY_REASON : '';
+                row.classList.toggle('table-active', checked);
+            }
+            renderHeaders();
+
+            const count = selected.size;
+            bar.hidden = count === 0;
+            countText.textContent = count + (count === 1 ? ' element selected' : ' elements selected');
+            actions.classList.toggle('d-none', isBusy());
+            setAvailable(clearButton, !isBusy() && count > 0); // and Escape clears the selection only while there is one
+            spinner.classList.toggle('d-none', !isBusy());
+
+            // Selected in this very directory: there is nothing to copy or move here, so the card offers Delete instead (and the
+            // directory's own Delete button, which would be easily mistaken for it, waits). Otherwise it is Copy and Move.
+            const allHere = count > 0 && [...selected].every(path => parentOf(path) === directory);
+            setAvailable(copyButton, !allHere);
+            setAvailable(moveButton, !allHere);
+            setAvailable(deleteButton, allHere);
+
+            // What the permissions allow, as far as the server knew when the entries were selected (it checks again when it is done).
+            // Moving takes the entries away from where they are, so it needs what deleting needs.
+            const removeDeniedReason = state.canDelete ? null : 'You may not delete or move some of the selected entries, or something inside them.';
+            setButtonDisabled(copyButton, createDeniedReason);
+            setButtonDisabled(moveButton, createDeniedReason || removeDeniedReason);
+            setButtonDisabled(deleteButton, removeDeniedReason);
+
+            if (directoryDeleteButton)
+                setButtonDisabled(directoryDeleteButton, allHere
+                    ? 'Use Delete in the selection card to delete selected folders, or clear the selection first to delete this directory.'
+                    : directoryDeleteReason);
+        }
+
+        // Shows or hides one of the card's buttons. Its shortcut only exists while it is shown (a hidden button's would still work).
+        function setAvailable(button, available) {
+            button.classList.toggle('d-none', !available);
+            if (available)
+                button.setAttribute('key', button.dataset.key);
+            else
+                button.removeAttribute('key');
+        }
+
+        // The box above a group of entries: checked if all are selected, a dash if only some
+        function renderHeaders() {
+            for (const header of headers) {
+                const group = rows.filter(row => row.dataset.group === header.dataset.group);
+                const count = group.filter(row => isChecked(row)).length;
+                header.checked = count > 0 && count === group.length;
+                header.indeterminate = count > 0 && count < group.length;
+                header.disabled = isBusy();
+                header.closest('th').title = isBusy() ? BUSY_REASON : '';
+            }
+        }
+
+        // Adopts the selection the server answered with, unless a newer change of this tab is on its way (which would make it flicker)
+        function adopt(snapshot) {
+            if (snapshot.version < state.version)
+                return;
+            state = snapshot;
+            selected = new Set(snapshot.paths);
+            if (pending === 0)
+                render();
+            if (state.busy && !isTransferring)
+                startPolling();
+        }
+
+        // ---- Talking to the server ----
+
+        async function sync() {
+            try {
+                const response = await fetch(window.location.pathname + '?selection', { headers: { 'Accept': 'application/json' } });
+                if (response.ok)
+                    adopt(await response.json());
+            } catch { /* offline; the next try will do */ }
+        }
+
+        // Changes are sent one after the other, so they arrive in the order they were made
+        function send(action, paths) {
+            pending++;
+            queue = queue.then(async () => {
+                try {
+                    const response = await fetch(window.location.pathname + '?selection=' + action, {
+                        method: 'POST',
+                        headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paths })
+                    });
+                    pending--;
+                    if (response.ok)
+                        adopt(await response.json());
+                    else
+                        await sync(); // e.g. a transfer is running in another tab: show what is true
+                } catch {
+                    pending--;
+                    await sync();
+                }
+                if (pending === 0)
+                    render();
+            });
+            return queue;
+        }
+
+        const change = (paths, select) => paths.length === 0 ? Promise.resolve() : send(select ? 'add' : 'remove', paths);
+
+        // While a transfer started elsewhere (another tab, or this page before it was reloaded) runs, wait for it and show the result
+        function startPolling() {
+            if (pollTimer !== null)
+                return;
+            render();
+            pollTimer = setInterval(async function () {
+                await sync();
+                if (state.busy)
+                    return;
+
+                clearInterval(pollTimer);
+                pollTimer = null;
+                // A success cleared the selection and changed the listing. After a failure the selection is still there, and a reload would clear it.
+                if (selected.size === 0)
+                    window.location.reload();
+                else
+                    render();
+            }, 1500);
+        }
+
+        async function transfer(kind) {
+            if (isBusy() || selected.size === 0)
+                return;
+
+            const transferred = [...selected];
+            isTransferring = true;
+            render();
+            let message = null;
+            try {
+                const response = await fetch(window.location.pathname + '?transfer=' + kind, {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version: state.version })
+                });
+                if (response.ok) {
+                    // Done, and the selection is cleared. Reloading shows the new contents.
+                    window.removeEventListener('beforeunload', warnBeforeUnload);
+                    const { leftOutUnreadable } = await response.json().catch(() => ({}));
+                    const done = { copy: 'Copied', move: 'Moved', delete: 'Deleted' }[kind];
+                    notifyAfterNavigation(done + ' ' + transferred.length + (transferred.length === 1 ? ' element' : ' elements')
+                        + (kind === 'delete' ? '.' : ' here') + (leftOutUnreadable ? ', without the entries you may not open.' : kind === 'delete' ? '' : '.'));
+
+                    // This very directory may be gone with what was deleted: go to where the topmost deleted entry was
+                    const gone = kind === 'delete'
+                        ? transferred.filter(p => directory === p || directory.startsWith(p + '/')).sort((a, b) => a.length - b.length)[0]
+                        : undefined;
+                    if (gone !== undefined)
+                        window.location.href = '/' + parentOf(gone).split('/').map(encodeURIComponent).join('/');
+                    else
+                        window.location.reload();
+                    return;
+                }
+                message = (await response.text()) || ('Failed (' + response.status + ').');
+            } catch {
+                message = 'The connection was lost. The ' + kind + ' may still be running on the server or may have finished; the selection shows which.';
+            }
+
+            isTransferring = false;
+            await sync();
+            render();
+            notify(message, 'danger');
+        }
+
+        // The page must stay open while a transfer started here runs, so its answer is not lost
+        function warnBeforeUnload(e) {
+            if (isTransferring)
+                e.preventDefault();
+        }
+        window.addEventListener('beforeunload', warnBeforeUnload);
+
+        // ---- Using the boxes ----
+
+        // A box of a single entry (clicked, or Space/shortcut while focused)
+        for (const row of rows)
+            checkboxOf(row).addEventListener('change', function () {
+                const checked = checkboxOf(row).checked;
+                row.classList.toggle('table-active', checked);
+                renderHeaders();
+                change([row.dataset.path], checked);
+            });
+
+        // The box above a group selects all of it, or, if all of it is selected already, none of it
+        for (const header of headers) {
+            const group = rows.filter(row => row.dataset.group === header.dataset.group);
+            header.addEventListener('change', function () {
+                const select = !group.every(isChecked);
+                const affected = group.filter(row => isChecked(row) !== select);
+                for (const row of affected) {
+                    checkboxOf(row).checked = select;
+                    row.classList.toggle('table-active', select);
+                }
+                renderHeaders();
+                change(affected.map(row => row.dataset.path), select);
+            });
+
+            // ...and so does a click beside it
+            header.closest('th').addEventListener('click', function (e) {
+                if (e.target !== header && !isBusy() && group.length > 0)
+                    header.click();
+            });
+        }
+
+        // Pressing on the background of a row selects it (or unselects it if it was selected), and dragging over more rows does
+        // the same to them. Rows the pointer leaves again go back to how they were. The change is sent when the button is released.
+        let drag = null;
+
+        function applyDrag() {
+            const [from, to] = [Math.min(drag.start, drag.current), Math.max(drag.start, drag.current)];
+            rows.forEach(function (row, i) {
+                const checked = i >= from && i <= to ? drag.select : drag.initial[i];
+                checkboxOf(row).checked = checked;
+                row.classList.toggle('table-active', checked);
+            });
+            renderHeaders();
+        }
+
+        document.addEventListener('mousedown', function (e) {
+            if (e.button !== 0 || isBusy())
+                return;
+            const row = e.target.closest && e.target.closest('tr.entry-row');
+            // Links, boxes and the like do their own thing
+            if (!row || e.target.closest('a, input, button, label'))
+                return;
+
+            e.preventDefault(); // no text highlighting while dragging
+            const start = rows.indexOf(row);
+            drag = { start, current: start, select: !isChecked(row), initial: rows.map(isChecked) };
+            applyDrag();
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (drag === null)
+                return;
+            const element = document.elementFromPoint(e.clientX, e.clientY);
+            const index = rows.indexOf(element && element.closest('tr.entry-row'));
+            if (index >= 0 && index !== drag.current) {
+                drag.current = index;
+                applyDrag();
+            }
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (drag === null)
+                return;
+            const { select, initial } = drag;
+            const changed = rows.filter((row, i) => isChecked(row) !== initial[i]).map(row => row.dataset.path);
+            drag = null;
+            change(changed, select);
+        });
+
+        clearButton.addEventListener('click', function () {
+            if (!isBusy())
+                send('clear', []);
+        });
+        copyButton.addEventListener('click', () => transfer('copy'));
+        moveButton.addEventListener('click', () => transfer('move'));
+        deleteButton.addEventListener('click', async function () {
+            await queue; // the counts come from the server, so wait for the changes still on their way
+            if (isBusy() || selected.size === 0)
+                return;
+            // "2 directories and 1 file"; what is inside the directories is only mentioned if there are any
+            const directories = state.directoryCount;
+            const files = selected.size - directories;
+            const parts = [];
+            if (directories > 0)
+                parts.push(directories + (directories === 1 ? ' directory' : ' directories'));
+            if (files > 0)
+                parts.push(files + (files === 1 ? ' file' : ' files'));
+            document.getElementById('selection-delete-count').textContent = parts.join(' and ');
+            document.getElementById('selection-delete-inside').textContent = directories > 0
+                ? ', including everything inside the selected ' + (directories === 1 ? 'directory' : 'directories')
+                : '';
+            bootstrap.Modal.getOrCreateInstance(deleteModal).show();
+        });
+        document.getElementById('selection-delete-confirm').addEventListener('click', function () {
+            bootstrap.Modal.getOrCreateInstance(deleteModal).hide();
+            transfer('delete');
+        });
+
+        // ---- Keeping up ----
+
+        // Another tab of this user may have changed the selection (or started a transfer) meanwhile
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && !isTransferring)
+                sync();
+        });
+        // Coming back through the back button shows the page as it was left, which may be outdated
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted)
+                sync();
+        });
+
+        // A manual reload starts afresh. (A transfer finishing reloads as well, but then there is nothing left to clear.)
+        const navigation = performance.getEntriesByType('navigation')[0];
+        if (navigation && navigation.type === 'reload' && selected.size > 0 && !state.busy) {
+            selected = new Set();
+            send('clear', []);
+        }
+
+        render();
+        if (state.busy)
+            startPolling();
+    })();
+</script>

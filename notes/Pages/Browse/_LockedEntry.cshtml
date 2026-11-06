@@ -1,0 +1,13 @@
+@using notes.Features.View.Browse
+@model _LockedEntry
+
+@{
+    string reason = Model.IsDirectory
+        ? "You may not open this directory, so what is in it is hidden from you."
+        : "You may not open this file.";
+}
+
+@* Not an .entry-row: the selection script leaves it alone. The box is only there to keep the names in line with the others, and says why it can't be ticked. *@
+<tr title="@reason">
+    <td class="text-secondary"><input type="checkbox" class="form-check-input entry-select" disabled aria-label="@Model.Name can't be selected" style="cursor: not-allowed;"/><span class="entry-index">@Model.Number</span><i class="fa-regular @(Model.IsDirectory ? "fa-folder" : "fa-file")"></i> @Model.Name <i class="fa-solid fa-lock fa-xs ms-1" aria-label="@reason"></i></td>
+</tr>

@@ -44,8 +44,10 @@
       <AdditionalFiles Include="Features\Components\Breadcrumb\_Breadcrumb.cshtml" />
       <AdditionalFiles Include="Features\Components\Create\_CreateButton.cshtml" />
       <AdditionalFiles Include="Features\Components\Delete\_DeleteButton.cshtml" />
-      <AdditionalFiles Include="Features\Components\Download\_Download.cshtml" />
       <AdditionalFiles Include="Features\Components\Rename\_RenameInput.cshtml" />
+      <AdditionalFiles Include="Features\Components\Selection\_SelectionBar.cshtml" />
+      <AdditionalFiles Include="Features\Components\Toast\_Toasts.cshtml" />
+      <AdditionalFiles Include="Features\Components\Toolbar\_Toolbar.cshtml" />
       <AdditionalFiles Include="Features\Components\Upload\_Upload.cshtml" />
     </ItemGroup>
 

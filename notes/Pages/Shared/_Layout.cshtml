@@ -1,5 +1,6 @@
 ﻿@using notes.Extensions
 @using notes.Features.Auth
+@using notes.Features.Components.Toast
 @inject Config Config
 <!DOCTYPE html>
 <html lang="en">
@@ -12,6 +13,8 @@
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css"/>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
     <link rel="stylesheet" href="~/shortcuts/shortcuts.css" asp-append-version="true"/>
+    @* In the head, so that what the scripts of the page and its components use of it (setButtonDisabled and the like) is there when they run *@
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @* <link rel="stylesheet" href="~/notes.styles.css" asp-append-version="true"/> *@
 </head>
 <body>
@@ -31,7 +34,7 @@
                     @if (User.IsInRole(NotesAccess.AdminRole))
                     {
                         <li class="nav-item">
-                            <a class="nav-link text-dark" href="/_/Hangfire">Hangfire</a>
+                        <a class="nav-link text-dark" href="/_/Hangfire" key="!H">Hangfire</a>
                         </li>
                     }
                 </ul>
@@ -40,6 +43,7 @@
         </div>
     </nav>
 </header>
+<partial name="/Features/Components/Toast/_Toasts.cshtml" model="new _Toasts()"/>
 <div class="container">
     <main role="main" class="pb-3">
         @RenderBody()
@@ -56,7 +60,6 @@
 
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-<script src="~/js/site.js" asp-append-version="true"></script>
 <script src="~/shortcuts/shortcuts.js"asp-append-version="true"></script>
 
 @await RenderSectionAsync("Scripts", required: false)

@@ -9,6 +9,9 @@ public class _Breadcrumb : PageModel
 
     public string VirtualPath { get; init; } = "";
 
+    /// <summary>Why the current entry can't be renamed, or null if it can (see <see cref="Rename._RenameInput.DisabledReason"/>).</summary>
+    public string? RenameDisabledReason { get; init; }
+
     private string[] Names => VirtualPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
     public bool IsRoot => Names.Length == 0;

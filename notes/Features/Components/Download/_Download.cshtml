@@ -1,6 +1,0 @@
-@model _Download
-
-@* A plain link to the current address with ?download; the server names the download, and the attribute keeps the page (e.g. an editor with unsaved changes) from being treated as left *@
-<a href="?download" download class="btn btn-sm btn-outline-primary" title="@(Model.IsFile ? "Download this file" : "Download this directory as a zip")" key="d">
-    <i class="fa-solid fa-download"></i> Download
-</a>

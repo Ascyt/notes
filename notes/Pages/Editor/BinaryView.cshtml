@@ -1,9 +1,8 @@
 @using notes.Features.Components.Delete
-@using notes.Features.Components.Download
 @using notes.Features.View.Editor
 @model notes.Features.View.Editor.FileView
 @{
-    string message = $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the button below.";
+    string message = $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the download button above.";
     string name = System.IO.Path.GetFileName(Model.VirtualPath);
 }
 
@@ -16,7 +15,7 @@
 </script>
 
 @* "?raw" is the file's own address with the raw bytes; the browser does the showing *@
-<div class="mb-3">
+<div>
     @switch (Model.Media)
     {
         case MediaKind.Image:
@@ -42,7 +41,4 @@
             break;
     }
 </div>
-<div class="d-flex gap-2">
-    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = true }"/>
-    <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = true, Kind = "file" }'/>
-</div>
+<partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = true, Kind = "file" }'/>

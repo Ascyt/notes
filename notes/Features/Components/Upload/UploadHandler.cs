@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using notes.Features.Auth;
 using notes.Features.Helpers;
 
 namespace notes.Features.Components.Upload;
@@ -9,12 +10,15 @@ namespace notes.Features.Components.Upload;
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
 /// or proxies cap the file size. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
-public sealed class UploadHandler(IPathService path, IUploadService uploadService)
+public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree)
 {
     public async Task<IActionResult> HandleAsync(HttpRequest request, ClaimsPrincipal user, string physicalPath, string upload)
     {
         if (!Directory.Exists(physicalPath))
             return new NotFoundObjectResult("Directory not found.");
+        // Uploading into a directory the user may not read would tell them which names are taken in it
+        if (!tree.GetAccess(user, physicalPath).CanRead)
+            return Forbidden("You may not open this directory.");
 
         // The user's own folder holds their uploads, so the id means nothing to anyone else
         string? userId = user.FindFirst("sub")?.Value;
@@ -39,9 +43,27 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         if (!long.TryParse(request.Query["offset"], out long offset) || offset < 0)
             return new BadRequestObjectResult("Invalid offset.");
 
-        string? result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, name, offset, request.Query["last"].Count > 0, request.Body);
+        // Asked early (with every chunk) so that a file that can't be put here isn't uploaded in vain, and once more for the name the
+        // finished file actually gets
+        bool MayCreate(string physical) => tree.GetAccess(user, physical).CanCreate;
+        if (!MayCreate(Path.Combine(physicalPath, name)))
+            return Forbidden($"You may not create '{name}' here.");
+
+        string? result;
+        try
+        {
+            result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, name, offset, request.Query["last"].Count > 0, request.Body, MayCreate);
+        }
+        catch (AccessDeniedException e)
+        {
+            return Forbidden(e.Message);
+        }
+
         return result is null
             ? new ConflictObjectResult("No such upload, or the chunk does not continue it.")
             : new ContentResult { Content = result };
     }
+
+    private static ObjectResult Forbidden(string message)
+        => new(message) { StatusCode = StatusCodes.Status403Forbidden };
 }

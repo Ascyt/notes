@@ -29,3 +29,13 @@ body {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
 }
+
+/* A button that does nothing right now (see setButtonDisabled in site.js). Looks like Bootstrap's disabled button, but keeps
+   its tooltip, which says why. */
+.btn.is-disabled, .btn.is-disabled:hover, .btn.is-disabled:active {
+  opacity: 0.65;
+  cursor: not-allowed;
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}

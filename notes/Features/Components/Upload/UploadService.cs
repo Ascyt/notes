@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using notes.Features.Auth;
 using notes.Features.Helpers;
 
 namespace notes.Features.Components.Upload;
@@ -12,9 +13,10 @@ public interface IUploadService
     /// <summary>
     /// Writes one chunk of the user's upload at <paramref name="offset"/>. Returns null if the user has no such upload or the
     /// chunk doesn't continue where the previous one ended, otherwise "" or, after the last chunk, the virtual path of the
-    /// finished file (renamed to "name (n).ext" if the name was taken).
+    /// finished file (renamed to "name (n).ext" if the name was taken). <paramref name="mayCreate"/> is asked for the physical path the
+    /// finished file is about to get; if it says no, the upload is discarded and an <see cref="AccessDeniedException"/> thrown.
     /// </summary>
-    Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body);
+    Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body, Func<string, bool> mayCreate);
 
     /// <summary>Discards what has been uploaded so far for the user's <paramref name="uploadId"/>.</summary>
     void AbortUpload(string userId, Guid uploadId);
@@ -23,7 +25,7 @@ public interface IUploadService
     int DeleteStaleUploads(TimeSpan maxAge);
 }
 
-public sealed class UploadService(Config config, IPathService path) : IUploadService
+public sealed class UploadService(Config config, IPathService path, StructureLock structureLock) : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -37,7 +39,7 @@ public sealed class UploadService(Config config, IPathService path) : IUploadSer
         return uploadId.ToString("N");
     }
 
-    public async Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body)
+    public async Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body, Func<string, bool> mayCreate)
     {
         // Chunks pile up in a temp file outside the notes that only gets its real name once the last chunk has arrived
         string tempPath = Path.Combine(UserTempDirectory(userId), TempName(uploadId));
@@ -62,15 +64,30 @@ public sealed class UploadService(Config config, IPathService path) : IUploadSer
         string baseName = Path.GetFileNameWithoutExtension(name);
         string extension = Path.GetExtension(name);
         string finalName = name;
-        for (int n = 1; ; n++)
+        using (await structureLock.EnterAsync())
         {
-            try
+            for (int n = 1; ; n++)
             {
-                File.Move(tempPath, Path.Combine(physicalDirectory, finalName));
-                return path.ToVirtualPath(config.Dir, Path.Combine(physicalDirectory, finalName));
-            }
-            catch (IOException) when (Path.Exists(Path.Combine(physicalDirectory, finalName)))
-            {
+                string finalPath = Path.Combine(physicalDirectory, finalName);
+                if (!Path.Exists(finalPath))
+                {
+                    if (!mayCreate(finalPath))
+                    {
+                        File.Delete(tempPath);
+                        throw new AccessDeniedException($"You may not create '{finalName}' here.");
+                    }
+
+                    try
+                    {
+                        File.Move(tempPath, finalPath);
+                        return path.ToVirtualPath(config.Dir, finalPath);
+                    }
+                    catch (IOException) when (Path.Exists(finalPath))
+                    {
+                        // Made outside of the app in the meantime: on to the next name
+                    }
+                }
+
                 finalName = $"{baseName} ({n}){extension}";
             }
         }

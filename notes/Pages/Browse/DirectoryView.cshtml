@@ -1,7 +1,8 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Create
 @using notes.Features.Components.Delete
-@using notes.Features.Components.Download
+@using notes.Features.Components.Selection
+@using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
 @using notes.Features.View.Browse
 @model notes.Features.View.Browse.DirectoryView
@@ -16,59 +17,103 @@
         font-size: 0.75em;
         opacity: 0.5;
     }
+
+    /* Selection boxes, in the rows and above them */
+    .entry-select, .entry-select-all {
+        margin-top: 0; /* Bootstrap's own offset (for checkboxes next to a label) puts it below the text */
+        margin-right: 0.5rem;
+        vertical-align: middle;
+        position: relative;
+        top: -2px; /* what is left of "middle" being the middle of the lowercase letters, not of the line */
+        cursor: pointer;
+    }
 </style>
 
-@if (Model.VirtualPath != "")
-{
-    <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath }"/>
+@{
+    ToolbarButton[] toolbarButtons =
+    [
+        ToolbarButton.Download(isFile: false),
+        ToolbarButton.Upload(Model.CreateDeniedReason),
+        ToolbarButton.Delete("directory", Model.DeleteDeniedReason)
+    ];
 }
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
 
 <div>
     <table class="table">
+        @if (Model.Directories.Length > 0)
+        {
+            <thead>
+            <tr>
+                <th class="fw-normal small text-secondary">
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="directories" key="a" aria-label="Select all directories"/>Directories
+                </th>
+            </tr>
+            </thead>
+        }
         <tbody>
         @for (int i = 0; i < Model.Directories.Length; i++)
         {
-            <tr>
-                @{
-                    string path = Model.Directories[i];
-                    string virtualPath = Model.ToVirtualPath(path);
-                }
-                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+            @* The row can be selected by clicking anywhere on it but the link; Ctrl plus the shortcut of its link selects it as well *@
+            string path = Model.Directories[i].Path;
+            string virtualPath = Model.ToVirtualPath(path);
+            if (!Model.Directories[i].CanOpen)
+            {
+                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = true, Number = i + 1 }"/>
+                continue;
+            }
+            <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
+                <td><input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
-                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false }"/>
+                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false, DisabledReason = Model.CreateDeniedReason }"/>
             </td>
         </tr>
         </tbody>
     </table>
-    <table class="table">
+    @* No margin below the last table: the page's own padding is all there should be between it and the footer *@
+    <table class="table mb-0">
+        @if (Model.Files.Length > 0)
+        {
+            <thead>
+            <tr>
+                <th class="fw-normal small text-secondary">
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="files" key="+a" aria-label="Select all files"/>Files
+                </th>
+            </tr>
+            </thead>
+        }
         <tbody>
         @for (int i = 0; i < Model.Files.Length; i++)
         {
-            <tr>
-                @{
-                    string path = Model.Files[i];
-                    string virtualPath = Model.ToVirtualPath(path);
-                }
-                <td><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+            string path = Model.Files[i].Path;
+            string virtualPath = Model.ToVirtualPath(path);
+            if (!Model.Files[i].CanOpen)
+            {
+                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = false, Number = i + 1 }"/>
+                continue;
+            }
+            <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">
+                <td><input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/><span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
             </tr>
         }
         <tr>
             <td class="border-bottom-0">
-                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true }"/>
+                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true, DisabledReason = Model.CreateDeniedReason }"/>
             </td>
         </tr>
         </tbody>
     </table>
-    @if (Model.VirtualPath != "")
+    @if (!Model.IsRoot)
     {
         <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
     }
 </div>
 
-<div class="mt-3 d-flex gap-2">
-    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = false }"/>
-    <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload()"/>
-</div>
+<partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload { DisabledReason = Model.CreateDeniedReason }"/>
+
+<partial name="/Features/Components/Selection/_SelectionBar.cshtml" model="new _SelectionBar { DirectoryPath = Model.CanonicalVirtualPath, Selection = Model.Selection, CreateDeniedReason = Model.CreateDeniedReason }"/>

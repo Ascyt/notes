@@ -1,0 +1,65 @@
+@model _Toolbar
+
+@* The row of small icons under the breadcrumb. They are buttons, but look like icons (no frame, no text): the label is the tooltip.
+   The buttons are made by the page (see ToolbarButton); the scripts of the page and of its components find them by id and use
+   setButtonDisabled / setButtonBusy (site.js) to change what they can do. *@
+
+<style>
+    .toolbar {
+        min-height: 1.5rem;
+    }
+
+    .toolbar-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        padding: 0;
+        border: 0;
+        border-radius: 0.25rem;
+        background: none;
+        font-size: 0.875rem;
+        line-height: 1;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .toolbar-button:hover, .toolbar-button:focus-visible {
+        background: var(--bs-secondary-bg);
+    }
+
+    .toolbar-button .spinner-border {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    /* Can't be used: grey, whatever it is otherwise (a blue Save is what says that there is something to save) */
+    .toolbar-button.is-disabled {
+        color: var(--bs-secondary-color) !important;
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: none;
+    }
+</style>
+
+<div class="toolbar d-flex align-items-center gap-1 mb-2" role="toolbar">
+    @foreach (ToolbarButton button in Model.Buttons)
+    {
+        string tone = button.Tone switch { ToolbarTone.Primary => "text-primary", ToolbarTone.Danger => "text-danger", _ => "text-body" };
+        bool disabled = button.DisabledReason is not null;
+        @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
+        if (button.Href is not null)
+        {
+            <a id="@button.Id" href="@button.Href" download="@(button.IsDownload ? "" : null)" class="toolbar-button @tone" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")">
+                <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
+            </a>
+        }
+        else
+        {
+            <button id="@button.Id" type="button" class="toolbar-button @tone" onclick="@button.OnClick" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")">
+                <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
+            </button>
+        }
+    }
+</div>

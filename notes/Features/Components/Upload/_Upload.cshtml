@@ -27,10 +27,9 @@
     }
 </style>
 
+@* Uploading to the current directory: the file picker, the drop target, the progress and the script behind the Upload button of the toolbar (#upload-button, see ToolbarButton.Upload) *@
+
 @Html.AntiForgeryToken()
-<button type="button" id="upload-button" class="btn btn-sm btn-outline-primary" key="u">
-    <i class="fa-solid fa-upload"></i> Upload
-</button>
 <input type="file" id="upload-input" multiple hidden/>
 
 <div id="upload-drop-overlay" class="upload-drop-overlay" hidden>
@@ -90,6 +89,7 @@
 
         let pending = [];
         let isUploading = false;
+        const disabledReason = @Json.Serialize(Model.DisabledReason); // nothing may be uploaded here
 
         function formatSize(bytes) {
             const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
@@ -160,6 +160,10 @@
         function addFiles(files) {
             if (isUploading || files.length === 0)
                 return;
+            if (disabledReason) {
+                notify(disabledReason, 'warning');
+                return;
+            }
             pending.push(...files);
             errorBox.hidden = true;
             render();
@@ -179,8 +183,10 @@
                     if (response.ok)
                         return;
                     lastError = 'server responded with ' + response.status;
-                    if (response.status >= 400 && response.status < 500)
+                    if (response.status >= 400 && response.status < 500) {
+                        lastError = (await response.text()) || lastError; // e.g. a permission that is missing
                         break; // retrying won't help
+                    }
                 } catch {
                     lastError = 'network error';
                 }
@@ -251,6 +257,7 @@
             }
 
             window.removeEventListener('beforeunload', warnBeforeUnload);
+            notifyAfterNavigation('Uploaded ' + queue.length + (queue.length === 1 ? ' file.' : ' files.'));
             window.location.reload();
         }
 
@@ -280,7 +287,7 @@
             if (!hasFiles(e))
                 return;
             e.preventDefault();
-            if (++dragDepth === 1 && !isUploading)
+            if (++dragDepth === 1 && !isUploading && !disabledReason)
                 overlay.hidden = false;
         });
         window.addEventListener('dragover', function (e) {

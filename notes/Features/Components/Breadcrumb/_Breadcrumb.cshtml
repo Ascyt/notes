@@ -1,17 +1,24 @@
 @using notes.Features.Components.Rename
 @model _Breadcrumb
 
-<div class="d-flex align-items-center gap-1 mb-3">
-    <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@(Model.ParentVirtualPath == "" ? "!ArrowUp Backspace" : null)"><i class="fa-regular fa-house fa-xs"></i></a>
-    <span class="text-secondary opacity-50">/</span>
-    @foreach ((string name, string virtualPath) in Model.Parents)
+@* The same height everywhere (that of the rename input at the end of it), so that what is below doesn't move when going from the root to a directory *@
+<div class="d-flex align-items-center gap-1 mb-2" style="min-height: calc(1.5 * 0.875rem + 0.5rem + 2px);">
+    @if (Model.IsRoot)
     {
-        <a class="text-decoration-none" href="/@virtualPath" key="@(virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null)">@name</a>
-        <span class="text-secondary opacity-50">/</span>
+        @* Nowhere to go from here, and nothing to rename *@
+        <i class="fa-regular fa-house fa-xs"></i>
+        <span>root</span>
     }
-    @if (!Model.IsRoot)
+    else
     {
+        <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@(Model.ParentVirtualPath == "" ? "!ArrowUp Backspace" : null)"><i class="fa-regular fa-house fa-xs"></i></a>
+        <span class="text-secondary opacity-50">/</span>
+        @foreach ((string name, string virtualPath) in Model.Parents)
+        {
+            <a class="text-decoration-none" href="/@virtualPath" key="@(virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null)">@name</a>
+            <span class="text-secondary opacity-50">/</span>
+        }
         <i class="fa-regular fa-s @(Model.IsFile ? "fa-file" : "fa-folder")"></i>
-        <partial name="/Features/Components/Rename/_RenameInput.cshtml"model="new _RenameInput { Name = Model.Name }"/>
+        <partial name="/Features/Components/Rename/_RenameInput.cshtml"model="new _RenameInput { Name = Model.Name, DisabledReason = Model.RenameDisabledReason }"/>
     }
 </div>

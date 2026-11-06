@@ -1,5 +1,10 @@
 @model _CreateButton
 
+@{
+    string label = Model.IsFile ? "Create file" : "Create subdirectory";
+}
+
+@* Disabled like the toolbar buttons (site.js): it says why on hover, and clicking it does nothing *@
 <form method="post" class="d-flex gap-3">
-    <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")" key-anchor="i"><i class="fa-solid fa-plus"></i> @(Model.IsFile ? "Create file" : "Create subdirectory")</button>
+    <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")" key-anchor="i" data-label="@label" data-disabled-reason="@Model.DisabledReason" aria-disabled="@(Model.DisabledReason is null ? "false" : "true")"><i class="fa-solid fa-plus"></i> @label</button>
 </form>

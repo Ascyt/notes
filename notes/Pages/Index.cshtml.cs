@@ -6,6 +6,8 @@ using notes.Features.Components.Create;
 using notes.Features.Components.Delete;
 using notes.Features.Components.Download;
 using notes.Features.Components.Rename;
+using notes.Features.Components.Selection;
+using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
 using notes.Features.View.Browse;
@@ -17,16 +19,25 @@ namespace notes.Pages;
 /// The page for every file and directory of the notes. It only finds what the address points at and passes the
 /// request on to the feature that answers it (the query string says which one).
 /// </summary>
+/// <remarks>
+/// Whatever the request, the user must be allowed to know of the entry it is for (<see cref="AccessTree.IsKnown"/>); one they aren't is
+/// answered exactly like one that doesn't exist. Opening it (its page, its bytes, a download) also needs read access to it, otherwise 403.
+/// Everything beyond that is up to the feature, see docs/security-specification.md.
+/// </remarks>
 [Authorize(Policy = NotesAccess.PolicyName)]
 public sealed class IndexModel(Config config,
     IPathService path,
+    AccessTree tree,
     DownloadHandler downloadHandler,
     RawHandler rawHandler,
     CreateHandler createHandler,
     UploadHandler uploadHandler,
     RenameHandler renameHandler,
     SaveHandler saveHandler,
-    DeleteHandler deleteHandler) : PageModel
+    DeleteHandler deleteHandler,
+    SelectionHandler selectionHandler,
+    TransferHandler transferHandler,
+    ISelectionService selectionService) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -46,28 +57,48 @@ public sealed class IndexModel(Config config,
 
         PhysicalPath = physicalPath;
 
+        if (!tree.IsKnown(User, PhysicalPath))
+            return NotFound();
+
+        if (Request.Query.ContainsKey("selection"))
+            return selectionHandler.HandleGet(User);
+
+        // The root page is the one everybody may open (it carries the login button); it shows nothing of the notes to those who may not read it.
+        // Any other entry the user knows of but may not read is listed in its directory, but can't be opened.
+        bool canOpen = tree.GetAccess(User, PhysicalPath).CanRead;
+        bool isRoot = VirtualPath == "";
+        if (!canOpen && !isRoot)
+            return StatusCode(StatusCodes.Status403Forbidden);
+
         if (Request.Query.ContainsKey("download"))
-            return downloadHandler.Handle(VirtualPath, PhysicalPath, User.IsInRole(NotesAccess.AdminRole));
+            return canOpen ? downloadHandler.Handle(User, VirtualPath, PhysicalPath) : NotFound();
 
         if (Request.Query.ContainsKey("raw"))
-            return rawHandler.Handle(Response, PhysicalPath);
+            return canOpen ? rawHandler.Handle(Response, PhysicalPath) : NotFound();
 
         if (System.IO.Directory.Exists(PhysicalPath))
         {
-            Directory = new DirectoryView(config, path)
+            string? userId = SelectionHandler.UserIdOf(User);
+            Directory = new DirectoryView(config, path, tree)
             {
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
-                CanBrowse = User.IsInRole(NotesAccess.AdminRole)
+                Viewer = User,
+                CanBrowse = canOpen,
+                Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
             };
-            Directory.InitAsync();
+            Directory.Init();
         }
         else if (System.IO.File.Exists(PhysicalPath))
         {
+            TreeAccess inspected = tree.Inspect(User, PhysicalPath);
             File = new FileView
             {
                 VirtualPath = VirtualPath,
-                PhysicalPath = PhysicalPath
+                PhysicalPath = PhysicalPath,
+                CanWrite = tree.GetAccess(User, PhysicalPath).CanWrite,
+                DeleteDeniedReason = inspected.DeleteDeniedReason,
+                RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, inspected)
             };
             await File.InitAsync();
         }
@@ -77,19 +108,21 @@ public sealed class IndexModel(Config config,
 
     public async Task<IActionResult> OnPostAsync()
     {
-        VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
-        if (VirtualPath.StartsWith("_/"))
-            return NotFound("Page not found.");
+        IActionResult? notFound = ResolveForChange();
+        if (notFound is not null)
+            return notFound;
 
-        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
-        if (physicalPath is null)
-            return NotFound("Path not found.");
+        string? selection = Request.Query["selection"];
+        if (selection is not null)
+            return await selectionHandler.HandlePostAsync(Request, User, selection);
 
-        PhysicalPath = physicalPath;
+        string? transfer = Request.Query["transfer"];
+        if (transfer is not null)
+            return await transferHandler.HandleAsync(Request, User, PhysicalPath, transfer);
 
         string? create = Request.Query["create"];
         if (create is not null)
-            return createHandler.Handle(PhysicalPath, create);
+            return await createHandler.HandleAsync(User, PhysicalPath, create);
 
         string? upload = Request.Query["upload"];
         if (upload is not null)
@@ -97,23 +130,35 @@ public sealed class IndexModel(Config config,
 
         string? rename = Request.Query["rename"];
         if (rename is not null)
-            return renameHandler.Handle(VirtualPath, PhysicalPath, rename);
+            return await renameHandler.HandleAsync(User, VirtualPath, PhysicalPath, rename);
 
-        return await saveHandler.HandleAsync(PhysicalPath, Request.Body);
+        return await saveHandler.HandleAsync(User, PhysicalPath, Request.Body);
     }
 
-    public IActionResult OnDelete()
+    public async Task<IActionResult> OnDeleteAsync()
+    {
+        IActionResult? notFound = ResolveForChange();
+        if (notFound is not null)
+            return notFound;
+
+        return await deleteHandler.HandleAsync(User, VirtualPath, PhysicalPath);
+    }
+
+    /// <summary>
+    /// Finds the entry a POST or DELETE is for. Returns the answer if there is none the user may know of. Whether they may read it (and
+    /// whatever else the operation needs) is up to the operation.
+    /// </summary>
+    private IActionResult? ResolveForChange()
     {
         VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
         if (VirtualPath.StartsWith("_/"))
             return NotFound("Page not found.");
 
         string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
-        if (physicalPath is null)
+        if (physicalPath is null || !tree.IsKnown(User, physicalPath))
             return NotFound("Path not found.");
 
         PhysicalPath = physicalPath;
-
-        return deleteHandler.Handle(VirtualPath, PhysicalPath);
+        return null;
     }
 }

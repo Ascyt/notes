@@ -1,9 +1,20 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Delete
-@using notes.Features.Components.Download
+@using notes.Features.Components.Toolbar
 @model notes.Features.View.Editor.FileView
 
-<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
+@{
+    // Saving is for what can be edited
+    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: true), ToolbarButton.Delete("file", Model.DeleteDeniedReason)];
+    if (!Model.IsBinary)
+        toolbarButtons.Insert(0, ToolbarButton.Save(Model.CanWrite ? null : ReadOnlyReason));
+}
+@functions {
+    private const string ReadOnlyReason = "You may not change this file.";
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
 
 @if (Model.IsBinary)
 {
@@ -12,17 +23,8 @@
 }
 
 @Html.AntiForgeryToken()
-<div class="mb-3">
-    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = true }"/>
-</div>
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
-<div class="mt-2">
-    <button id="save-button" type="button" class="btn btn-primary" style="display: none;" onclick="saveFile()" key="^S">
-        <i class="fa-solid fa-floppy-disk"></i> Save
-    </button>
-    <span id="save-loading" class="spinner-border spinner-border-sm text-secondary" style="display: none;" aria-hidden="true"></span>
-    <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
-</div>
+<partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
 
 <script>
     // Monaco's loader defines a global AMD `define`, which makes the Bootstrap bundle register as a module
@@ -42,7 +44,8 @@
                 value: @Json.Serialize(Model.Contents),
                 language: @Json.Serialize(Model.Language),
                 theme: 'vs',
-                readonly: false,
+                readOnly: !canWrite,
+                readOnlyMessage: { value: @Json.Serialize(ReadOnlyReason) },
                 automaticLayout: true,
                 wordWrap: 'on',
                 mouseWheelZoom: true // Ctrl+scroll zooms the editor
@@ -89,21 +92,27 @@
             window.editor.focus();
     });
 
+    const canWrite = @Json.Serialize(Model.CanWrite); // otherwise the editor is read-only and Save stays disabled
     let savedVersionId = null;
     let isDirty = false;
     let isSaving = false;
 
     function updateDirty() {
         isDirty = window.editor.getModel().getAlternativeVersionId() !== savedVersionId;
-        document.getElementById('save-button').style.display = isDirty ? '' : 'none';
+        if (canWrite)
+            setButtonDisabled(document.getElementById('save-button'), isDirty ? null : 'There is nothing to save.');
     }
 
     function setSaving(saving) {
         isSaving = saving;
-        document.getElementById('save-loading').style.display = saving ? '' : 'none';
-        if (saving)
-            document.getElementById('save-button').style.display = 'none';
+        setButtonBusy(document.getElementById('save-button'), saving);
     }
+
+    // With nothing to save the Save button (and so its shortcut) does nothing, but the browser's own "save page" is never what is meant
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's')
+            e.preventDefault();
+    });
 
     async function saveFile() {
         if (!window.editor || isSaving)
@@ -126,7 +135,8 @@
             setSaving(false);
         }
         if (!response.ok) {
-            alert('Failed to save file (' + response.status + ').');
+            const message = typeof response.text === 'function' ? await response.text() : '';
+            notify(message || ('Failed to save file (' + response.status + ').'), 'danger');
             return;
         }
         savedVersionId = versionId;
@@ -138,7 +148,7 @@
     window.onEntryDeleted = () => { isDirty = false; };
     window.beforeRename = () => {
         if (isDirty || isSaving) {
-            alert('The file has unsaved changes. Save it before renaming.');
+            notify('The file has unsaved changes. Save it before renaming.', 'warning');
             return false;
         }
     };

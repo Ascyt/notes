@@ -1,0 +1,113 @@
+@model _Toasts
+
+@* The stack of cards at the bottom of every page. Messages come in at the top of it, and go away by themselves or when clicked.
+   Anything else that wants to be a card of this stack (like the selection card) has the class "floating-card" and is moved into
+   #floating-cards: it stays at the bottom, below the messages.
+
+   From scripts:
+     notify('Saved.')                                  a message (kind: 'success' (default), 'info', 'warning' or 'danger')
+     notify('Could not save.', 'danger')
+     notifyAfterNavigation('Deleted file.')            the same, but shown by the next page that is loaded in this tab (for what is
+                                                       followed by a redirect or reload) *@
+
+<style>
+    .floating-cards {
+        position: fixed;
+        bottom: 1rem;
+        /* Centered without left: 50%, which would leave only half the viewport for the cards to be as wide as they want */
+        left: 0;
+        right: 0;
+        width: max-content;
+        margin-inline: auto;
+        z-index: 1090; /* above modals */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        max-width: calc(100vw - 2rem);
+        pointer-events: none; /* only the cards take clicks, not the empty space around them */
+    }
+
+    .floating-cards > * {
+        pointer-events: auto;
+    }
+
+    .floating-card[hidden] {
+        display: none;
+    }
+
+    .toast-card {
+        cursor: pointer;
+        transition: opacity 0.3s;
+    }
+
+    .toast-card.leaving {
+        opacity: 0;
+    }
+</style>
+
+<div id="floating-cards" class="floating-cards" aria-live="polite"></div>
+
+<script>
+    (function () {
+        const DEFAULT_DURATION = @Model.DefaultDurationMs;
+        const ERROR_DURATION = @Model.ErrorDurationMs;
+        const STORAGE_KEY = 'notes.toasts';
+        const container = document.getElementById('floating-cards');
+
+        const KINDS = {
+            success: { color: 'success', icon: 'fa-circle-check' },
+            info: { color: 'primary', icon: 'fa-circle-info' },
+            warning: { color: 'warning', icon: 'fa-triangle-exclamation' },
+            danger: { color: 'danger', icon: 'fa-circle-exclamation' }
+        };
+
+        window.notify = function (message, kind) {
+            const { color, icon } = KINDS[kind] || KINDS.success;
+
+            const card = document.createElement('div');
+            card.className = 'floating-card toast-card card shadow';
+            card.style.borderRight = '0.25rem solid var(--bs-' + color + ')'; // the kind, at a glance
+            card.setAttribute('role', kind === 'danger' ? 'alert' : 'status');
+            card.title = 'Click to dismiss';
+
+            const body = document.createElement('div');
+            body.className = 'card-body d-flex align-items-center gap-2 py-2 px-3';
+            const symbol = document.createElement('i');
+            symbol.className = 'fa-solid ' + icon + ' text-' + color;
+            const text = document.createElement('span');
+            text.textContent = message;
+            body.append(symbol, text);
+            card.appendChild(body);
+
+            let timer = null;
+            const dismiss = function () {
+                clearTimeout(timer);
+                card.classList.add('leaving');
+                setTimeout(() => card.remove(), 300);
+            };
+            card.addEventListener('click', dismiss);
+            timer = setTimeout(dismiss, kind === 'danger' ? ERROR_DURATION : DEFAULT_DURATION);
+
+            container.prepend(card); // the newest on top
+        };
+
+        window.notifyAfterNavigation = function (message, kind) {
+            try {
+                const queued = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+                queued.push({ message, kind });
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(queued));
+            } catch {
+                // No storage (private mode and the like): the message is lost, the action itself still happened
+            }
+        };
+
+        // What the page before this one left for us
+        try {
+            const queued = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+            sessionStorage.removeItem(STORAGE_KEY);
+            for (const { message, kind } of queued)
+                window.notify(message, kind);
+        } catch { }
+    })();
+</script>

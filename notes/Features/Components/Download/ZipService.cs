@@ -7,29 +7,31 @@ public interface IZipService
 {
     /// <summary>
     /// Writes the contents of the directory as a zip (smallest size) to <paramref name="output"/>. Asynchronous all the way,
-    /// so a slow client holds no thread while the zip waits for it.
+    /// so a slow client holds no thread while the zip waits for it. Only entries that <paramref name="include"/> agrees to are added (and
+    /// only directories it agrees to are looked into), each asked for when the zip gets to it.
     /// </summary>
-    Task WriteZipAsync(string physicalDirectory, Stream output, CancellationToken cancellationToken);
+    Task WriteZipAsync(string physicalDirectory, Stream output, Func<FileSystemInfo, bool> include, CancellationToken cancellationToken);
 }
 
 public sealed class ZipService : IZipService
 {
-    public async Task WriteZipAsync(string physicalDirectory, Stream output, CancellationToken cancellationToken)
+    public async Task WriteZipAsync(string physicalDirectory, Stream output, Func<FileSystemInfo, bool> include, CancellationToken cancellationToken)
     {
         DeferredWriteStream target = new(output);
         await using (ZipArchive zip = await ZipArchive.CreateAsync(target, ZipArchiveMode.Create, leaveOpen: true, entryNameEncoding: null, cancellationToken))
-            await AddDirectoryAsync(zip, physicalDirectory, "", cancellationToken);
+            await AddDirectoryAsync(zip, physicalDirectory, "", include, cancellationToken);
 
         // The zip's last bytes (closing the final entry, the central directory) may have been written synchronously
         await target.FlushDeferredAsync(cancellationToken);
     }
 
     /// <param name="prefix">Zip path of the directory: "" for the top level, otherwise ending in "/".</param>
-    private static async Task AddDirectoryAsync(ZipArchive zip, string physicalDirectory, string prefix, CancellationToken cancellationToken)
+    private static async Task AddDirectoryAsync(ZipArchive zip, string physicalDirectory, string prefix, Func<FileSystemInfo, bool> include, CancellationToken cancellationToken)
     {
-        // Same rules as the listing and the path service: nothing that is a link (it could point out of the notes) and no reserved folder
+        // Same rules as the listing and the path service: nothing that is a link (it could point out of the notes), no reserved folder,
+        // and nothing the caller leaves out (what the user may not read)
         FileSystemInfo[] entries = [..new DirectoryInfo(physicalDirectory).EnumerateFileSystemInfos()
-            .Where(entry => entry.LinkTarget is null && !(entry is DirectoryInfo && entry.Name == PathService.ReservedName))];
+            .Where(entry => entry.LinkTarget is null && !(entry is DirectoryInfo && entry.Name == PathService.ReservedName) && include(entry))];
 
         // Keeps empty directories, which only exist in a zip as an entry of their own
         if (entries.Length == 0 && prefix != "")
@@ -40,7 +42,7 @@ public sealed class ZipService : IZipService
             cancellationToken.ThrowIfCancellationRequested();
 
             if (entry is DirectoryInfo directory)
-                await AddDirectoryAsync(zip, directory.FullName, prefix + directory.Name + "/", cancellationToken);
+                await AddDirectoryAsync(zip, directory.FullName, prefix + directory.Name + "/", include, cancellationToken);
             else
                 await AddFileAsync(zip, (FileInfo)entry, prefix + entry.Name, cancellationToken);
         }

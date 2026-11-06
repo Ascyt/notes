@@ -1,10 +1,8 @@
 @model _DeleteButton
 
-@Html.AntiForgeryToken()
-<button type="button" class="btn btn-sm btn-outline-danger" onclick="requestDelete()" key="Delete">
-    <i class="fa-regular fa-trash-can"></i> Delete
-</button>
+ @* Deleting the current file or directory: the confirmation and the script behind the Delete button of the toolbar (#delete-button, see ToolbarButton.Delete) *@
 
+@Html.AntiForgeryToken()
 <div class="modal fade" id="delete-modal" tabindex="-1" aria-labelledby="delete-modal-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -38,7 +36,9 @@
     }
 
     async function deleteEntry() {
+        const button = document.getElementById('delete-button');
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        setButtonBusy(button, true);
         let response;
         try {
             response = await fetch(window.location.pathname, {
@@ -49,13 +49,17 @@
             response = { ok: false, status: 'network error' };
         }
         if (!response.ok) {
-            alert('Failed to delete (' + response.status + ').');
+            setButtonBusy(button, false);
+            // The server says what went wrong (e.g. a permission that is missing)
+            const message = typeof response.text === 'function' ? await response.text() : '';
+            notify(message || ('Failed to delete (' + response.status + ').'), 'danger');
             return;
         }
 
         // Don't prompt about unsaved changes of a file that no longer exists
         if (typeof window.onEntryDeleted === 'function')
             window.onEntryDeleted();
+        notifyAfterNavigation('Deleted @(Model.Kind).');
         const parent = window.location.pathname.replace(/\/+$/, '').replace(/\/[^\/]*$/, '');
         window.location.href = parent === '' ? '/' : parent;
     }

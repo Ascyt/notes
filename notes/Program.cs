@@ -8,6 +8,8 @@ using notes.Features.Components.Create;
 using notes.Features.Components.Delete;
 using notes.Features.Components.Download;
 using notes.Features.Components.Rename;
+using notes.Features.Components.Selection;
+using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
 using notes.Features.View.Editor;
@@ -34,6 +36,20 @@ builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IZipService, ZipService>();
 builder.Services.AddSingleton<IUploadService, UploadService>();
+// The selections live in memory of this process only: fine for a single instance, but a restart forgets them and several instances
+// would not share them. For that, ISelectionService needs a shared store (e.g. a distributed cache).
+builder.Services.AddMemoryCache();
+// Permissions: what they mean and who checks them where is specified in docs/security-specification.md
+builder.Services.AddSingleton<IEntryAccess, EntryAccess>();
+builder.Services.AddSingleton<AccessTree>();
+// One lock across the app (and so a single instance only) for everything that adds, removes or renames entries
+builder.Services.AddSingleton<StructureLock>();
+builder.Services.AddSingleton<ISelectionService, SelectionService>();
+builder.Services.AddSingleton<TransferPlanner>();
+builder.Services.AddSingleton<TransferExecutor>();
+builder.Services.AddSingleton<ITransferService, TransferService>();
+builder.Services.AddSingleton<SelectionHandler>();
+builder.Services.AddSingleton<TransferHandler>();
 builder.Services.AddSingleton<DownloadHandler>();
 builder.Services.AddSingleton<RawHandler>();
 builder.Services.AddSingleton<UploadHandler>();

@@ -11,7 +11,7 @@
 //   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values
 //   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values
 //
-// Triggering clicks the element, or focuses it if it is a text field. Disabled elements are skipped.
+// Triggering clicks the element, or focuses it if it is a text field. Disabled elements (also aria-disabled="true") are skipped.
 // To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
 // and call preventDefault() to skip the default action:
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
@@ -179,7 +179,7 @@
 
         // The same key may be set on several elements (e.g. Enter confirms whichever dialog or form
         // is relevant): prefer one that is visible, in DOM order
-        const candidates = activeElements().filter(el => !el.disabled
+        const candidates = activeElements().filter(el => !el.disabled && el.getAttribute('aria-disabled') !== 'true'
             && parseAll(el.getAttribute('key')).some(combo => matches(combo, e)));
         const el = candidates.find(isRendered) || candidates[0];
         if (!el)
