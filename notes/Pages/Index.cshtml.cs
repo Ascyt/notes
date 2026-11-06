@@ -21,6 +21,7 @@ namespace notes.Pages;
 public sealed class IndexModel(Config config,
     IPathService path,
     DownloadHandler downloadHandler,
+    RawHandler rawHandler,
     CreateHandler createHandler,
     UploadHandler uploadHandler,
     RenameHandler renameHandler,
@@ -47,6 +48,9 @@ public sealed class IndexModel(Config config,
 
         if (Request.Query.ContainsKey("download"))
             return downloadHandler.Handle(VirtualPath, PhysicalPath, User.IsInRole(NotesAccess.AdminRole));
+
+        if (Request.Query.ContainsKey("raw"))
+            return rawHandler.Handle(Response, PhysicalPath);
 
         if (System.IO.Directory.Exists(PhysicalPath))
         {

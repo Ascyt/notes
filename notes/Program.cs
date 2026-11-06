@@ -35,6 +35,7 @@ builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IZipService, ZipService>();
 builder.Services.AddSingleton<IUploadService, UploadService>();
 builder.Services.AddSingleton<DownloadHandler>();
+builder.Services.AddSingleton<RawHandler>();
 builder.Services.AddSingleton<UploadHandler>();
 builder.Services.AddSingleton<CreateHandler>();
 builder.Services.AddSingleton<RenameHandler>();

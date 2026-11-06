@@ -5,6 +5,12 @@
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath }"/>
 
+@if (Model.IsBinary)
+{
+    <partial name="/Pages/Editor/BinaryView.cshtml" model="Model"/>
+    return;
+}
+
 @Html.AntiForgeryToken()
 <div class="mb-3">
     <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = true }"/>

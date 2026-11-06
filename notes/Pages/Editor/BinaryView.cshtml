@@ -1,0 +1,48 @@
+@using notes.Features.Components.Delete
+@using notes.Features.Components.Download
+@using notes.Features.View.Editor
+@model notes.Features.View.Editor.FileView
+@{
+    string message = $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the button below.";
+    string name = System.IO.Path.GetFileName(Model.VirtualPath);
+}
+
+<script>
+    // Whatever the browser fails to show (a format it doesn't know, a broken file) gets the message instead
+    function showUnviewable(element) {
+        element.hidden = true;
+        document.getElementById('unviewable').hidden = false;
+    }
+</script>
+
+@* "?raw" is the file's own address with the raw bytes; the browser does the showing *@
+<div class="mb-3">
+    @switch (Model.Media)
+    {
+        case MediaKind.Image:
+            <img src="?raw" alt="@name" class="img-fluid" style="max-height: 75vh;" onerror="showUnviewable(this)"/>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Video:
+            <video src="?raw" controls class="w-100" style="max-height: 75vh;" onerror="showUnviewable(this)"></video>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Audio:
+            <audio src="?raw" controls class="w-100" onerror="showUnviewable(this)"></audio>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Pdf:
+            @* Browsers without a PDF viewer show what is inside the element instead *@
+            <object data="?raw" type="application/pdf" class="w-100" style="height: 75vh;">
+                <p id="unviewable" class="text-muted">@message</p>
+            </object>
+            break;
+        default:
+            <p id="unviewable" class="text-muted">@message</p>
+            break;
+    }
+</div>
+<div class="d-flex gap-2">
+    <partial name="/Features/Components/Download/_Download.cshtml" model="new _Download { IsFile = true }"/>
+    <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = true, Kind = "file" }'/>
+</div>
