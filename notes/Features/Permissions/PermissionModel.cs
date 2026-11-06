@@ -15,11 +15,13 @@ public static class Principal
     public const int MaxLength = 256;
 
     /// <summary>
-    /// Written <c>a</c>: everyone who is not logged in. Only those who are not: someone who is logged in is not "anonymous", so what is given
-    /// to <c>a</c> is not given to them (they get it by being in a group or role as well). It can't be given anything that changes the notes,
-    /// see <see cref="PermissionParser"/>.
+    /// Written <c>a</c>: all users, logged in or not. So a user who is logged in never gets less than one who is not. It can't be given
+    /// anything that changes the notes, as those who are not logged in may not change anything, see <see cref="PermissionParser"/>.
     /// </summary>
-    public const string Anonymous = "a";
+    public const string Everyone = "a";
+
+    /// <summary>Written <c>l</c>: all users who are logged in, so that a group that has everyone in it needn't be made in Keycloak.</summary>
+    public const string LoggedIn = "l";
 
     /// <summary>
     /// The canonical spelling of a principal as written in the configuration: user names are not case sensitive (Keycloak makes them
@@ -28,12 +30,12 @@ public static class Principal
     public static string? Normalize(string text, out string? error)
     {
         error = null;
-        if (text == Anonymous)
+        if (text is Everyone or LoggedIn)
             return text;
 
         if (text.Length < 3 || text[1] != ':' || text[0] is not ('u' or 'g' or 'r'))
         {
-            error = $"'{text}' is not a principal. Write u:<user name>, g:<group>, r:<role>, or a for everyone who is not logged in.";
+            error = $"'{text}' is not a principal. Write u:<user name>, g:<group>, r:<role>, a for all users or l for all users who are logged in.";
             return null;
         }
 
@@ -78,13 +80,12 @@ public sealed class PrincipalSet
 
     private static PrincipalSet Build(ClaimsPrincipal user)
     {
-        // Someone who is not logged in is only that: the anonymous principal, whatever claims they may carry
-        HashSet<string> values = new(StringComparer.Ordinal);
+        // Someone who is not logged in is only "everyone", whatever claims they may carry. Someone who is logged in is that and "logged in" as well.
+        HashSet<string> values = new(StringComparer.Ordinal) { Principal.Everyone };
         if (user.Identity?.IsAuthenticated != true)
-        {
-            _ = values.Add(Principal.Anonymous);
             return new PrincipalSet(values);
-        }
+
+        _ = values.Add(Principal.LoggedIn);
 
         foreach (Claim claim in user.Claims)
         {

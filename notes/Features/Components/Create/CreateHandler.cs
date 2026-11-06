@@ -7,7 +7,7 @@ using notes.Features.Permissions;
 namespace notes.Features.Components.Create;
 
 /// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it.</summary>
-public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs)
+public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, TimeProvider time)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string physicalDirectory, string create)
     {
@@ -17,10 +17,10 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
             return new BadRequestObjectResult("Invalid create kind.");
         // Creating in a directory the user may not read would tell them which names are taken in it
         if (!tree.GetAccess(user, physicalDirectory).CanRead)
-            return new ObjectResult("You may not open this directory.") { StatusCode = StatusCodes.Status403Forbidden };
+            return new ObjectResult("No read access to this directory.") { StatusCode = StatusCodes.Status403Forbidden };
 
         bool isFile = create == "file";
-        string baseName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm");
+        string baseName = time.GetLocalNow().ToString("yyyy-MM-dd_HH-mm");
         string extension = isFile ? ".md" : "";
 
         using (await structureLock.EnterAsync())
@@ -32,7 +32,7 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
 
             string newPhysicalPath = Path.Combine(physicalDirectory, name);
             if (!tree.GetAccess(user, newPhysicalPath).CanCreate)
-                return new ObjectResult($"You may not create a {create} here.") { StatusCode = StatusCodes.Status403Forbidden };
+                return new ObjectResult($"Insufficient permissions to create a {create} here.") { StatusCode = StatusCodes.Status403Forbidden };
 
             if (isFile)
             {

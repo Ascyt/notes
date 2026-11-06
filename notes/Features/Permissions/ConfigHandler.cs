@@ -91,6 +91,14 @@ public sealed class ConfigHandler(FolderConfigStore store, StructureLock structu
         foreach (string name in files.Order(StringComparer.OrdinalIgnoreCase).Where(name => parsed.Value!.FindFile(name) is null))
             text = ConfigText.AddFile(text, name) ?? text;
 
+        // What was added must not have broken it: a configuration that doesn't hold up closes the folder to everyone but admins
+        ParseResult<FolderConfig> completed = PermissionParser.ParseFolder(text, files);
+        if (!completed.IsValid)
+        {
+            logger.LogError("Adding the missing file entries made the configuration of {folder} invalid:\n{errors}", folder, completed.ErrorText);
+            return Failed(StatusCodes.Status500InternalServerError, "The entries for the files of this folder could not be added to what was sent, so nothing was saved.\n" + completed.ErrorText);
+        }
+
         store.WriteText(folder, text);
         return Saved(text);
     }

@@ -10,7 +10,7 @@ This document describes who may do what with the notes. It is the reference for 
 1. **No gate.** Anyone, signed in or not, may request any path of the notes; the page of the notes has no authorization of its own. Without `Read` on the root, what they get is the root page with the login link and nothing of the notes. Only what is not part of the notes is gated: the Hangfire dashboard is for admins (`NotesAccess.AdminPolicyName`), and every failed authorization is answered with the same 404 as a missing path.
 2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything. For everyone else it reads the `.config.json` of the folders (see [permissions.md](permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
 
-**Anonymous users** (not logged in) are the principal `a` of the configuration. They can be given `Read` (or denied it) but never `Write`, `Create` or `Delete`: the parser refuses such a configuration. They have no user id, so they can't select, upload or transfer anything either, and the pages tell them that they may need to log in.
+**Anonymous users** (not logged in) are only the principal `a` of the configuration, which stands for all users, so what is given to `a` is given to logged-in users as well (they never get less than anonymous users), who are also the principal `l`. `a` can be given `Read` (or denied it) but never `Write`, `Create` or `Delete`: the parser refuses such a configuration (`l` may be given anything). They have no user id, so they can't select, upload or transfer anything either, and the pages tell them that they may need to log in. Because they can't change anything, they have no way to find out that a name is taken (see "Name collisions" below), so for them an entry they may not read is **hidden**, not just locked: it isn't listed, and its address answers 404 (see [Known, openable, hidden](#known-openable-hidden)).
 
 The rest of this document is about the second layer.
 
@@ -19,7 +19,7 @@ The rest of this document is about the second layer.
 - `.config.json` (`PathService.ConfigFileName`) exists in the eyes of admins only. For everyone else `GetAccess` answers `None` for it, it is not in listings, `AccessTree.Walk` doesn't return it (so copies, moves, deletes and zips of a directory never see it), and no path leads to it (it is not a valid name, so it can't be created, uploaded, renamed to or opened). For admins it is part of walks, so it travels with a directory they copy, move or download.
 - Seeing and changing permissions is a permission of its own: `IEntryAccess.CanManagePermissions` (admins). `GET ?config` answers 404 to everyone else, whatever the entry, and so does `POST ?config`.
 - The file entries (`files`) of a folder's configuration are kept in step with its files by whoever adds, renames or removes a file, under the `StructureLock` (`FolderConfigStore.FileAdded/FileRenamed/FileRemoved`). A failure there never fails the operation.
-- A path's permissions come from its folder's file entry (found by name, whether or not the file exists), then the folder's permissions, then those of the folders above while each inherits. A directory is its own folder. Which of these applies to a path therefore depends on whether it is an existing directory, which anyone who may read the directory it is in sees anyway.
+- A path's permissions come from its folder's file entry (found by name, whether or not the file exists), then the folder's permissions, then those of the folders above, stopping after the first of these with `inherit: false`. A directory is its own folder. Which of these applies to a path therefore depends on whether it is an existing directory, which anyone who may read the directory it is in sees anyway.
 
 ## Permissions
 
@@ -29,11 +29,11 @@ The rest of this document is about the second layer.
 
 | Level | Meaning |
 |---|---|
-| `None` | The entry is still **listed by its name** (and as file or directory) in its directory, but it can't be opened. Its contents stay hidden: the text of a file, everything inside a directory. It can't be selected, copied, downloaded, moved, renamed or deleted. Copies and downloads of the directories it is in leave it out. |
+| `None` | For logged-in users, the entry is still **listed by its name** (and as file or directory) in its directory, but it can't be opened; for anonymous users it is hidden. Its contents stay hidden: the text of a file, everything inside a directory. It can't be selected, copied, downloaded, moved, renamed or deleted. Copies and downloads of the directories it is in leave it out. |
 | `Read` | The entry may be opened, downloaded, selected and copied. For a directory, this means its listing can be seen. |
 | `ReadAndWrite` | For files, the contents may also be changed (saved). For directories, `Write` currently grants nothing beyond `Read`. |
 
-The name of an entry is not covered by its own Read permission. Whoever may read a directory sees the names of everything in it. **To hide something completely, put it in a directory without `Read`.** Taking `Read` away from an entry hides what is in it, not the fact that it exists.
+The name of an entry is not covered by its own Read permission. Every logged-in user who may read a directory sees the names of everything in it (anonymous users only see what they may read). **To hide something completely, put it in a directory without `Read`.** Taking `Read` away from an entry hides what is in it, not the fact that it exists.
 
 ### Create: whether the entry may exist at its path
 
@@ -64,9 +64,9 @@ The name of an entry is not covered by its own Read permission. Whoever may read
 
 These terms are defined by `AccessTree` (`Features/Auth/AccessTree.cs`), not by `IEntryAccess` alone:
 
-- **Known:** the user may read every directory above the entry, up to the root. They may see its name. The root is always known.
+- **Known:** the user may read every directory above the entry, up to the root. They may see its name. For anonymous users the entry must also be readable itself (`AccessTree.SeesUnreadableNames`), so for them known and openable are the same. The root is always known.
 - **Openable:** known, and the user may read the entry itself.
-- **Hidden:** not known, meaning the entry is somewhere inside a directory the user may not read. That holds whatever `GetAccess` says about the entry itself. Walks over the notes (`AccessTree.Walk`) never go into unreadable directories.
+- **Hidden:** not known, meaning the entry is somewhere inside a directory the user may not read (or, for anonymous users, may not be read itself). That holds whatever `GetAccess` says about the entry itself. Walks over the notes (`AccessTree.Walk`) never go into unreadable directories, and for anonymous users leave unreadable entries out.
 
 ## What a user may learn
 
@@ -78,7 +78,7 @@ These terms are defined by `AccessTree` (`Features/Auth/AccessTree.cs`), not by 
 How the app keeps to this:
 
 - **Hidden entries answer like missing ones.** A hidden path given in the address or in any request gets the same 404 as a path that doesn't exist. This holds for every query (`?raw`, `?download`, `?rename`, …) and every method (GET, POST, DELETE).
-- **Unreadable entries refuse to open.** Opening a known entry the user may not read (its page, `?raw`, `?download`) gets a 403. This is fine, because its name is visible in the listing anyway. The one exception is the root: without `Read` on it, the root page shows only the login link.
+- **Unreadable entries refuse to open.** Opening a known entry the user may not read (its page, `?raw`, `?download`) gets a 403. This is fine, because its name is visible in the listing anyway. (Anonymous users never get there: for them such an entry is hidden.) The one exception is the root: without `Read` on it, the root page shows only the login link.
 - **Messages only name known entries.** Messages and tooltips may name known entries, including unreadable ones. They never name hidden ones.
 - **Name collisions leak nothing.** They only happen in directories the user may read, where they see every name anyway.
 - **Unreadable directories stay closed.** Operations never look inside a directory the user may not read. Moving, deleting or renaming such a directory, or a directory containing it, fails because of the directory itself, never because of what is in it. So nothing about the contents can be learned from results or timing.
@@ -92,7 +92,7 @@ Listings must never show more about an unreadable entry than its name and kind. 
 | Operation | Request | Required | Unreadable entries inside |
 |---|---|---|---|
 | Open the root page | `GET /` | Nothing. Without `Read` on the root, it shows only the login link (or, for someone logged in, that they have no access). | — |
-| View a directory listing | `GET /dir` | Directory openable (otherwise 403; 404 if not known) | Listed by name, with a lock and a tooltip. They can't be opened or selected. |
+| View a directory listing | `GET /dir` | Directory openable (otherwise 403; 404 if not known) | Listed by name, with a lock and a tooltip. They can't be opened or selected. Not listed at all for anonymous users. |
 | View a file (editor, media) | `GET /file` | File openable. Without `Write`, the editor is read-only and Save is disabled. | — |
 | Raw bytes of a media file | `GET /file?raw` | File openable | — |
 | Download a file | `GET /file?download` | File openable | — |

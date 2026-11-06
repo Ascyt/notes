@@ -50,8 +50,8 @@ public sealed class ErrorModel : PageModel
         Description = StatusCode switch
         {
             StatusCodes.Status400BadRequest => "The request could not be understood by the server.",
-            StatusCodes.Status401Unauthorized => "You need to log in to do that.",
-            StatusCodes.Status403Forbidden => "You are not allowed to do that.",
+            StatusCodes.Status401Unauthorized => "Login required.",
+            StatusCodes.Status403Forbidden => "Insufficient permissions.",
             StatusCodes.Status404NotFound => "There is nothing at this address.",
             StatusCodes.Status405MethodNotAllowed => "This address does not support that kind of request.",
             StatusCodes.Status408RequestTimeout => "The request took too long to arrive.",

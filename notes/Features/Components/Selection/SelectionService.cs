@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace notes.Features.Components.Selection;
@@ -58,10 +59,16 @@ public interface ISelectionService
     void EndTransfer(string userId, bool clear);
 }
 
-public sealed class SelectionService(IMemoryCache cache) : ISelectionService
+public sealed class SelectionService(IMemoryCache cache, TimeProvider time) : ISelectionService
 {
     /// <summary>How long a selection survives without being looked at or changed.</summary>
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// The selections that are being transferred. Nothing looks at a selection while its transfer runs, which may take longer than its
+    /// <see cref="Lifetime"/>: these are held here, so that they stay busy (and nobody starts another transfer) until the transfer ends.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, State> _transferring = new();
 
     public SelectionSnapshot Get(string userId)
     {
@@ -124,6 +131,7 @@ public sealed class SelectionService(IMemoryCache cache) : ISelectionService
 
             state.Busy = true;
             state.Version++; // pages showing the selection as it was before are outdated now
+            _transferring[userId] = state;
             return new TransferBegin(TransferBeginOutcome.Started, state.Snapshot().Paths);
         }
     }
@@ -138,22 +146,37 @@ public sealed class SelectionService(IMemoryCache cache) : ISelectionService
                 state.Paths.Clear();
             state.Version++;
         }
+
+        // Back into the cache (with a fresh lifetime) before it is let go of here, so that it is found in one of the two all the time
+        cache.Set(CacheKey(userId), state, new MemoryCacheEntryOptions { SlidingExpiration = Lifetime });
+        _transferring.TryRemove(userId, out _);
     }
+
+    private static string CacheKey(string userId) => "selection:" + userId;
 
     /// <summary>The user's state. Looking it up (even to read) renews its lifetime.</summary>
     private State GetState(string userId)
-        => cache.GetOrCreate("selection:" + userId, entry =>
-        {
-            entry.SlidingExpiration = Lifetime;
-            return new State();
-        })!;
+        => _transferring.TryGetValue(userId, out State? transferring)
+            ? transferring
+            : cache.GetOrCreate(CacheKey(userId), entry =>
+            {
+                entry.SlidingExpiration = Lifetime;
+                return new State(StartVersion());
+            })!;
+
+    /// <summary>
+    /// The version a new selection starts at: the time in milliseconds. A page may still show a selection that was forgotten (or one from before
+    /// the server restarted), and only takes a newer version from the server; the new selection must look newer than the old one did, which had
+    /// to be left alone for half an hour before it was forgotten. (Milliseconds, not finer: the scripts of the pages count in doubles.)
+    /// </summary>
+    private long StartVersion() => time.GetUtcNow().ToUnixTimeMilliseconds();
 
     /// <summary>All members are guarded by locking the instance.</summary>
-    private sealed class State
+    private sealed class State(long version)
     {
         /// <summary>The selected entries by virtual path.</summary>
         public Dictionary<string, SelectionEntry> Paths { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public long Version { get; set; }
+        public long Version { get; set; } = version;
         public bool Busy { get; set; }
 
         public SelectionSnapshot Snapshot()

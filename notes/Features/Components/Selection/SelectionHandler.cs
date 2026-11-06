@@ -45,6 +45,10 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
                 break;
 
             case "add" or "remove":
+                // ReadFromJsonAsync throws something other than a JsonException for a body that isn't sent as JSON
+                if (!request.HasJsonContentType())
+                    return new BadRequestObjectResult("Invalid request.");
+
                 SelectionRequest? body;
                 try
                 {

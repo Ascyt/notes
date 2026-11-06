@@ -34,7 +34,8 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
 ```
 
 - **Principals** are `u:<user name>`, `g:<group>` and `r:<role>`. User names are not case sensitive, group and role names are. A user also matches `u:<id>` with their Keycloak id.
-- **`a`** stands for everyone who is **not logged in** (anonymous users), and only them: someone who is logged in is not matched by `a`, so for a folder that is public *and* open to logged-in users, list `a` together with a group or role they have. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything.
+- **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. Mind that `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
+- **`l`** stands for **all users who are logged in**, so that no group with everyone in it has to be made in Keycloak. It is allowed in every list, e.g. `"rwAllow": ["l"]` lets every logged-in user write, while `"rwReadOnly": ["a"]` lets the public read.
 - **Only `inherit` is required** in a `perms` block; a list that is missing is empty.
 - **A principal can be in only one of the `rw` lists, and in only one of the `cd` lists** (it may be in one of each). Anything else is an error when saving.
 - **`files`** has an entry for every file of the directory. The app adds one when a file is created, uploaded, copied or moved in, renames it when the file is renamed, and removes it when the file is deleted or moved away; saving the directory's permissions adds the ones that are missing. Entries are for files only: a directory has its own `.config.json`. The permissions of a file do not travel when it is copied or moved. A file without an entry has the permissions of its directory.
@@ -52,9 +53,11 @@ For a user, each of the two kinds is decided on its own:
 
 So `inherit: true` with empty lists means "as above", and `inherit: false` with empty lists closes the entry to everyone but admins. A more specific layer can both take away and give: it overrides what is above for the principals it mentions.
 
+`inherit` only decides where an entry's own permissions come from: it looks *up*, never down. A folder with `inherit: false` still passes its permissions on to its files and subfolders; each of them decides with its own `inherit` whether to take them. For `/a/b`: with `inherit: true`, `b` has what `a` has (whatever `a`'s `inherit` is), plus or minus `b`'s own lists; with `inherit: false`, `b` has only its own lists. A directory without a `.config.json` counts as `inherit: true` with empty lists.
+
 **An invalid `.config.json`** (edited by hand, say) is never guessed at: until it is fixed, everyone but admins has no access to anything it applies to (the directory and, through inheritance, everything under it). The editor says what is wrong.
 
-A user needs to read the root to get anywhere, and every directory above something to reach it. A directory that a user may not read is still listed by its name (with a lock): to hide something entirely, it has to be in a directory the user may not read.
+A user needs to read the root to get anywhere, and every directory above something to reach it. A directory or file that a logged-in user may not read is still listed by its name (with a lock): to hide something from them entirely, it has to be in a directory they may not read. Anonymous users don't see what they may not read at all.
 
 ## Keycloak
 

@@ -29,8 +29,9 @@ public static class ConfigText
         StringBuilder text = new();
         text.Append("""
                     {
-                        // Who may do what in this folder, and in everything below it unless "inherit" is false.
-                        // Principals: "u:<user name>", "g:<group>", "r:<role>", or "a" for everyone who is not logged in (who may only be allowed to read).
+                        // Who may do what in this folder. Subfolders and files start from these permissions.
+                        // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
+                        // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read).
                         // Admins may always do everything.
                         // Lists: rwAllow, rwReadOnly, rwDeny (see and change what is in it), cdAllow, cdCreateOnly, cdDeny (create and delete).
                         "perms": {
@@ -85,11 +86,21 @@ public static class ConfigText
             return Replace(bytes, from, to, "");
         });
 
-    /// <summary>The text with the entry of the file under another name, which is all that changes (what its comments say stays).</summary>
+    /// <summary>
+    /// The text with the entry of the file under another name, which is all that changes (what its comments say stays). An entry the new name
+    /// has already (left over from a file that was removed from outside the app) goes: the file takes its own permissions along, and there
+    /// must never be two entries of one name.
+    /// </summary>
     public static string? RenameFile(string text, string oldName, string newName)
-        => Edit(text, (bytes, files) => FindEntry(files, oldName) is { NameValue: >= 0 } entry
+    {
+        // (Changing only the case finds the file's own entry under the new name)
+        if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) && FileNames(text)?.Contains(newName, StringComparer.OrdinalIgnoreCase) == true)
+            text = RemoveFile(text, newName)!;
+
+        return Edit(text, (bytes, files) => FindEntry(files, oldName) is { NameValue: >= 0 } entry
             ? Replace(bytes, entry.NameValue, entry.NameValueEnd, Quote(newName))
             : bytes);
+    }
 
     // ---- The entry of a single file
 
@@ -136,11 +147,12 @@ public static class ConfigText
                 : "    ";
 
             // Comments above the opening brace would end up between the entries, where the editor of the file doesn't show them (it shows the object).
-            // They go inside it instead.
+            // They go inside it instead, on lines of their own (what follows a "//" on its line would be part of the comment).
             string leading = body[..brace].Trim();
             if (leading.Length > 0)
             {
-                afterBrace = "\n" + indent + leading.Replace("\n", "\n" + indent) + afterBrace;
+                string rest = afterBrace[..firstNonSpace].Contains('\n') ? afterBrace : "\n" + indent + afterBrace.TrimStart();
+                afterBrace = "\n" + indent + leading.Replace("\n", "\n" + indent) + rest;
                 firstNonSpace = 1;
             }
 
@@ -264,14 +276,15 @@ public static class ConfigText
             return Replace(bytes, last.End, last.End, ",\n" + indent + entry.Replace("\n", "\n" + indent));
         }
 
-        // Nothing in it yet: the entry goes on its own line, with the bracket that closes the array below it
+        // Nothing in it yet: the entry goes on its own line, with the bracket that closes the array below it. Comments (all that can be in it)
+        // stay behind the entry, which is the only one: no comma.
         string arrayIndent = IndentOfLine(bytes, files.ArrayStart);
         string inner = arrayIndent + "    ";
         string indented = inner + entry.Replace("\n", "\n" + inner);
         bool onlySpace = bytes[(files.ArrayStart + 1)..files.ArrayEnd].All(b => b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n');
         return onlySpace
             ? Replace(bytes, files.ArrayStart + 1, files.ArrayEnd, "\n" + indented + "\n" + arrayIndent)
-            : Replace(bytes, files.ArrayStart + 1, files.ArrayStart + 1, "\n" + indented + ",");
+            : Replace(bytes, files.ArrayStart + 1, files.ArrayStart + 1, "\n" + indented);
     }
 
     /// <summary>

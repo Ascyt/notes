@@ -2,6 +2,7 @@
 using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Caching.Memory;
 using notes;
 using notes.Features.Auth;
 using notes.Features.Components.Create;
@@ -34,12 +35,16 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 builder.Services.AddSingleton(config);
+// The one clock of the app (selection lifetime, stale uploads, session renewal, names of new entries), so that tests can replace it
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IZipService, ZipService>();
 builder.Services.AddSingleton<IUploadService, UploadService>();
 // The selections live in memory of this process only: fine for a single instance, but a restart forgets them and several instances
 // would not share them. For that, ISelectionService needs a shared store (e.g. a distributed cache).
 builder.Services.AddMemoryCache();
+// The cache expires entries (the selections) by the app's clock
+builder.Services.AddOptions<MemoryCacheOptions>().Configure<TimeProvider>((options, time) => options.Clock = new TimeProviderClock(time));
 // Permissions: what they mean and who checks them where is specified in docs/security-specification.md
 builder.Services.AddSingleton<FolderConfigStore>();
 builder.Services.AddSingleton<IEntryAccess, EntryAccess>();
@@ -111,3 +116,6 @@ app.Services.GetRequiredService<IRecurringJobManager>()
     .AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), Cron.Hourly);
 
 app.Run();
+
+/// <summary>Public so that the tests can start the app (WebApplicationFactory).</summary>
+public partial class Program;

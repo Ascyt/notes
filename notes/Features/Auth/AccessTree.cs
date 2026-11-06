@@ -14,9 +14,10 @@ public sealed record TreeAccess(string? DeleteDeniedReason)
 }
 
 /// <summary>
-/// Applies <see cref="IEntryAccess"/> to the tree of the notes. The name of an entry is shown to everyone who may read the directory it
-/// is in, whatever the entry's own permissions; its contents (what is in the file, what is in the directory) only to those who may read
-/// the entry itself. So what is inside a directory the user may not read is hidden from them, and nothing else is.
+/// Applies <see cref="IEntryAccess"/> to the tree of the notes. The name of an entry is shown to every logged-in user who may read the
+/// directory it is in, whatever the entry's own permissions; its contents (what is in the file, what is in the directory) only to those who
+/// may read the entry itself. So what is inside a directory the user may not read is hidden from them, and nothing else is.
+/// Anonymous users are the exception: for them, what they may not read is hidden as well (see <see cref="SeesUnreadableNames"/>).
 /// All walks over the notes that depend on the user go through here.
 /// </summary>
 public sealed class AccessTree(Config config, IPathService path, IEntryAccess access)
@@ -32,11 +33,24 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
         => access.CanManagePermissions(user);
 
     /// <summary>
-    /// Whether the user may know that the entry exists (see its name): they may read every directory above it, up to the root. Anything
-    /// else is hidden and must be answered like something that doesn't exist. The root itself is always known.
+    /// Whether the user is shown the names of entries they may not read (with a lock). Logged-in users are: they could find out that such
+    /// an entry exists anyway, by trying to create, upload, copy, move or rename something onto its name. Anonymous users can't change
+    /// anything, so they have no such way, and what they may not read is hidden from them like what is inside it.
+    /// </summary>
+    public bool SeesUnreadableNames(ClaimsPrincipal user)
+        => user.Identity?.IsAuthenticated == true;
+
+    /// <summary>
+    /// Whether the user may know that the entry exists (see its name): they may read every directory above it, up to the root, and, if they
+    /// don't <see cref="SeesUnreadableNames">see the names of unreadable entries</see>, the entry itself. Anything else is hidden and must be
+    /// answered like something that doesn't exist. The root itself is always known.
     /// </summary>
     public bool IsKnown(ClaimsPrincipal user, string physicalPath)
-        => CheckAncestors(user, physicalPath, includingSelf: false);
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
+        bool isRoot = string.Equals(full, Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir)), StringComparison.OrdinalIgnoreCase);
+        return CheckAncestors(user, physicalPath, includingSelf: !isRoot && !SeesUnreadableNames(user));
+    }
 
     /// <summary>Whether the user may open the entry (see what is in it): it is <see cref="IsKnown">known</see>, and they may read it.</summary>
     public bool CanOpen(ClaimsPrincipal user, string physicalPath)
@@ -70,7 +84,8 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
 
     /// <summary>
     /// Everything inside the directory, depth first, each directory before what is in it. Entries the user may not read are returned (their
-    /// names are no secret) but not entered, and neither are links (they could lead out of the notes or in circles). The configuration files
+    /// names are no secret) but not entered, unless the user doesn't <see cref="SeesUnreadableNames">see such names</see>: then they are left
+    /// out. Links are not entered either (they could lead out of the notes or in circles). The configuration files
     /// (<see cref="PathService.ConfigFileName"/>) are only there for those who may manage permissions: for everyone else they don't exist,
     /// so a copy or a download leaves them out.
     /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/> if a directory can't be read.
@@ -78,6 +93,7 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     public IEnumerable<WalkedEntry> Walk(ClaimsPrincipal user, DirectoryInfo directory)
     {
         bool seesConfigs = access.CanManagePermissions(user);
+        bool seesUnreadable = SeesUnreadableNames(user);
         foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", WalkOptions))
         {
             // The folder for globally saved data is never part of the notes (only the root has one)
@@ -87,6 +103,8 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
                 continue;
 
             WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName));
+            if (!walked.Access.CanRead && !seesUnreadable)
+                continue;
             yield return walked;
 
             if (walked.Access.CanRead && entry is DirectoryInfo { LinkTarget: null } subdirectory)
@@ -112,7 +130,7 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
             {
                 // What can't be read can't be moved or deleted either: what is in it would go along unseen
                 if (!walked.Access.CanRead)
-                    return new TreeAccess($"You may not open '{Display(walked.Entry.FullName)}'.");
+                    return new TreeAccess($"No read access to '{Display(walked.Entry.FullName)}'.");
                 if (!walked.Access.CanDelete)
                     return new TreeAccess(NotRemovable(walked.Entry.FullName));
             }
@@ -126,7 +144,7 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     }
 
     private string NotRemovable(string physicalPath)
-        => $"You may not delete or move '{Display(physicalPath)}'.";
+        => $"Insufficient permissions to delete or move '{Display(physicalPath)}'.";
 
     /// <summary>
     /// Why the user can't add entries to the (openable) directory, or null if they can. Only a hint for the page: whether something may be
@@ -134,14 +152,14 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// in it, as new paths are expected to inherit from their directory (see docs/security-specification.md).
     /// </summary>
     public string? CreateDeniedReason(ClaimsPrincipal user, string physicalDirectory)
-        => access.GetAccess(user, physicalDirectory).CanCreate ? null : "You may not add entries to this directory.";
+        => access.GetAccess(user, physicalDirectory).CanCreate ? null : "Insufficient permissions to add entries to this directory.";
 
     /// <summary>Why the user can't rename the (openable) entry that <paramref name="inspected"/> is about, or null if they can. A hint, like <see cref="CreateDeniedReason"/>.</summary>
     public string? RenameDeniedReason(ClaimsPrincipal user, string physicalPath, TreeAccess inspected)
         => inspected.DeleteDeniedReason
            ?? (access.GetAccess(user, Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(physicalPath))!).CanCreate
                ? null
-               : "You may not add entries to the directory it is in.");
+               : "Insufficient permissions to add entries to the parent directory.");
 
     /// <summary>The path as the user sees it: relative to the root, with "/".</summary>
     public string Display(string physicalPath)

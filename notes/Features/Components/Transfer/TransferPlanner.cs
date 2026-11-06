@@ -61,7 +61,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
         if (!Directory.Exists(physicalTarget) || !tree.IsKnown(user, physicalTarget))
             throw new TransferException(StatusCodes.Status404NotFound, "The target directory does not exist.");
         if (!tree.GetAccess(user, physicalTarget).CanRead)
-            throw new TransferException(StatusCodes.Status403Forbidden, "You may not open the target directory.");
+            throw new TransferException(StatusCodes.Status403Forbidden, "No read access to the target directory.");
     }
 
     private List<TransferItem> ResolveEntries(ClaimsPrincipal user, IReadOnlyList<string> virtualPaths)
@@ -125,7 +125,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
         FileSystemInfo root = item.IsDirectory ? new DirectoryInfo(item.Source) : new FileInfo(item.Source);
         EntryAccessInfo rootAccess = tree.GetAccess(user, item.Source);
         if (!rootAccess.CanRead)
-            throw new TransferException(StatusCodes.Status403Forbidden, $"You may not open '{tree.Display(item.Source)}', so it can't be {Done(verb)}.");
+            throw new TransferException(StatusCodes.Status403Forbidden, $"No read access to '{tree.Display(item.Source)}', so it can't be {Done(verb)}.");
 
         CheckEntry(user, kind, verb, root, rootAccess, destination);
         if (!item.IsDirectory)
@@ -141,7 +141,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
                 {
                     if (kind != TransferKind.Copy)
                         throw new TransferException(StatusCodes.Status403Forbidden,
-                            $"You may not open '{tree.Display(walked.Entry.FullName)}', so '{tree.Display(item.Source)}' can't be {Done(verb)}.");
+                            $"No read access to '{tree.Display(walked.Entry.FullName)}', so '{tree.Display(item.Source)}' can't be {Done(verb)}.");
 
                     leftOutUnreadable = true;
                     continue;
@@ -169,10 +169,10 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
 
         // What is moved, renamed or deleted goes away from where it is
         if (kind != TransferKind.Copy && !access.CanDelete)
-            throw new TransferException(StatusCodes.Status403Forbidden, $"You may not {verb} '{display}'.");
+            throw new TransferException(StatusCodes.Status403Forbidden, $"Insufficient permissions to {verb} '{display}'.");
 
         // ...and what is copied, moved or renamed comes into existence where it goes
         if (destination is not null && !tree.GetAccess(user, destination).CanCreate)
-            throw new TransferException(StatusCodes.Status403Forbidden, $"You may not create '{tree.Display(destination)}'.");
+            throw new TransferException(StatusCodes.Status403Forbidden, $"Insufficient permissions to create '{tree.Display(destination)}'.");
     }
 }

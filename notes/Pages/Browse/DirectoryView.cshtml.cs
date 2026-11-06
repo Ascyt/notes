@@ -19,10 +19,13 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     /// <summary>The user looking at the directory.</summary>
     public ClaimsPrincipal Viewer { get; init; } = new();
 
-    /// <summary>The subdirectories, all of them: who may read a directory sees the names of everything in it.</summary>
+    /// <summary>
+    /// The subdirectories: for a logged-in user all of them (who may read a directory sees the names of everything in it), for an anonymous
+    /// user only those they may open.
+    /// </summary>
     public ListedEntry[] Directories { get; private set; } = [];
 
-    /// <summary>The files, all of them.</summary>
+    /// <summary>The files, chosen like <see cref="Directories"/>.</summary>
     public ListedEntry[] Files { get; private set; } = [];
 
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
@@ -67,15 +70,20 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
             return;
 
         ListedEntry ToListed(string entry) => new(entry, tree.GetAccess(Viewer, entry).CanRead);
+        // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames)
+        bool seesUnreadable = tree.SeesUnreadableNames(Viewer);
 
         Directories = [..Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
             .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)
             .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)
-            .Select(ToListed)];
+            .Select(ToListed)
+            .Where(entry => entry.CanOpen || seesUnreadable)];
         // The file with the permissions is not a note: it is changed through the permissions page, and never listed
         Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
             .Where(file => !string.Equals(Path.GetFileName(file), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
-            .Select(ToListed)];
+            .OrderByDescending(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase)
+            .Select(ToListed)
+            .Where(entry => entry.CanOpen || seesUnreadable)];
 
         // The root can't be deleted or renamed anyway, so there is no need to look at all of the notes
         if (IsRoot)

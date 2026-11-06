@@ -76,7 +76,7 @@ public interface IEntryAccess
 /// <summary>
 /// Decides from the configuration file of each folder (docs/permissions.md). Admins may do anything; for everyone else the permissions
 /// come from the nearest entries that say anything about them, looking at the file's own entry first, then at its folder, then at the folders
-/// above it for as long as each one lets them inherit. What nothing says anything about is denied, and so is everything under a folder whose
+/// above it, going up only past entries with <c>inherit: true</c> (the first one with <c>inherit: false</c> is the last one looked at). What nothing says anything about is denied, and so is everything under a folder whose
 /// configuration is invalid.
 /// </summary>
 public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntryAccess
@@ -110,7 +110,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
 
     /// <summary>
     /// The permissions that apply to the path, the most specific first: the entry of the file (a directory has none, its own folder is
-    /// its entry), then the folder and each folder above it as long as the one before lets it inherit. Null if one of those is invalid.
+    /// its entry), then the folder and each folder above it, stopping after the first one with <c>inherit: false</c>. Null if one of those is invalid.
     /// </summary>
     private List<PermsBlock>? FindLayers(string path, string root)
     {

@@ -69,9 +69,14 @@ public sealed class PathService : IPathService
         => IsValid(name);
 
     /// <summary>The rules of <see cref="IsValidName"/>, for those that have no service at hand.</summary>
+    /// <remarks>
+    /// Windows drops dots (and spaces) at the end of a name, so there "x." is another spelling of "x" (and ".config.json." one of the
+    /// configuration file). Such names are refused everywhere, so that what a name means doesn't depend on where the notes are kept.
+    /// </remarks>
     public static bool IsValid(string name)
         => !string.IsNullOrWhiteSpace(name)
            && name == name.Trim()
+           && !name.EndsWith('.')
            && name is not ("." or ".." or ReservedName)
            && !string.Equals(name, ConfigFileName, StringComparison.OrdinalIgnoreCase)
            && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0

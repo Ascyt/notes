@@ -25,7 +25,7 @@ public static class ConfigSchema
                 ["$ref"] = "#/definitions/perms",
                 ["description"] = forFile
                     ? "The permissions of this file."
-                    : "The permissions of this folder, and of everything in it unless \"inherit\" is false."
+                    : "The permissions of this folder. Its files and subfolders that inherit get these permissions."
             }
         };
 
@@ -59,9 +59,9 @@ public static class ConfigSchema
             ["definitions"] = new Dictionary<string, object>
             {
                 ["perms"] = Perms(),
-                ["principals"] = PrincipalList(@"^(a|[ugr]:\S(.*\S)?)$", "u:<user name>, g:<group>, r:<role>, or a for everyone who is not logged in.", ["u:alice", "g:team-a", "r:viewer", "a"]),
+                ["principals"] = PrincipalList(@"^([al]|[ugr]:\S(.*\S)?)$", "u:<user name>, g:<group>, r:<role>, a for all users or l for all users who are logged in.", ["u:alice", "g:team-a", "r:viewer", "l", "a"]),
                 // The lists that allow changing something: no "a", those who are not logged in may not change anything
-                ["changingPrincipals"] = PrincipalList(@"^[ugr]:\S(.*\S)?$", "u:<user name>, g:<group> or r:<role>. Not a: those who are not logged in may not change anything.", ["u:alice", "g:team-a", "r:editor"])
+                ["changingPrincipals"] = PrincipalList(@"^(l|[ugr]:\S(.*\S)?)$", "u:<user name>, g:<group>, r:<role> or l for all users who are logged in. Not a: those who are not logged in may not change anything.", ["u:alice", "g:team-a", "r:editor", "l"])
             }
         };
     }
@@ -87,7 +87,7 @@ public static class ConfigSchema
             ["inherit"] = new Dictionary<string, object>
             {
                 ["type"] = "boolean",
-                ["description"] = "Whether those that none of the lists below mention get what the folder above (for a file: its folder) gives them. If false, they get nothing."
+                ["description"] = "Whether those that none of the lists below mention get what the folder above (for a file: its folder) gives them. If false, they get nothing. Only about where this entry's own permissions come from: what is inside a folder still gets the folder's permissions if it inherits itself."
             }
         };
 

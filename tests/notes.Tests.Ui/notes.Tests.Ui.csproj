@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>notes.Tests.Ui</RootNamespace>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" Version="4.0.2" />
+        <!-- Directly, so its build targets (content root of the app, its deps.json) apply to this project -->
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\notes.Tests.Common\notes.Tests.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit" />
+        <Using Include="notes.Tests.Common" />
+    </ItemGroup>
+
+</Project>

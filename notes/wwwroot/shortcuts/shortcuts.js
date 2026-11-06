@@ -15,7 +15,7 @@
 // To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
 // and call preventDefault() to skip the default action:
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
-// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field.
+// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus).
 // Shortcuts are captured before the page (and Monaco) sees them, so they take precedence over those.
 // Escape in a form field (except Monaco) also unfocuses it.
 //
@@ -75,8 +75,11 @@
         return combo.code.toLowerCase() === e.code.toLowerCase();
     }
 
+    // Fields that take typing. Boxes and buttons made of an input don't: a shortcut works while they have the focus (e.g. right after ticking a box).
+    const TYPING_INPUT = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset])';
+
     function isEditable(target) {
-        return target instanceof Element && target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]') !== null;
+        return target instanceof Element && target.closest(TYPING_INPUT + ', textarea, select, [contenteditable=""], [contenteditable="true"]') !== null;
     }
 
     function trigger(el) {
@@ -172,9 +175,9 @@
             return;
 
         const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
-        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button or link
+        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button, link or box
         if (plain && (isEditable(e.target)
-            || ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary'))))
+            || ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary, input'))))
             return;
 
         // The same key may be set on several elements (e.g. Enter confirms whichever dialog or form

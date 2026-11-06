@@ -43,8 +43,10 @@ public sealed class TransferService(TransferPlanner planner, TransferExecutor ex
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            // The exception's message names paths on the server, which are for the log only
             logger.LogError(e, "{kind} into {target} failed", kind, physicalTarget);
-            return new TransferResult(StatusCodes.Status500InternalServerError, $"The {kind.ToString().ToLowerInvariant()} failed and was undone: {e.Message}");
+            return new TransferResult(StatusCodes.Status500InternalServerError,
+                $"The {kind.ToString().ToLowerInvariant()} failed and was undone: the server could not change one of the entries (it may be in use). Try again in a moment.");
         }
     }
 

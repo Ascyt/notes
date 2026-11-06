@@ -13,7 +13,7 @@ public sealed class SaveHandler(AccessTree tree)
         if (!File.Exists(physicalPath))
             return new NotFoundObjectResult("File not found.");
         if (!tree.GetAccess(user, physicalPath).CanWrite)
-            return new ObjectResult("You may not change this file.") { StatusCode = StatusCodes.Status403Forbidden };
+            return new ObjectResult("Insufficient permissions to change this file.") { StatusCode = StatusCodes.Status403Forbidden };
 
         using StreamReader reader = new(body, Encoding.UTF8);
         string contents = await reader.ReadToEndAsync();

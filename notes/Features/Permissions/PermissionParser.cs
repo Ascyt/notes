@@ -34,7 +34,7 @@ public static class PermissionParser
     private static readonly string[] RwKeys = ["rwAllow", "rwReadOnly", "rwDeny"];
     private static readonly string[] CdKeys = ["cdAllow", "cdCreateOnly", "cdDeny"];
 
-    /// <summary>The lists that give the right to change something (write, create, delete), which the anonymous principal can't be in.</summary>
+    /// <summary>The lists that give the right to change something (write, create, delete), which "everyone" (including those not logged in) can't be in.</summary>
     private static readonly string[] NoAnonymousKeys = ["rwAllow", "cdAllow", "cdCreateOnly"];
 
     private static readonly JsonDocumentOptions DocumentOptions = new()
@@ -237,9 +237,9 @@ public static class PermissionParser
         valid &= CheckExclusive(lists, CdKeys, path, errors);
 
         // Someone who is not logged in must never be able to change the notes: they may be allowed to read, or denied, and that is all
-        foreach (string key in NoAnonymousKeys.Where(key => lists[key].Contains(Principal.Anonymous)))
+        foreach (string key in NoAnonymousKeys.Where(key => lists[key].Contains(Principal.Everyone)))
         {
-            errors.Add($"{path}.{key}: '{Principal.Anonymous}' (everyone who is not logged in) can't be in this list, as they may not change anything. Only rwReadOnly, rwDeny and cdDeny allow it.");
+            errors.Add($"{path}.{key}: '{Principal.Everyone}' (all users, including those who are not logged in) can't be in this list, as they may not change anything. Use '{Principal.LoggedIn}' for all who are logged in. Only rwReadOnly, rwDeny and cdDeny allow '{Principal.Everyone}'.");
             valid = false;
         }
 

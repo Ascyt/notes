@@ -37,9 +37,14 @@ public sealed class TransferHandler(ISelectionService selection, ITransferServic
         if (!Directory.Exists(physicalDirectory))
             return new NotFoundObjectResult("Directory not found.");
 
+        // Without an id there is no selection (and the cookie scheme would answer a Forbid with a redirect to a page that doesn't exist)
         string? userId = SelectionHandler.UserIdOf(user);
         if (userId is null)
-            return new ForbidResult();
+            return new ObjectResult("Login required to copy, move or delete.") { StatusCode = StatusCodes.Status403Forbidden };
+
+        // ReadFromJsonAsync throws something other than a JsonException for a body that isn't sent as JSON
+        if (!request.HasJsonContentType())
+            return new BadRequestObjectResult("Invalid request.");
 
         TransferRequest? body;
         try

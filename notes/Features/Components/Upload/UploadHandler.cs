@@ -18,12 +18,13 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
             return new NotFoundObjectResult("Directory not found.");
         // Uploading into a directory the user may not read would tell them which names are taken in it
         if (!tree.GetAccess(user, physicalPath).CanRead)
-            return Forbidden("You may not open this directory.");
+            return Forbidden("No read access to this directory.");
 
         // The user's own folder holds their uploads, so the id means nothing to anyone else
         string? userId = user.FindFirst("sub")?.Value;
+        // (Not a Forbid: the cookie scheme would answer it with a redirect to a page that doesn't exist)
         if (userId is null)
-            return new ForbidResult();
+            return Forbidden("Login required to upload files.");
 
         if (upload == "start")
             return new ContentResult { Content = uploadService.StartUpload(userId) };
@@ -47,7 +48,7 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         // finished file actually gets
         bool MayCreate(string physical) => tree.GetAccess(user, physical).CanCreate;
         if (!MayCreate(Path.Combine(physicalPath, name)))
-            return Forbidden($"You may not create '{name}' here.");
+            return Forbidden($"Insufficient permissions to create '{name}' here.");
 
         string? result;
         try

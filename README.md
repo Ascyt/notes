@@ -48,3 +48,23 @@ post logout redirect URI of the `notes-web` client in the admin console.
 - Back up `NOTES_DIR` and the `keycloak-db-data` volume (`docker compose exec keycloak-db pg_dump -U keycloak keycloak`).
 - Anything but the notes realm on `AUTH_HOST` answers 404 in Caddy. Cloudflare rules (WAF, rate limiting) add to that and
   are not part of this repository.
+
+## Tests
+
+```
+tests/notes.Tests.Unit          the logic on its own: paths, the permission parser and its resolution, config text editing, selections, uploads, session renewal
+tests/notes.Tests.Integration   the whole app in memory, against docs/security-specification.md: every endpoint, as every kind of user, with every kind of attack
+tests/notes.Tests.Ui            the page scripts in a real browser (Playwright, using the installed Edge or Chrome; no download needed)
+tests/notes.Tests.Common        what they share: the app with a fake login and a fake clock, users, the tree of notes they start from
+```
+
+Users are signed in by a header instead of Keycloak (`TestAuthentication`), and the app's clock (`TimeProvider`) is a fake one that the
+tests move, so nothing waits for real time.
+
+- All: `dotnet test`
+- Quick (no timing tests): `dotnet test -- --filter-not-trait "Category=Timing"`
+- One project: `dotnet test --project tests/notes.Tests.Integration`
+- UI tests with another browser: set `NOTES_UI_BROWSER` to `chrome` or `chromium`; to watch them, set `NOTES_UI_HEADED=1`.
+
+Tests tagged `Category=Timing` are about time running out (stale uploads, selection lifetime, session renewal, changes during a running
+download or transfer).

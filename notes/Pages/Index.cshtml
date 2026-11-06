@@ -23,7 +23,7 @@ else if (Model.Directory is { CanBrowse: false })
     @* The root page, for someone who may not read the root: all there is for them is the way in *@
     if (User.Identity?.IsAuthenticated == true)
     {
-        <p class="text-muted">You don't have access to these notes.</p>
+        <p class="text-muted">No read access to these notes.</p>
     }
     else
     {

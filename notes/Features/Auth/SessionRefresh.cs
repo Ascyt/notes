@@ -49,7 +49,7 @@ public static class SessionRefresh
             return;
         }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = ClockOf(context.HttpContext).GetUtcNow();
         if (expiresAt - RenewMargin > now)
             return;
 
@@ -68,6 +68,10 @@ public static class SessionRefresh
                 break; // try again with the next request
         }
     }
+
+    /// <summary>The app's clock (replaced by the tests), or the system's if there is none.</summary>
+    private static TimeProvider ClockOf(HttpContext context)
+        => context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System;
 
     private static async Task EndAsync(CookieValidatePrincipalContext context, string notice)
     {
@@ -170,7 +174,7 @@ public static class SessionRefresh
         stored["access_token"] = accessToken;
         stored["id_token"] = idToken;
         stored["refresh_token"] = refreshToken;
-        stored["expires_at"] = DateTimeOffset.UtcNow.AddSeconds(seconds).ToString("o", CultureInfo.InvariantCulture);
+        stored["expires_at"] = ClockOf(context.HttpContext).GetUtcNow().AddSeconds(seconds).ToString("o", CultureInfo.InvariantCulture);
         context.Properties.StoreTokens(stored.Select(token => new AuthenticationToken { Name = token.Key, Value = token.Value }));
 
         context.ReplacePrincipal(new ClaimsPrincipal(identity));

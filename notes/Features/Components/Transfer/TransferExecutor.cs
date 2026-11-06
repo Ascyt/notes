@@ -103,8 +103,8 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
                     logger.LogCritical(restoreError, "Could not put {source} back from {trash}", items[i].Source, trash);
                     throw new TransferException(StatusCodes.Status500InternalServerError,
                         kind == TransferKind.Delete
-                            ? $"The deletion failed and could not be fully undone. Entries that could not be put back are kept on the server in {trash}."
-                            : $"The move failed and could not be fully undone. Nothing was lost: copies of everything are in this directory, and originals that could not be put back are kept on the server in {trash}.",
+                            ? "The deletion failed and could not be fully undone. Entries that could not be put back are kept on the server (an admin finds where in its log)."
+                            : "The move failed and could not be fully undone. Nothing was lost: copies of everything are in this directory, and originals that could not be put back are kept on the server (an admin finds where in its log).",
                         keepsStaging: true);
                 }
             }

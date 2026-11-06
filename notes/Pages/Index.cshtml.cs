@@ -79,7 +79,7 @@ public sealed class IndexModel(Config config,
             return selectionHandler.HandleGet(User);
 
         // The root page is the one everybody may open (it carries the login button); it shows nothing of the notes to those who may not read it.
-        // Any other entry the user knows of but may not read is listed in its directory, but can't be opened.
+        // Any other entry the user knows of but may not read (only logged-in users know of such) is listed in its directory, but can't be opened.
         bool canOpen = tree.GetAccess(User, PhysicalPath).CanRead;
         bool isRoot = VirtualPath == "";
         if (!canOpen && !isRoot)

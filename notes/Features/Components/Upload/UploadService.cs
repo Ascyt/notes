@@ -26,7 +26,7 @@ public interface IUploadService
     int DeleteStaleUploads(TimeSpan maxAge);
 }
 
-public sealed class UploadService(Config config, IPathService path, StructureLock structureLock, FolderConfigStore configs) : IUploadService
+public sealed class UploadService(Config config, IPathService path, StructureLock structureLock, FolderConfigStore configs, TimeProvider time) : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -36,7 +36,8 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
         Directory.CreateDirectory(userDirectory);
 
         Guid uploadId = Guid.NewGuid();
-        using (new FileStream(Path.Combine(userDirectory, TempName(uploadId)), FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
+        using (FileStream temp = new(Path.Combine(userDirectory, TempName(uploadId)), FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            SetLastWriteTimeToNow(temp);
         return uploadId.ToString("N");
     }
 
@@ -44,10 +45,18 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
     {
         // Chunks pile up in a temp file outside the notes that only gets its real name once the last chunk has arrived
         string tempPath = Path.Combine(UserTempDirectory(userId), TempName(uploadId));
-        if (!File.Exists(tempPath))
+        FileStream temp;
+        try
+        {
+            temp = new FileStream(tempPath, FileMode.Open, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // Never started, or cleared as stale (see DeleteStaleUploads)
             return null;
+        }
 
-        await using (FileStream temp = new(tempPath, FileMode.Open, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+        await using (temp)
         {
             // A retried chunk may overwrite what a failed attempt left behind, but there must be no gap
             if (temp.Length < offset)
@@ -56,6 +65,8 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
             temp.SetLength(offset);
             temp.Position = offset;
             await body.CopyToAsync(temp);
+            await temp.FlushAsync();
+            SetLastWriteTimeToNow(temp);
         }
 
         if (!isLast)
@@ -67,6 +78,10 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
         string finalName = name;
         using (await structureLock.EnterAsync())
         {
+            // While this waited for the lock, the upload may have been cleared as stale: then it is gone like any other cleared upload
+            if (!File.Exists(tempPath))
+                return null;
+
             for (int n = 1; ; n++)
             {
                 string finalPath = Path.Combine(physicalDirectory, finalName);
@@ -75,7 +90,7 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
                     if (!mayCreate(finalPath))
                     {
                         File.Delete(tempPath);
-                        throw new AccessDeniedException($"You may not create '{finalName}' here.");
+                        throw new AccessDeniedException($"Insufficient permissions to create '{finalName}' here.");
                     }
 
                     try
@@ -83,6 +98,11 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
                         File.Move(tempPath, finalPath);
                         configs.FileAdded(physicalDirectory, finalName);
                         return path.ToVirtualPath(config.Dir, finalPath);
+                    }
+                    catch (FileNotFoundException) when (!File.Exists(tempPath))
+                    {
+                        // Cleared as stale just now (the job doesn't take the lock)
+                        return null;
                     }
                     catch (IOException) when (Path.Exists(finalPath))
                     {
@@ -96,7 +116,16 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
     }
 
     public void AbortUpload(string userId, Guid uploadId)
-        => File.Delete(Path.Combine(UserTempDirectory(userId), TempName(uploadId)));
+    {
+        try
+        {
+            File.Delete(Path.Combine(UserTempDirectory(userId), TempName(uploadId)));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // The user has no uploads at all (never had, or all cleared as stale): there is nothing to abort
+        }
+    }
 
     public int DeleteStaleUploads(TimeSpan maxAge)
     {
@@ -104,7 +133,7 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
         if (!Directory.Exists(usersDirectory))
             return 0;
 
-        DateTime cutoff = DateTime.UtcNow - maxAge;
+        DateTime cutoff = time.GetUtcNow().UtcDateTime - maxAge;
         int deleted = 0;
         foreach (string userDirectory in Directory.EnumerateDirectories(usersDirectory))
         {
@@ -136,6 +165,13 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
 
         return deleted;
     }
+
+    /// <summary>
+    /// Marks the upload as written to now, by the app's clock: <see cref="DeleteStaleUploads"/> compares this time with the clock, so both
+    /// must come from the same one (the file system's own time would be another clock, as far as the tests are concerned).
+    /// </summary>
+    private void SetLastWriteTimeToNow(FileStream temp)
+        => File.SetLastWriteTimeUtc(temp.SafeFileHandle, time.GetUtcNow().UtcDateTime);
 
     /// <summary>The folder for globally saved data, inside the notes directory but never shown or reachable through it.</summary>
     private string GlobalDirectory => Path.Combine(Path.GetFullPath(config.Dir), PathService.ReservedName);

@@ -15,7 +15,7 @@
         toolbarButtons.Insert(0, ToolbarButton.Save(Model.CanWrite ? null : ReadOnlyReason));
 }
 @functions {
-    private const string ReadOnlyReason = "You may not change this file.";
+    private const string ReadOnlyReason = "Insufficient permissions to change this file.";
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>

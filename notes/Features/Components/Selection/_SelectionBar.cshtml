@@ -105,7 +105,7 @@
 
             // What the permissions allow, as far as the server knew when the entries were selected (it checks again when it is done).
             // Moving takes the entries away from where they are, so it needs what deleting needs.
-            const removeDeniedReason = state.canDelete ? null : 'You may not delete or move some of the selected entries, or something inside them.';
+            const removeDeniedReason = state.canDelete ? null : 'Insufficient permissions to delete or move some of the selected entries, or something inside them.';
             setButtonDisabled(copyButton, createDeniedReason);
             setButtonDisabled(moveButton, createDeniedReason || removeDeniedReason);
             setButtonDisabled(deleteButton, removeDeniedReason);
@@ -226,7 +226,7 @@
                     const { leftOutUnreadable } = await response.json().catch(() => ({}));
                     const done = { copy: 'Copied', move: 'Moved', delete: 'Deleted' }[kind];
                     notifyAfterNavigation(done + ' ' + transferred.length + (transferred.length === 1 ? ' element' : ' elements')
-                        + (kind === 'delete' ? '.' : ' here') + (leftOutUnreadable ? ', without the entries you may not open.' : kind === 'delete' ? '' : '.'));
+                        + (kind === 'delete' ? '.' : ' here') + (leftOutUnreadable ? ', except entries without read access.' : kind === 'delete' ? '' : '.'));
 
                     // This very directory may be gone with what was deleted: go to where the topmost deleted entry was
                     const gone = kind === 'delete'
