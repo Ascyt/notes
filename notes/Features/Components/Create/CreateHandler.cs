@@ -2,11 +2,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Components.Create;
 
 /// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it.</summary>
-public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock)
+public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string physicalDirectory, string create)
     {
@@ -34,7 +35,10 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
                 return new ObjectResult($"You may not create a {create} here.") { StatusCode = StatusCodes.Status403Forbidden };
 
             if (isFile)
+            {
                 await File.WriteAllTextAsync(newPhysicalPath, "");
+                configs.FileAdded(physicalDirectory, name);
+            }
             else
                 Directory.CreateDirectory(newPhysicalPath);
 

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Components.Transfer;
 
@@ -18,15 +19,10 @@ public interface ITransferService
 /// anything, then the <see cref="TransferExecutor"/> does it and undoes it all if it fails. Both happen under the <see cref="StructureLock"/>,
 /// so nothing can change in between and no other operation sees a transfer half done. Turns the outcome into a <see cref="TransferResult"/>.
 /// </summary>
-public sealed class TransferService(TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, ILogger<TransferService> logger) : ITransferService
+public sealed class TransferService(TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, FolderConfigStore configs, ILogger<TransferService> logger) : ITransferService
 {
     public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
     {
-        // TODO: Remove this once proper testing is implemented
-        // Lock out all non-admin user from these operations until we can be sure there are no security issues here 
-        if (!user.IsInRole(NotesAccess.AdminRole)) 
-            return new TransferResult(StatusCodes.Status401Unauthorized, "Unauthorized");
-        
         // Once started, a transfer is never abandoned half way because the request that asked for it went away
         using (await structureLock.EnterAsync())
             return await Task.Run(() => Run(user, kind, physicalTarget, virtualPaths));
@@ -38,6 +34,7 @@ public sealed class TransferService(TransferPlanner planner, TransferExecutor ex
         {
             TransferPlan plan = planner.Plan(user, kind, physicalTarget, virtualPaths);
             executor.Execute(kind, physicalTarget, plan.Items);
+            KeepFileEntriesInStep(kind, physicalTarget, plan.Items);
             return TransferResult.Success with { LeftOutUnreadable = plan.LeftOutUnreadable };
         }
         catch (TransferException e)
@@ -48,6 +45,22 @@ public sealed class TransferService(TransferPlanner planner, TransferExecutor ex
         {
             logger.LogError(e, "{kind} into {target} failed", kind, physicalTarget);
             return new TransferResult(StatusCodes.Status500InternalServerError, $"The {kind.ToString().ToLowerInvariant()} failed and was undone: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The files that were transferred get their entry in the permissions of the folder they went to (a new one that changes nothing: the
+    /// permissions of a file don't travel), and the ones that went away lose theirs. Directories need nothing: the permissions of one are in
+    /// the directory, and travel with it for those who may move them (see <see cref="AccessTree.Walk"/>).
+    /// </summary>
+    private void KeepFileEntriesInStep(TransferKind kind, string physicalTarget, IEnumerable<TransferItem> items)
+    {
+        foreach (TransferItem item in items.Where(item => !item.IsDirectory))
+        {
+            if (kind != TransferKind.Copy)
+                configs.FileRemoved(Path.GetDirectoryName(item.Source)!, item.Name);
+            if (kind != TransferKind.Delete)
+                configs.FileAdded(physicalTarget, item.Name);
         }
     }
 }

@@ -5,27 +5,26 @@ namespace notes.Features.Auth;
 
 public static class NotesAccess
 {
-    public const string PolicyName = "NotesAccess";
+    /// <summary>The policy of what only admins may reach as a whole (the Hangfire dashboard). What is done with the notes is decided per entry, see <see cref="IEntryAccess"/>.</summary>
+    public const string AdminPolicyName = "Admin";
+
     public const string AdminRole = "admin";
 }
 
-/// <summary>Admins may do anything; everyone else, signed in or not, may only view the root page (it carries the login button).</summary>
-public sealed class NotesAccessRequirement : IAuthorizationRequirement;
-
-public sealed class NotesAccessHandler : AuthorizationHandler<NotesAccessRequirement>
+/// <summary>The claims of a session that the permissions are made of. Keycloak sends them under these names (see keycloak/notes-realm.json).</summary>
+public static class NotesClaims
 {
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, NotesAccessRequirement requirement)
-    {
-        if (context.User.IsInRole(NotesAccess.AdminRole) || IsRootView(context.Resource as HttpContext))
-            context.Succeed(requirement);
+    /// <summary>The name the user logs in with.</summary>
+    public const string UserName = "preferred_username";
 
-        return Task.CompletedTask;
-    }
+    /// <summary>The id Keycloak gives the user, which never changes.</summary>
+    public const string UserId = "sub";
 
-    private static bool IsRootView(HttpContext? http)
-        => http is not null
-           && http.Request.Path == "/"
-           && (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method));
+    /// <summary>The names of the groups the user is in.</summary>
+    public const string Groups = "groups";
+
+    /// <summary>The realm roles the user has (also those they have through their groups).</summary>
+    public const string Roles = "roles";
 }
 
 /// <summary>

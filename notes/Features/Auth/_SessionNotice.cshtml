@@ -1,0 +1,12 @@
+@model _SessionNotice
+
+@* Tells the user why they were logged out by the app (see SessionNotice), with the way back in *@
+<div class="container">
+    <div class="alert alert-warning d-flex gap-3 align-items-start" role="alert">
+        <i class="fa-solid fa-triangle-exclamation mt-1"></i>
+        <div>
+            <p class="mb-2">@Model.Message</p>
+            <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.ReturnUrl"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
+        </div>
+    </div>
+</div>

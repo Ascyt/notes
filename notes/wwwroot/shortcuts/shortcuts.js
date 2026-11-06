@@ -31,7 +31,7 @@
     const MODIFIER_SYMBOLS = { ctrlKey: '⎈', altKey: '⎇', shiftKey: '⇧', metaKey: '❖' };
     const KEY_SYMBOLS = {
         arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', space: '␣', escape: '⎋',
-        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦', home: '⇱', end: '⇲'
+        tab: '↹', enter: '↵', backspace: '⌫', delete: '⌦', home: '⇱', end: '⇲', pageup: '⯭', pagedown: '⯯'
     };
 
     const MODIFIERS = { '^': 'ctrlKey', '!': 'altKey', '+': 'shiftKey', '#': 'metaKey' };

@@ -4,9 +4,14 @@
 @model notes.Features.View.Editor.FileView
 
 @{
-    // Saving is for what can be edited
-    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: true), ToolbarButton.Delete("file", Model.DeleteDeniedReason)];
-    if (!Model.IsBinary)
+    // Whoever can't change anything about the file isn't offered the buttons that do (save, delete), instead of seeing them disabled
+    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: true)];
+    if (!Model.IsReadOnly)
+        toolbarButtons.Add(ToolbarButton.Delete("file", Model.DeleteDeniedReason));
+    // The way to the permissions comes before everything but Save, which is for what can be edited
+    if (Model.CanConfigure)
+        toolbarButtons.Insert(0, ToolbarButton.Permissions("file"));
+    if (!Model.IsBinary && !Model.IsReadOnly)
         toolbarButtons.Insert(0, ToolbarButton.Save(Model.CanWrite ? null : ReadOnlyReason));
 }
 @functions {
@@ -24,67 +29,13 @@
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
-<partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
+@if (!Model.IsReadOnly)
+{
+    <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
+}
 
+<script src="~/js/editor.js" asp-append-version="true"></script>
 <script>
-    // Monaco's loader defines a global AMD `define`, which makes the Bootstrap bundle register as a module
-    // instead of setting window.bootstrap. Load it only once all page scripts (incl. Bootstrap) have run.
-    document.addEventListener('DOMContentLoaded', function () {
-        const loader = document.createElement('script');
-        loader.src = '@Url.Content("~/lib/monaco-editor/min/vs/loader.js")';
-        loader.onload = initEditor;
-        document.head.appendChild(loader);
-    });
-
-    function initEditor() {
-        require.config({ paths: { vs: '@Url.Content("~/lib/monaco-editor/min/vs")' } });
-
-        require(['vs/editor/editor.main'], function () {
-            window.editor = monaco.editor.create(document.getElementById('editor'), {
-                value: @Json.Serialize(Model.Contents),
-                language: @Json.Serialize(Model.Language),
-                theme: 'vs',
-                readOnly: !canWrite,
-                readOnlyMessage: { value: @Json.Serialize(ReadOnlyReason) },
-                automaticLayout: true,
-                wordWrap: 'on',
-                mouseWheelZoom: true // Ctrl+scroll zooms the editor
-            });
-
-            savedVersionId = window.editor.getModel().getAlternativeVersionId();
-            window.editor.onDidChangeModelContent(updateDirty);
-
-            // Escape leaves the editor, unless Monaco needs it to close a widget or drop extra cursors
-            window.editor.addCommand(monaco.KeyCode.Escape, function () {
-                document.activeElement.blur();
-            }, '!findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !inSnippetMode && !renameInputVisible && !hasMultipleSelections && !editorHasSelection');
-
-            // Alt+Z toggles word wrap
-            window.editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyZ, function () {
-                const isOn = window.editor.getOption(monaco.editor.EditorOption.wordWrap) !== 'off';
-                window.editor.updateOptions({ wordWrap: isOn ? 'off' : 'on' });
-            });
-
-            // Ctrl+Plus / Ctrl+Minus / Ctrl+0 zoom the editor instead of the page while it is focused
-            const zoomBindings = [
-                ['editor.action.fontZoomIn', [monaco.KeyCode.Equal, monaco.KeyCode.NumpadAdd]],
-                ['editor.action.fontZoomOut', [monaco.KeyCode.Minus, monaco.KeyCode.NumpadSubtract]],
-                ['editor.action.fontZoomReset', [monaco.KeyCode.Digit0, monaco.KeyCode.Numpad0]]
-            ];
-            for (const [actionId, keys] of zoomBindings) {
-                for (const key of keys) {
-                    for (const shift of [0, monaco.KeyMod.Shift]) {
-                        window.editor.addCommand(monaco.KeyMod.CtrlCmd | shift | key, function () {
-                            window.editor.getAction(actionId).run();
-                        });
-                    }
-                }
-            }
-
-            window.editor.focus();
-        });
-    }
-
     // The editor's key shortcut (see shortcuts.js) focuses it
     document.getElementById('editor').addEventListener('shortcut', function (e) {
         e.preventDefault();
@@ -157,5 +108,19 @@
     window.addEventListener('beforeunload', function (e) {
         if (isDirty)
             e.preventDefault();
+    });
+
+    // Last, as it needs everything above. The editor itself is made once Monaco has loaded.
+    createEditor(document.getElementById('editor'), {
+        basePath: '@Url.Content("~/lib/monaco-editor/min/vs")',
+        value: @Json.Serialize(Model.Contents),
+        language: @Json.Serialize(Model.Language),
+        readOnly: !canWrite,
+        readOnlyMessage: @Json.Serialize(ReadOnlyReason)
+    }).then(function (editor) {
+        window.editor = editor;
+        savedVersionId = editor.getModel().getAlternativeVersionId();
+        editor.onDidChangeModelContent(updateDirty);
+        editor.focus();
     });
 </script>

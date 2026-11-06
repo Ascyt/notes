@@ -7,10 +7,19 @@ This document describes who may do what with the notes. It is the reference for 
 
 ## Two layers
 
-1. **App-wide gate.** `NotesAccessHandler` (`Features/Auth/NotesAccess.cs`) lets only users with the `admin` role in. Everyone else, signed in or not, may only open the root page. That page shows them the login link and nothing of the notes. Every failed authorization is answered with the same 404 as a missing path. *This gate is temporary.* It goes away once users are supported, and then the second layer is all there is.
-2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. Right now it gives admins everything and everyone else nothing. Restricting files or directories later only means changing this one implementation.
+1. **No gate.** Anyone, signed in or not, may request any path of the notes; the page of the notes has no authorization of its own. Without `Read` on the root, what they get is the root page with the login link and nothing of the notes. Only what is not part of the notes is gated: the Hangfire dashboard is for admins (`NotesAccess.AdminPolicyName`), and every failed authorization is answered with the same 404 as a missing path.
+2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything. For everyone else it reads the `.config.json` of the folders (see [permissions.md](permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
+
+**Anonymous users** (not logged in) are the principal `a` of the configuration. They can be given `Read` (or denied it) but never `Write`, `Create` or `Delete`: the parser refuses such a configuration. They have no user id, so they can't select, upload or transfer anything either, and the pages tell them that they may need to log in.
 
 The rest of this document is about the second layer.
+
+## The configuration files
+
+- `.config.json` (`PathService.ConfigFileName`) exists in the eyes of admins only. For everyone else `GetAccess` answers `None` for it, it is not in listings, `AccessTree.Walk` doesn't return it (so copies, moves, deletes and zips of a directory never see it), and no path leads to it (it is not a valid name, so it can't be created, uploaded, renamed to or opened). For admins it is part of walks, so it travels with a directory they copy, move or download.
+- Seeing and changing permissions is a permission of its own: `IEntryAccess.CanManagePermissions` (admins). `GET ?config` answers 404 to everyone else, whatever the entry, and so does `POST ?config`.
+- The file entries (`files`) of a folder's configuration are kept in step with its files by whoever adds, renames or removes a file, under the `StructureLock` (`FolderConfigStore.FileAdded/FileRenamed/FileRemoved`). A failure there never fails the operation.
+- A path's permissions come from its folder's file entry (found by name, whether or not the file exists), then the folder's permissions, then those of the folders above while each inherits. A directory is its own folder. Which of these applies to a path therefore depends on whether it is an existing directory, which anyone who may read the directory it is in sees anyway.
 
 ## Permissions
 
@@ -47,8 +56,8 @@ The name of an entry is not covered by its own Read permission. Whoever may read
 
 - **Paths that don't exist yet are asked about too.** That is how the app finds out whether something may be created there. Implementations must:
   - answer for paths that don't exist;
-  - answer the same for a path whether or not something exists there;
-  - never depend on file contents.
+  - answer the same for a path whether or not something exists there, as far as that is something the user may know (see [The configuration files](#the-configuration-files) for the one way it differs);
+  - never depend on file contents (the configuration files are the permissions, not contents).
 - **New paths are expected to inherit from their directory.** An entry without rules of its own gets the access of its parent. The UI relies on this, but only for hints: to grey out "Create", "Upload", "Copy here" or "Move here", it asks for the directory's own Create level. The server always checks the exact path of what is created. If an implementation breaks inheritance, the UI may offer things that then fail with a 403 and a message. It never allows something it shouldn't.
 
 ### Known, openable, hidden
@@ -82,7 +91,7 @@ Listings must never show more about an unreadable entry than its name and kind. 
 
 | Operation | Request | Required | Unreadable entries inside |
 |---|---|---|---|
-| Open the root page | `GET /` | Nothing (app gate allows everyone). Without `Read` on the root, it shows only the login link. | — |
+| Open the root page | `GET /` | Nothing. Without `Read` on the root, it shows only the login link (or, for someone logged in, that they have no access). | — |
 | View a directory listing | `GET /dir` | Directory openable (otherwise 403; 404 if not known) | Listed by name, with a lock and a tooltip. They can't be opened or selected. |
 | View a file (editor, media) | `GET /file` | File openable. Without `Write`, the editor is read-only and Save is disabled. | — |
 | Raw bytes of a media file | `GET /file?raw` | File openable | — |
@@ -97,6 +106,8 @@ Listings must never show more about an unreadable entry than its name and kind. 
 | Read the selection | `GET /?selection` | Root openable | — |
 | Copy the selection here | `POST /dir?transfer=copy` | Target directory openable. Every selected entry openable. `Create` on the destination path of every copied entry. Links are refused. | Left out. The success answer and its message say so. |
 | Move the selection here | `POST /dir?transfer=move` | As for copy, plus `CreateAndDelete` on every source tree | Fails (403, names the unreadable entry) |
+| See the permissions of an entry | `GET /entry?config` | Entry known, and the user may manage permissions (otherwise 404, like a missing path) | — |
+| Change the permissions of an entry | `POST /entry?config` (body) | As above. The text is checked completely first; invalid text changes nothing (400). | — |
 
 Notes on the table:
 
@@ -117,7 +128,7 @@ Notes on the table:
    - `Walk` for everything inside a directory;
    - `Inspect` for what a page shows about a tree.
 
-   Only `NotesAccessHandler` (the temporary app gate) and `EntryAccess` itself may look at roles.
+   Only `EntryAccess` itself looks at roles and groups (for admin-only features, ask `CanManagePermissions`). The Hangfire policy is the one other place that mentions the admin role.
 2. **Pick the permissions from the definitions above.** Seeing contents needs `Read`, changing contents needs `Write`, bringing something into existence at a path needs `Create`, and taking it away needs `Delete`. Doing any of this inside a directory needs `Read` on that directory. If none of them fits, extend `EntryAccessInfo` and this document. Don't stretch an existing permission.
 3. **Answer hidden like missing.** Return the same 404 and the same message. Return 403 only for known entries.
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
@@ -130,9 +141,12 @@ Notes on the table:
 
 | What | Where |
 |---|---|
-| Permission levels, `IEntryAccess`, current implementation | `notes/Features/Auth/EntryAccess.cs` |
+| Permission levels, `IEntryAccess`, resolving the configuration for a user | `notes/Features/Auth/EntryAccess.cs` |
 | Known and openable entries, walking trees, page hints | `notes/Features/Auth/AccessTree.cs` |
-| App-wide gate | `notes/Features/Auth/NotesAccess.cs` |
+| Admin policy, claim names | `notes/Features/Auth/NotesAccess.cs` |
+| The configuration: model, parser (schema), text editing, store, `?config` handler | `notes/Features/Permissions/*` |
+| The permissions page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
+| Keeping groups and roles current, notice after a forced logout | `notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
 | Resolving every request to a known entry | `notes/Pages/Index.cshtml.cs` |
 | Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_LockedEntry.cshtml` |
 | Copy, move, delete, rename checks | `notes/Features/Components/Transfer/TransferPlanner.cs` |

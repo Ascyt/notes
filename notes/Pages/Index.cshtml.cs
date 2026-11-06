@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
@@ -10,7 +9,9 @@ using notes.Features.Components.Selection;
 using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 using notes.Features.View.Browse;
+using notes.Features.View.ConfigEditor;
 using notes.Features.View.Editor;
 
 namespace notes.Pages;
@@ -20,14 +21,15 @@ namespace notes.Pages;
 /// request on to the feature that answers it (the query string says which one).
 /// </summary>
 /// <remarks>
-/// Whatever the request, the user must be allowed to know of the entry it is for (<see cref="AccessTree.IsKnown"/>); one they aren't is
-/// answered exactly like one that doesn't exist. Opening it (its page, its bytes, a download) also needs read access to it, otherwise 403.
+/// There is no gate in front of it: anyone may ask for anything, and what they get is decided per entry. Whatever the request, the user must
+/// be allowed to know of the entry it is for (<see cref="AccessTree.IsKnown"/>); one they aren't is answered exactly like one that doesn't exist.
+/// Opening it (its page, its bytes, a download) also needs read access to it, otherwise 403.
 /// Everything beyond that is up to the feature, see docs/security-specification.md.
 /// </remarks>
-[Authorize(Policy = NotesAccess.PolicyName)]
 public sealed class IndexModel(Config config,
     IPathService path,
     AccessTree tree,
+    ConfigHandler configHandler,
     DownloadHandler downloadHandler,
     RawHandler rawHandler,
     CreateHandler createHandler,
@@ -44,6 +46,9 @@ public sealed class IndexModel(Config config,
     public DirectoryView? Directory { get; private set; }
     public new FileView? File { get; private set; }
 
+    /// <summary>The editor of the permissions of the entry (<c>?config</c>), instead of the entry itself.</summary>
+    public ConfigEditorView? ConfigEditor { get; private set; }
+
     public async Task<IActionResult> OnGetAsync()
     {
         VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
@@ -59,6 +64,16 @@ public sealed class IndexModel(Config config,
 
         if (!tree.IsKnown(User, PhysicalPath))
             return NotFound();
+
+        // The permissions are for those who manage them. For everyone else there is no such thing, which is answered like a missing one.
+        if (Request.Query.ContainsKey("config"))
+        {
+            if (!tree.CanManagePermissions(User))
+                return NotFound();
+
+            ConfigEditor = configHandler.CreateView(VirtualPath, PhysicalPath);
+            return Page();
+        }
 
         if (Request.Query.ContainsKey("selection"))
             return selectionHandler.HandleGet(User);
@@ -85,6 +100,7 @@ public sealed class IndexModel(Config config,
                 PhysicalPath = PhysicalPath,
                 Viewer = User,
                 CanBrowse = canOpen,
+                CanConfigure = tree.CanManagePermissions(User),
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
             };
             Directory.Init();
@@ -97,6 +113,7 @@ public sealed class IndexModel(Config config,
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
                 CanWrite = tree.GetAccess(User, PhysicalPath).CanWrite,
+                CanConfigure = tree.CanManagePermissions(User),
                 DeleteDeniedReason = inspected.DeleteDeniedReason,
                 RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, inspected)
             };
@@ -111,6 +128,9 @@ public sealed class IndexModel(Config config,
         IActionResult? notFound = ResolveForChange();
         if (notFound is not null)
             return notFound;
+
+        if (Request.Query.ContainsKey("config"))
+            return tree.CanManagePermissions(User) ? await configHandler.SaveAsync(Request, PhysicalPath) : NotFound("Path not found.");
 
         string? selection = Request.Query["selection"];
         if (selection is not null)

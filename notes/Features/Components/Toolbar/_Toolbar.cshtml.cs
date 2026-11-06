@@ -38,17 +38,33 @@ public sealed record ToolbarButton(
 
     /// <param name="disabledReason">Why the file can never be saved here; without one it can be whenever there are changes.</param>
     public static ToolbarButton Save(string? disabledReason = null)
-        => new("save-button", "fa-solid fa-floppy-disk", "Save", "^S", OnClick: "saveFile()", Tone: ToolbarTone.Primary, DisabledReason: disabledReason ?? "There is nothing to save.");
+        => new(Id: "save-button", Icon: "fa-solid fa-floppy-disk", Label: "Save", Key: "^s", OnClick: "saveFile()", Tone: ToolbarTone.Primary, DisabledReason: disabledReason ?? "There is nothing to save.");
 
     public static ToolbarButton Download(bool isFile)
-        => new("download-button", "fa-solid fa-download", isFile ? "Download this file" : "Download this directory as a zip", "d", Href: "?download", IsDownload: true);
+        => new(Id: "download-button", Icon: "fa-solid fa-download", Label: isFile ? "Download this file" : "Download this directory as a zip", Key: "!PageDown", Href: "?download", IsDownload: true);
 
     public static ToolbarButton Upload(string? disabledReason = null)
-        => new("upload-button", "fa-solid fa-upload", "Upload files", "u", DisabledReason: disabledReason);
+        => new(Id: "upload-button", Icon: "fa-solid fa-upload", Label: "Upload files", Key: "!PageUp", DisabledReason: disabledReason);
 
     /// <param name="kind">What is being deleted ("file" or "directory").</param>
     public static ToolbarButton Delete(string kind, string? disabledReason = null)
-        => new("delete-button", "fa-regular fa-trash-can", $"Delete this {kind}", "Delete", OnClick: "requestDelete()", Tone: ToolbarTone.Danger, DisabledReason: disabledReason);
+        => new(Id: "delete-button", Icon: "fa-regular fa-trash-can", Label: $"Delete this {kind}", Key: "Delete", OnClick: "requestDelete()", Tone: ToolbarTone.Danger, DisabledReason: disabledReason);
+
+    /// <summary>
+    /// The way to the permissions page. Only for those who manage permissions, and not there at all for anyone else (unlike the other
+    /// buttons, which are disabled with a reason): nobody else is to know that such a page exists.
+    /// </summary>
+    /// <param name="kind">What the permissions are of ("file" or "directory").</param>
+    public static ToolbarButton Permissions(string kind)
+        => new(Id: "config-button", Icon: "fa-solid fa-gear", Label: $"Edit the permissions of this {kind}", Key: "c", Href: "?config");
+
+    /// <summary>Puts the default permissions into the editor of the permissions page (they are only saved by Save).</summary>
+    public static ToolbarButton ResetPermissions()
+        => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: "Reset to the default permissions (Save keeps them)", Key: "^!r", OnClick: "resetConfig()");
+
+    /// <summary>From the permissions page back to the file or directory itself.</summary>
+    public static ToolbarButton BackToEntry(string kind, string href)
+        => new(Id: "back-button", Icon: "fa-solid fa-arrow-left", Label: $"Back to this {kind}", Key: "Backspace", Href: href);
 }
 
 public class _Toolbar : PageModel

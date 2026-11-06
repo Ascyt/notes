@@ -27,6 +27,10 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
         => access.GetAccess(user, physicalPath);
 
+    /// <summary>Whether the user may see and change the permissions themselves (the configuration of each folder and file).</summary>
+    public bool CanManagePermissions(ClaimsPrincipal user)
+        => access.CanManagePermissions(user);
+
     /// <summary>
     /// Whether the user may know that the entry exists (see its name): they may read every directory above it, up to the root. Anything
     /// else is hidden and must be answered like something that doesn't exist. The root itself is always known.
@@ -66,15 +70,20 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
 
     /// <summary>
     /// Everything inside the directory, depth first, each directory before what is in it. Entries the user may not read are returned (their
-    /// names are no secret) but not entered, and neither are links (they could lead out of the notes or in circles).
+    /// names are no secret) but not entered, and neither are links (they could lead out of the notes or in circles). The configuration files
+    /// (<see cref="PathService.ConfigFileName"/>) are only there for those who may manage permissions: for everyone else they don't exist,
+    /// so a copy or a download leaves them out.
     /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/> if a directory can't be read.
     /// </summary>
     public IEnumerable<WalkedEntry> Walk(ClaimsPrincipal user, DirectoryInfo directory)
     {
+        bool seesConfigs = access.CanManagePermissions(user);
         foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", WalkOptions))
         {
             // The folder for globally saved data is never part of the notes (only the root has one)
             if (entry is DirectoryInfo && entry.Name == PathService.ReservedName)
+                continue;
+            if (!seesConfigs && entry is FileInfo && string.Equals(entry.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName));

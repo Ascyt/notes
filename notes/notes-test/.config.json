@@ -1,0 +1,12 @@
+{
+    // Who may do what in this folder, and in everything below it unless "inherit" is false.
+    // Principals: "u:<user name>", "g:<group>", "r:<role>", or "a" for everyone who is not logged in (who may only be allowed to read).
+    // Admins may always do everything.
+    // Lists: rwAllow, rwReadOnly, rwDeny (see and change what is in it), cdAllow, cdCreateOnly, cdDeny (create and delete).
+    "perms": {
+        "inherit": true,
+        "rwReadOnly": ["a"]
+    },
+    // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions of the folder.
+    "files": []
+}

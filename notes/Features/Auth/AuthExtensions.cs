@@ -18,8 +18,10 @@ public static class AuthExtensions
             .AddCookie(options =>
             {
                 options.Cookie.Name = ".notes.auth";
-                // Roles are copied into the cookie at login, so this also bounds how long a revoked role keeps working
+                // Matches the session of Keycloak (keycloak/notes-realm.json), which is what actually ends it
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                // The user's groups and roles are copied into the cookie at login. This renews them from Keycloak when the access token runs out
+                options.Events.OnValidatePrincipal = SessionRefresh.ValidateAsync;
             })
             .AddOpenIdConnect(options =>
             {
@@ -34,10 +36,10 @@ public static class AuthExtensions
                 options.ResponseMode = OpenIdConnectResponseMode.Query;
                 options.SaveTokens = true; // the ID token is sent along when logging out of Keycloak
 
-                // Keep Keycloak's claim names; the realm maps the user's realm roles to a flat "roles" claim
+                // Keep Keycloak's claim names; the realm maps the user's realm roles to a flat "roles" claim and their groups to "groups"
                 options.MapInboundClaims = false;
-                options.TokenValidationParameters.NameClaimType = "preferred_username";
-                options.TokenValidationParameters.RoleClaimType = "roles";
+                options.TokenValidationParameters.NameClaimType = NotesClaims.UserName;
+                options.TokenValidationParameters.RoleClaimType = NotesClaims.Roles;
 
                 // The response comes back as a top-level GET, so Lax cookies are enough (the default None needs HTTPS)
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;
@@ -47,8 +49,7 @@ public static class AuthExtensions
             });
 
         services.AddAuthorizationBuilder()
-            .AddPolicy(NotesAccess.PolicyName, policy => policy.AddRequirements(new NotesAccessRequirement()));
-        services.AddSingleton<IAuthorizationHandler, NotesAccessHandler>();
+            .AddPolicy(NotesAccess.AdminPolicyName, policy => policy.RequireRole(NotesAccess.AdminRole));
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, NotFoundAuthorizationResultHandler>();
 
         return services;

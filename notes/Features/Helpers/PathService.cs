@@ -59,10 +59,21 @@ public sealed class PathService : IPathService
     /// </summary>
     public const string ReservedName = "_";
 
+    /// <summary>
+    /// Name of the file in every directory that holds its permissions (see docs/permissions.md). It is never listed, and not a valid name, so
+    /// no path, upload, create or rename can ever lead to it: only the permissions editor reads and writes it.
+    /// </summary>
+    public const string ConfigFileName = ".config.json";
+
     public bool IsValidName(string name)
+        => IsValid(name);
+
+    /// <summary>The rules of <see cref="IsValidName"/>, for those that have no service at hand.</summary>
+    public static bool IsValid(string name)
         => !string.IsNullOrWhiteSpace(name)
            && name == name.Trim()
            && name is not ("." or ".." or ReservedName)
+           && !string.Equals(name, ConfigFileName, StringComparison.OrdinalIgnoreCase)
            && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
            && !name.Contains('\\');
 }

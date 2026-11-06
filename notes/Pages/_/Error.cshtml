@@ -14,13 +14,10 @@
         <div class="alert alert-info d-flex gap-3 align-items-start" role="alert">
             <i class="fa-solid fa-circle-info mt-1"></i>
             <div>
-                @if (!Model.IsAuthenticated)
-                {
-                    <p class="mb-2">
-                        You are not logged in. Some files can only be seen once you log in.
-                    </p>
-                    <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
-                }
+                <p class="mb-2">
+                    You are not logged in. Some files can only be seen once you log in.
+                </p>
+                <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
             </div>
         </div>
     }

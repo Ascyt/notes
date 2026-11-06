@@ -1,0 +1,162 @@
+@using notes.Features.Components.Breadcrumb
+@using notes.Features.Components.Toolbar
+@model notes.Features.View.ConfigEditor.ConfigEditorView
+
+@* The permissions of a directory or file (?config), edited as the JSON they are saved as. It is an editor like the one of a file, with
+   Save, and a Reset that puts the default into it. What is wrong with the text is told by the server when saving, and by the schema
+   while typing. *@
+
+@{
+    string kind = Model.IsFile ? "file" : "directory";
+    List<ToolbarButton> toolbarButtons =
+    [
+        ToolbarButton.Save(),
+        ToolbarButton.ResetPermissions(),
+        ToolbarButton.BackToEntry(kind, "/" + Model.VirtualPath)
+    ];
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = Model.IsFile, VirtualPath = Model.VirtualPath, RenameDisabledReason = RenameDisabledReason }"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+@functions {
+    private const string RenameDisabledReason = "Leave the permissions to rename it.";
+}
+
+<p class="small text-secondary mb-2">
+    <i class="fa-solid fa-gear"></i> Permissions of this @kind.
+    @if (Model.IsFile)
+    {
+        <text>This file's entry in the permissions of its folder, without the name.</text>
+    }
+    else
+    {
+        <text>Everything in this directory has them as well, unless it says otherwise.</text>
+    }
+    Principals are <code>u:user</code>, <code>g:group</code> and <code>r:role</code>; admins may always do everything.
+</p>
+
+@if (Model.Warning is not null)
+{
+    <div class="alert alert-warning small" style="white-space: pre-line" role="alert">@Model.Warning</div>
+}
+<div id="config-errors" class="alert alert-danger small d-none" style="white-space: pre-line" role="alert"></div>
+
+@Html.AntiForgeryToken()
+<div id="editor" style="height: 65vh; border: 1px solid #ccc;" key="Enter"></div>
+
+<script src="~/js/editor.js" asp-append-version="true"></script>
+<script>
+    const defaultContents = @Json.Serialize(Model.DefaultContents);
+    const errorBox = document.getElementById('config-errors');
+    let savedVersionId = null;
+    let isDirty = false;
+    let isSaving = false;
+
+    // The editor's key shortcut (see shortcuts.js) focuses it
+    document.getElementById('editor').addEventListener('shortcut', function (e) {
+        e.preventDefault();
+        if (window.editor)
+            window.editor.focus();
+    });
+
+    function updateDirty() {
+        isDirty = window.editor.getModel().getAlternativeVersionId() !== savedVersionId;
+        setButtonDisabled(document.getElementById('save-button'), isDirty ? null : 'There is nothing to save.');
+    }
+
+    function setSaving(saving) {
+        isSaving = saving;
+        setButtonBusy(document.getElementById('save-button'), saving);
+    }
+
+    // With nothing to save the Save button (and so its shortcut) does nothing, but the browser's own "save page" is never what is meant
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's')
+            e.preventDefault();
+    });
+
+    // Replaces everything in the editor, in a way that can be undone
+    function replaceAll(text) {
+        const model = window.editor.getModel();
+        window.editor.pushUndoStop();
+        window.editor.executeEdits('config', [{ range: model.getFullModelRange(), text: text }]);
+        window.editor.pushUndoStop();
+    }
+
+    // Puts the default into the editor. Nothing is saved until Save.
+    function resetConfig() {
+        if (!window.editor)
+            return;
+
+        replaceAll(defaultContents);
+        window.editor.focus();
+    }
+
+    // (Named for the Save button of the toolbar.) The text is sent as it is; the server checks all of it and says what is wrong,
+    // or answers with what it saved, which may have more in it than what was sent (entries for new files).
+    async function saveFile() {
+        if (!window.editor || isSaving)
+            return;
+
+        setSaving(true);
+        errorBox.classList.add('d-none');
+        try {
+            const versionId = window.editor.getModel().getAlternativeVersionId();
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            let response;
+            try {
+                response = await fetch(window.location.pathname + '?config', {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token, 'Content-Type': 'text/plain; charset=utf-8' },
+                    body: window.editor.getValue()
+                });
+            } catch {
+                response = { ok: false, status: 'network error' };
+            }
+
+            const message = typeof response.text === 'function' ? await response.text() : '';
+            if (!response.ok) {
+                errorBox.textContent = message || ('Failed to save (' + response.status + ').');
+                errorBox.classList.remove('d-none');
+                notify(response.status === 400 ? 'The permissions are not valid.' : (message.split('\n')[0] || 'Failed to save.'), 'danger');
+                return;
+            }
+
+            if (window.editor.getValue().replace(/\r\n/g, '\n') !== message)
+                replaceAll(message);
+            savedVersionId = window.editor.getModel().getAlternativeVersionId();
+            updateDirty();
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    // Built-in browser prompt when leaving with unsaved changes
+    window.addEventListener('beforeunload', function (e) {
+        if (isDirty)
+            e.preventDefault();
+    });
+
+    // Last, as it needs everything above. The editor itself is made once Monaco has loaded.
+    createEditor(document.getElementById('editor'), {
+        basePath: '@Url.Content("~/lib/monaco-editor/min/vs")',
+        value: @Json.Serialize(Model.Contents),
+        language: 'json',
+        uri: 'inmemory://notes/permissions.json',
+        // Comments are allowed in the permissions, and the schema is what completes and checks them while typing
+        onBeforeCreate: function (monaco) {
+            monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+                validate: true,
+                allowComments: true,
+                comments: 'ignore',
+                trailingCommas: 'error',
+                schemas: [{ uri: 'inmemory://notes/permissions-schema.json', fileMatch: ['inmemory://notes/permissions.json'], schema: JSON.parse(@Json.Serialize(Model.Schema)) }]
+            });
+        }
+    }).then(function (editor) {
+        window.editor = editor;
+        savedVersionId = editor.getModel().getAlternativeVersionId();
+        editor.onDidChangeModelContent(updateDirty);
+        editor.focus();
+    });
+</script>

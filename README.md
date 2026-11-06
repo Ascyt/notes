@@ -27,6 +27,11 @@ browser --HTTPS--> Cloudflare --tunnel--> cloudflared --> caddy --> notes     (N
    ```
 6. In the `notes` realm, create your user, give it the `admin` realm role and set a password.
 
+Who may see and change what is configured per directory, by admins, in the app (the gear button): see
+[docs/permissions.md](docs/permissions.md). It uses the Keycloak groups and roles of users. The realm file maps the groups to the
+`groups` claim and sets short access token lifespans, which keep groups and roles current; for a realm that was imported
+before, that document says what to set by hand.
+
 The realm file is only imported when the realm does not exist yet. For an already imported realm, add
 `https://<NOTES_HOST>/signin-oidc` as a valid redirect URI and `https://<NOTES_HOST>/signout-callback-oidc` as a valid
 post logout redirect URI of the `notes-web` client in the admin console.

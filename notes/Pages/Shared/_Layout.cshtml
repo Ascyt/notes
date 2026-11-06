@@ -44,6 +44,10 @@
     </nav>
 </header>
 <partial name="/Features/Components/Toast/_Toasts.cshtml" model="new _Toasts()"/>
+@if (SessionNotice.MessageFor(Context) is { } sessionNotice)
+{
+    <partial name="/Features/Auth/_SessionNotice.cshtml" model='new _SessionNotice { Message = sessionNotice, ReturnUrl = Context.OriginalPathAndQuery }'/>
+}
 <div class="container">
     <main role="main" class="pb-3">
         @RenderBody()

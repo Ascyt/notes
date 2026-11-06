@@ -1,0 +1,8 @@
+@model _LoginNotice
+
+@* Shown to someone who is not logged in on a page of the notes: what they see here may be less than what they would see once logged in,
+   and changing anything needs it *@
+<div class="alert alert-info d-flex align-items-center gap-2 py-2 small" role="note">
+    <i class="fa-solid fa-circle-info flex-shrink-0"></i>
+    <span>You are not logged in. Some things can only be seen, and anything can only be changed, once you <a class="link" asp-page="/_/Login" asp-route-returnUrl="@Model.ReturnUrl">log in</a>.</span>
+</div>

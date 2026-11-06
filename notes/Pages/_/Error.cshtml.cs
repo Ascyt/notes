@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
 using notes.Extensions;
-using notes.Features.Auth;
 
 namespace notes.Pages._;
 
@@ -31,10 +30,9 @@ public sealed class ErrorModel : PageModel
 
     /// <summary>
     /// Missing and inaccessible paths both answer 404 (so nobody can probe which files exist), which is why a
-    /// 404 may just mean the user lacks access.
+    /// 404 may just mean the user lacks access, and logging in may help someone who has not.
     /// </summary>
-    public bool MayNeedLogin => IsNotFound && !IsAdmin;
-    public bool IsAdmin => User.IsInRole(NotesAccess.AdminRole);
+    public bool MayNeedLogin => (IsNotFound || StatusCode == StatusCodes.Status403Forbidden) && !IsAuthenticated;
 
     public void OnGet() => Init();
     public void OnPost() => Init();

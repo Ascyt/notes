@@ -12,6 +12,7 @@ using notes.Features.Components.Selection;
 using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 using notes.Features.View.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,7 @@ builder.Services.AddSingleton<IUploadService, UploadService>();
 // would not share them. For that, ISelectionService needs a shared store (e.g. a distributed cache).
 builder.Services.AddMemoryCache();
 // Permissions: what they mean and who checks them where is specified in docs/security-specification.md
+builder.Services.AddSingleton<FolderConfigStore>();
 builder.Services.AddSingleton<IEntryAccess, EntryAccess>();
 builder.Services.AddSingleton<AccessTree>();
 // One lock across the app (and so a single instance only) for everything that adds, removes or renames entries
@@ -57,6 +59,7 @@ builder.Services.AddSingleton<CreateHandler>();
 builder.Services.AddSingleton<RenameHandler>();
 builder.Services.AddSingleton<SaveHandler>();
 builder.Services.AddSingleton<DeleteHandler>();
+builder.Services.AddSingleton<ConfigHandler>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());
@@ -93,6 +96,7 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseAuthentication();
+app.UseSessionNotice();
 app.UseAuthorization();
 
 app.MapStaticAssets();
@@ -101,7 +105,7 @@ app.MapRazorPages()
 
 // Admins only. Going through the app's own policy (instead of Hangfire's filter) answers everyone else with the usual 404.
 app.MapHangfireDashboard("/_/Hangfire", new DashboardOptions { Authorization = [] })
-    .RequireAuthorization(NotesAccess.PolicyName);
+    .RequireAuthorization(NotesAccess.AdminPolicyName);
 
 app.Services.GetRequiredService<IRecurringJobManager>()
     .AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), Cron.Hourly);

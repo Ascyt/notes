@@ -28,6 +28,12 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
     public bool CanBrowse { get; init; }
 
+    /// <summary>Whether the page offers selecting entries. It needs the user's own id (the selection is kept under it), so not for someone who is not logged in.</summary>
+    public bool CanSelect => Viewer.Identity?.IsAuthenticated == true;
+
+    /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
+    public bool CanConfigure { get; init; }
+
     /// <summary>Why the user can't delete the directory, or null if they can.</summary>
     public string? DeleteDeniedReason { get; private set; }
 
@@ -36,6 +42,12 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
 
     /// <summary>Why the user can't add entries (create, upload, copy or move here), or null if they can.</summary>
     public string? CreateDeniedReason { get; private set; }
+
+    /// <summary>
+    /// Whether the user can't change anything here: neither add entries nor delete the directory. The page then doesn't offer the buttons
+    /// that change things (create, upload, delete) at all, instead of showing them disabled.
+    /// </summary>
+    public bool IsReadOnly => CreateDeniedReason is not null && DeleteDeniedReason is not null;
 
     /// <summary>What the user has selected (anywhere in the notes) when the page is made.</summary>
     public SelectionSnapshot Selection { get; init; } = SelectionSnapshot.Empty;
@@ -60,7 +72,10 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
             .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)
             .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)
             .Select(ToListed)];
-        Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly).Select(ToListed)];
+        // The file with the permissions is not a note: it is changed through the permissions page, and never listed
+        Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
+            .Where(file => !string.Equals(Path.GetFileName(file), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+            .Select(ToListed)];
 
         // The root can't be deleted or renamed anyway, so there is no need to look at all of the notes
         if (IsRoot)

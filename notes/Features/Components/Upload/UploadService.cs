@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Components.Upload;
 
@@ -25,7 +26,7 @@ public interface IUploadService
     int DeleteStaleUploads(TimeSpan maxAge);
 }
 
-public sealed class UploadService(Config config, IPathService path, StructureLock structureLock) : IUploadService
+public sealed class UploadService(Config config, IPathService path, StructureLock structureLock, FolderConfigStore configs) : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -80,6 +81,7 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
                     try
                     {
                         File.Move(tempPath, finalPath);
+                        configs.FileAdded(physicalDirectory, finalName);
                         return path.ToVirtualPath(config.Dir, finalPath);
                     }
                     catch (IOException) when (Path.Exists(finalPath))

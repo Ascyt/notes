@@ -1,14 +1,34 @@
 @page "{**path}"
 @using notes.Extensions
+@using notes.Features.Auth
 @model notes.Pages.IndexModel
 @inject Config Config
 @{
     ViewData["Title"] = Model.VirtualPath.NormalizedWith(Config.Title);
 }
 
-@if (Model.Directory is { CanBrowse: false })
+@* Whoever is not logged in may be seeing less than they could, and can't change anything. (After being logged out by the app the notice
+   of that, with its login button, is already there.) *@
+@if (User.Identity?.IsAuthenticated != true && (Model.Directory is { CanBrowse: true } || Model.File is not null) && SessionNotice.MessageFor(Model.HttpContext) is null)
 {
-    <p class="text-muted"><a href="/_/Login">Log in</a> with an administrator account to browse notes.</p>
+    <partial name="/Features/Auth/_LoginNotice.cshtml" model='new _LoginNotice { ReturnUrl = Model.HttpContext.OriginalPathAndQuery }'/>
+}
+
+@if (Model.ConfigEditor is not null)
+{
+    <partial name="/Pages/ConfigEditor/ConfigEditorView.cshtml" model="Model.ConfigEditor"/>
+}
+else if (Model.Directory is { CanBrowse: false })
+{
+    @* The root page, for someone who may not read the root: all there is for them is the way in *@
+    if (User.Identity?.IsAuthenticated == true)
+    {
+        <p class="text-muted">You don't have access to these notes.</p>
+    }
+    else
+    {
+        <p class="text-muted"><a href="/_/Login">Log in</a> to browse notes.</p>
+    }
 }
 else if (Model.Directory is not null)
 {

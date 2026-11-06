@@ -15,11 +15,20 @@ public class FileView : PageModel
     /// <summary>Whether the user may change the contents. Without it the editor is read-only and there is no saving.</summary>
     public bool CanWrite { get; init; }
 
+    /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the file.</summary>
+    public bool CanConfigure { get; init; }
+
     /// <summary>Why the user can't delete the file, or null if they can.</summary>
     public string? DeleteDeniedReason { get; init; }
 
     /// <summary>Why the user can't rename the file, or null if they can.</summary>
     public string? RenameDeniedReason { get; init; }
+
+    /// <summary>
+    /// Whether the user can't change anything about the file: not its contents, nor delete it. The page then doesn't offer the buttons that
+    /// change things (save, delete) at all, instead of showing them disabled.
+    /// </summary>
+    public bool IsReadOnly => !CanWrite && DeleteDeniedReason is not null;
 
     public string Contents { get; private set; } = "";
     public bool IsBinary { get; private set; }
