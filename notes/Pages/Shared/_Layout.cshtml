@@ -14,14 +14,20 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
     <link rel="stylesheet" href="~/shortcuts/shortcuts.css" asp-append-version="true"/>
     @* In the head, so that what the scripts of the page and its components use of it (setButtonDisabled and the like) is there when they run *@
+    @* Also in the head, so that the theme is set before anything is painted *@
+    <script src="~/js/theme.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @* <link rel="stylesheet" href="~/notes.styles.css" asp-append-version="true"/> *@
 </head>
 <body>
 <header>
-    <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+    <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body border-bottom box-shadow mb-3">
         <div class="container">
             <a class="navbar-brand" href="/" key="Home">@Config.Title</a>
+            @* Top right: next to the menu button when the menu is collapsed, after the menu otherwise *@
+            <button id="theme-toggle" type="button" class="btn btn-sm btn-outline-secondary ms-auto ms-sm-2 me-2 me-sm-0 order-sm-last" key="!+A">
+                <i class="fa-solid fa-moon theme-icon-light"></i><i class="fa-solid fa-sun theme-icon-dark"></i>
+            </button>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                     aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -29,12 +35,12 @@
             <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                 <ul class="navbar-nav flex-grow-1">
                     <li class="nav-item">
-                        <a class="nav-link text-dark" asp-area="" asp-page="/_/About" key="F1">About</a>
+                        <a class="nav-link text-body" asp-area="" asp-page="/_/About" key="F1">About</a>
                     </li>
                     @if (User.IsInRole(NotesAccess.AdminRole))
                     {
                         <li class="nav-item">
-                        <a class="nav-link text-dark" href="/_/Hangfire" key="!H">Hangfire</a>
+                        <a class="nav-link text-body" href="/_/Hangfire" key="!H">Hangfire</a>
                         </li>
                     }
                 </ul>

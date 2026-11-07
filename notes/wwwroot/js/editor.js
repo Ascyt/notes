@@ -71,13 +71,23 @@
         }
     }
 
+    // Monaco's theme follows that of the page (see theme.js); it is global to all editors
+    function monacoTheme() {
+        return window.getTheme() === 'dark' ? 'vs-dark' : 'vs';
+    }
+
+    window.addEventListener('themechange', function () {
+        if (window.monaco)
+            monaco.editor.setTheme(monacoTheme());
+    });
+
     window.createEditor = async function (element, options) {
         await loadMonaco(options.basePath);
         if (options.onBeforeCreate)
             options.onBeforeCreate(monaco);
 
         const settings = {
-            theme: 'vs',
+            theme: monacoTheme(),
             readOnly: Boolean(options.readOnly),
             readOnlyMessage: { value: options.readOnlyMessage || '' },
             automaticLayout: true,

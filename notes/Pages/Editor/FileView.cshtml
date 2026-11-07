@@ -62,7 +62,7 @@
 }
 
 @Html.AntiForgeryToken()
-<div id="editor" style="height: 75vh; border: 1px solid #ccc;" key="Enter"></div>
+<div id="editor" style="height: 75vh; border: 1px solid var(--bs-border-color);" key="Enter"></div>
 @if (!Model.IsReadOnly)
 {
     <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>

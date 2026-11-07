@@ -9,7 +9,7 @@ html {
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem var(--bs-body-bg), 0 0 0 0.25rem #258cfb;
 }
 
 html {
@@ -28,6 +28,11 @@ body {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
+}
+
+/* The theme button (see theme.js) shows the moon in light mode, and the sun in dark mode */
+[data-bs-theme="light"] .theme-icon-dark, [data-bs-theme="dark"] .theme-icon-light {
+  display: none;
 }
 
 /* A button that does nothing right now (see setButtonDisabled in site.js). Looks like Bootstrap's disabled button, but keeps
