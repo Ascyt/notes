@@ -45,6 +45,13 @@ public class NotesAppFactory : WebApplicationFactory<Program>
             return inner.GetAccess(user, physicalPath);
         }
 
+        // Passed on as it is: the app asks this way for what it has just listed, and must not look at the disk again here either
+        public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
+        {
+            app.BeforeAccessCheck?.Invoke(user, physicalPath);
+            return inner.GetAccess(user, physicalPath, isDirectory);
+        }
+
         public bool CanManagePermissions(ClaimsPrincipal user) => inner.CanManagePermissions(user);
     }
 

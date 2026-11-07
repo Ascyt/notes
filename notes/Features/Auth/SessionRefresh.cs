@@ -36,8 +36,18 @@ public static class SessionRefresh
 
     private enum Outcome { Renewed, Over, Unreachable }
 
+    /// <summary>Where the time a request spent on its session (when it had to ask Keycloak) is kept, for the log of slow requests.</summary>
+    public const string ElapsedItemKey = "notes.session-check-ms";
+
     /// <summary>For <see cref="CookieAuthenticationEvents.OnValidatePrincipal"/>: runs for every request that comes with a session.</summary>
     public static async Task ValidateAsync(CookieValidatePrincipalContext context)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        await ValidateCoreAsync(context);
+        context.HttpContext.Items[ElapsedItemKey] = (long)System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+    }
+
+    private static async Task ValidateCoreAsync(CookieValidatePrincipalContext context)
     {
         if (context.Principal?.Identity?.IsAuthenticated != true)
             return;

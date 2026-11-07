@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Components.Transfer;
 
@@ -15,6 +16,8 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
 {
     public TransferPlan Plan(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
     {
+        // Everything inside the selected directories asks about the same folders: read their configuration once
+        using IDisposable scope = ConfigReadScope.Begin();
         if (kind != TransferKind.Delete)
             CheckTarget(user, physicalTarget);
 
@@ -43,6 +46,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
     /// </summary>
     public void CheckRename(ClaimsPrincipal user, string source, string destination)
     {
+        using IDisposable scope = ConfigReadScope.Begin();
         bool leftOutUnreadable = false;
         _ = CheckTree(user, TransferKind.Move, "rename", new TransferItem(source, Path.GetFileName(destination), Directory.Exists(source)), destination, ref leftOutUnreadable);
     }
@@ -66,16 +70,17 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
 
     private List<TransferItem> ResolveEntries(ClaimsPrincipal user, IReadOnlyList<string> virtualPaths)
     {
+        // Found all together: the selected entries are mostly in the same directory, which is then listed once instead of once per entry
+        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(config.Dir, virtualPaths);
         List<TransferItem> entries = [];
-        foreach (string virtualPath in virtualPaths)
+        for (int i = 0; i < virtualPaths.Count; i++)
         {
             // The user selected it, so they know the path. Whether it is gone or hidden from them now, it is answered the same.
             // (Whether they may read it is checked with the rest of it.)
-            string? physical = virtualPath == "" ? null : path.ToPhysicalPath(config.Dir, virtualPath);
-            if (physical is null || !Path.Exists(physical) || !tree.IsKnown(user, physical))
-                throw new TransferException(StatusCodes.Status409Conflict, $"'{virtualPath}' no longer exists.");
+            if (virtualPaths[i] == "" || found[i] is not { } entry || !tree.IsKnown(user, entry))
+                throw new TransferException(StatusCodes.Status409Conflict, $"'{virtualPaths[i]}' no longer exists.");
 
-            entries.Add(new TransferItem(physical, Path.GetFileName(physical), Directory.Exists(physical)));
+            entries.Add(new TransferItem(entry.FullName, entry.Name, entry is DirectoryInfo));
         }
 
         return entries;
@@ -123,7 +128,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
     private TransferItem CheckTree(ClaimsPrincipal user, TransferKind kind, string verb, TransferItem item, string? destination, ref bool leftOutUnreadable)
     {
         FileSystemInfo root = item.IsDirectory ? new DirectoryInfo(item.Source) : new FileInfo(item.Source);
-        EntryAccessInfo rootAccess = tree.GetAccess(user, item.Source);
+        EntryAccessInfo rootAccess = tree.GetAccess(user, item.Source, item.IsDirectory);
         if (!rootAccess.CanRead)
             throw new TransferException(StatusCodes.Status403Forbidden, $"No read access to '{tree.Display(item.Source)}', so it can't be {Done(verb)}.");
 
@@ -164,7 +169,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
     {
         string display = tree.Display(entry.FullName);
         // Deleting a link only removes the link, so it is harmless, but copying one would follow it out of the notes
-        if (kind != TransferKind.Delete && entry.LinkTarget is not null)
+        if (kind != TransferKind.Delete && PathService.IsLink(entry))
             throw new TransferException(StatusCodes.Status400BadRequest, $"'{display}' is a link, which can't be {Done(verb)}.");
 
         // What is moved, renamed or deleted goes away from where it is

@@ -67,6 +67,13 @@ public interface IEntryAccess
     EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath);
 
     /// <summary>
+    /// The same, for a path the caller knows to be a directory (or not) because it just listed it. That saves looking at the disk for each
+    /// of the thousands of entries a listing or a walk goes through.
+    /// </summary>
+    EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
+        => GetAccess(user, physicalPath);
+
+    /// <summary>
     /// Whether the user may see and change the permissions themselves (the configuration of each folder and file) rather than just
     /// live by them. Answered once for the whole notes: it is not up to the entry.
     /// </summary>
@@ -87,6 +94,13 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
         => user.IsInRole(NotesAccess.AdminRole);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
+        => Resolve(user, physicalPath, isDirectory: null);
+
+    public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
+        => Resolve(user, physicalPath, isDirectory);
+
+    /// <param name="isDirectory">Whether the path is a directory, if the caller knows; null to look at the disk.</param>
+    private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, bool? isDirectory)
     {
         if (CanManagePermissions(user))
             return Everything;
@@ -99,7 +113,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
             return EntryAccessInfo.None;
 
         PrincipalSet principals = PrincipalSet.Of(user);
-        if (FindLayers(path, root) is not { } layers)
+        if (FindLayers(path, root, isDirectory) is not { } layers)
             return EntryAccessInfo.None;
 
         // Each level is decided by the first layer that says anything about the user
@@ -112,13 +126,13 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
     /// The permissions that apply to the path, the most specific first: the entry of the file (a directory has none, its own folder is
     /// its entry), then the folder and each folder above it, stopping after the first one with <c>inherit: false</c>. Null if one of those is invalid.
     /// </summary>
-    private List<PermsBlock>? FindLayers(string path, string root)
+    private List<PermsBlock>? FindLayers(string path, string root, bool? isDirectory)
     {
         List<PermsBlock> layers = [];
         string folder = path;
 
         // A directory is its own folder. Any other path (a file, or one that doesn't exist yet) has the entry its folder has for its name.
-        if (!Directory.Exists(path))
+        if (!(isDirectory ?? Directory.Exists(path)))
         {
             folder = Path.GetDirectoryName(path)!;
             FolderConfigState parent = store.Get(folder);

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Components.Selection;
 
@@ -64,22 +65,11 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
 
                 // Paths are stored the way the listing shows them. Unselecting needs no checks (the entry may be gone by now),
                 // and entries that can't be selected (gone, hidden, may not be opened) are left out instead of failing the rest.
-                // What the card shows about the selection (may it be deleted and moved) is found out here, once.
                 result = action == "add"
-                    ? selection.Add(userId, paths.Select(ToEntry).OfType<SelectionEntry>().ToList())
+                    ? selection.Add(userId, ToEntries(user, paths))
                     : selection.Remove(userId, paths);
 
                 break;
-                
-                SelectionEntry? ToEntry(string virtualPath)
-                {
-                    string? physical = virtualPath.Trim('/') == "" ? null : path.ToPhysicalPath(config.Dir, virtualPath);
-                    if (physical is null || !System.IO.Path.Exists(physical) || !tree.CanOpen(user, physical))
-                        return null;
-
-                    TreeAccess inspected = tree.Inspect(user, physical);
-                    return new SelectionEntry(path.ToVirtualPath(config.Dir, physical), Directory.Exists(physical), inspected.CanDelete);
-                }
 
             default:
                 return new BadRequestObjectResult("Invalid selection action.");
@@ -88,5 +78,30 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
         return result is null
             ? new ConflictObjectResult("A copy or move is in progress.")
             : new JsonResult(result);
+    }
+
+    /// <summary>
+    /// The entries that can be selected among the paths. What the card shows about them (may they be deleted and moved) is only what is known
+    /// about the entry itself, which takes no time: looking at everything inside a directory would make selecting one wait for that. The
+    /// copy, move or delete checks everything inside again, and says what is wrong.
+    /// </summary>
+    private List<SelectionEntry> ToEntries(ClaimsPrincipal user, string[] virtualPaths)
+    {
+        // The paths are mostly in the same directory: find them all together (each directory is listed once, not once per path), and read
+        // the configuration of the folders above them once for all of them
+        using IDisposable scope = ConfigReadScope.Begin();
+        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(config.Dir, virtualPaths);
+        List<SelectionEntry> entries = [];
+        for (int i = 0; i < virtualPaths.Length; i++)
+        {
+            // The root can't be selected
+            if (virtualPaths[i].Trim('/') == "" || found[i] is not { } entry || !tree.CanOpen(user, entry))
+                continue;
+
+            bool isDirectory = entry is DirectoryInfo;
+            entries.Add(new SelectionEntry(path.ToVirtualPath(config.Dir, entry.FullName), isDirectory, tree.GetAccess(user, entry.FullName, isDirectory).CanDelete));
+        }
+
+        return entries;
     }
 }

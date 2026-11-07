@@ -8,7 +8,7 @@ namespace notes.Features.Components.Selection;
 /// <param name="Busy">Whether a copy or move of the selection is running.</param>
 /// <param name="Paths">Virtual paths of the selected files and directories.</param>
 /// <param name="DirectoryCount">How many of the <paramref name="Paths"/> are directories (the rest are files).</param>
-/// <param name="CanDelete">Whether the user may delete (and so move away) every selected entry, as far as was known when it was selected.</param>
+/// <param name="CanDelete">Whether the user may delete (and so move away) every selected entry itself, as far as was known when it was selected. Not what is inside a directory: that is up to the transfer.</param>
 public sealed record SelectionSnapshot(long Version, bool Busy, IReadOnlyList<string> Paths, int DirectoryCount, bool CanDelete)
 {
     public static SelectionSnapshot Empty { get; } = new(0, false, [], 0, true);
@@ -16,7 +16,8 @@ public sealed record SelectionSnapshot(long Version, bool Busy, IReadOnlyList<st
 
 /// <summary>
 /// An entry to select: its virtual path, whether it is a directory, and what was found out about its permissions when it was selected.
-/// That is only for showing what can be done with the selection; whatever is done with it checks everything again.
+/// That is only for showing what can be done with the selection (and only about the entry itself, not what is inside it); whatever is done
+/// with it checks everything again.
 /// </summary>
 public sealed record SelectionEntry(string Path, bool IsDirectory, bool CanDelete);
 

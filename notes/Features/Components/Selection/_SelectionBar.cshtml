@@ -103,9 +103,10 @@
             setAvailable(moveButton, !allHere);
             setAvailable(deleteButton, allHere);
 
-            // What the permissions allow, as far as the server knew when the entries were selected (it checks again when it is done).
-            // Moving takes the entries away from where they are, so it needs what deleting needs.
-            const removeDeniedReason = state.canDelete ? null : 'Insufficient permissions to delete or move some of the selected entries, or something inside them.';
+            // What the permissions allow for the selected entries themselves, as far as the server knew when they were selected. What is inside
+            // a directory is checked only when it is copied, moved or deleted (and the answer says what is wrong). Moving takes the entries
+            // away from where they are, so it needs what deleting needs.
+            const removeDeniedReason = state.canDelete ? null : 'Insufficient permissions to delete or move some of the selected entries.';
             setButtonDisabled(copyButton, createDeniedReason);
             setButtonDisabled(moveButton, createDeniedReason || removeDeniedReason);
             setButtonDisabled(deleteButton, removeDeniedReason);

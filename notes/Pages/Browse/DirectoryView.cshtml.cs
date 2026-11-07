@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
 using notes.Features.Components.Selection;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.View.Browse;
 
@@ -61,28 +62,36 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     public string CanonicalVirtualPath
         => ToVirtualPath(PhysicalPath) is var virtualPath and not "." ? virtualPath : "";
 
+    private HashSet<string>? _selectedPaths;
+
+    /// <summary>Asked for every entry of the listing, so not a search through the selection each time.</summary>
     public bool IsSelected(string virtualPath)
-        => Selection.Paths.Contains(virtualPath, StringComparer.OrdinalIgnoreCase);
+        => (_selectedPaths ??= new HashSet<string>(Selection.Paths, StringComparer.OrdinalIgnoreCase)).Contains(virtualPath);
 
     public void Init()
     {
         if (!CanBrowse)
             return;
 
-        ListedEntry ToListed(string entry) => new(entry, tree.GetAccess(Viewer, entry).CanRead);
+        // Every entry (and everything inside this directory, for what the page says about deleting it) asks about the same folders:
+        // read their configuration once, not once per entry
+        using IDisposable scope = ConfigReadScope.Begin();
+
+        // The listing knows which are directories, so the permissions needn't look at the disk for each entry
+        Func<string, ListedEntry> ToListed(bool isDirectory) => entry => new(entry, tree.GetAccess(Viewer, entry, isDirectory).CanRead);
         // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames)
         bool seesUnreadable = tree.SeesUnreadableNames(Viewer);
 
         Directories = [..Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
             .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)
             .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)
-            .Select(ToListed)
+            .Select(ToListed(isDirectory: true))
             .Where(entry => entry.CanOpen || seesUnreadable)];
         // The file with the permissions is not a note: it is changed through the permissions page, and never listed
         Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
             .Where(file => !string.Equals(Path.GetFileName(file), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase)
-            .Select(ToListed)
+            .Select(ToListed(isDirectory: false))
             .Where(entry => entry.CanOpen || seesUnreadable)];
 
         // The root can't be deleted or renamed anyway, so there is no need to look at all of the notes

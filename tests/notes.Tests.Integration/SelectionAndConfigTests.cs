@@ -23,8 +23,10 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     public async Task What_the_card_says_about_deleting_comes_from_the_permissions()
     {
         Assert.True((await SelectAsync(Users.Alice, "docs/a.md")).CanDelete);
+        // Only the entry itself: what is inside a directory (mixed/keep.md may not be deleted) is up to the transfer, which refuses it
+        Assert.True((await SelectAsync(Users.Alice, "mixed")).CanDelete);
+        // (The selection is of all that is selected: one entry that can't be deleted is enough)
         Assert.False((await SelectAsync(Users.Alice, "shelf/item.md")).CanDelete);
-        Assert.False((await SelectAsync(Users.Alice, "mixed")).CanDelete);
     }
 
     [Fact]

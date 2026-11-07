@@ -37,6 +37,42 @@ public sealed class FolderConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Within_a_read_scope_a_folder_is_read_once_and_afterwards_again()
+    {
+        _notes.Files.Config("", Cfg.Folder(Cfg.Perms(rwAllow: ["g:a"])));
+
+        using (ConfigReadScope.Begin())
+        {
+            Assert.Contains("g:a", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+
+            // The scope keeps what it saw, a file that appears or changes meanwhile is not looked at
+            _notes.Files.Config("", Cfg.Folder(Cfg.Perms(rwAllow: ["g:b"])));
+            _notes.Files.Config("sub", Cfg.Folder(Cfg.Perms()));
+            Assert.Contains("g:a", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+            Assert.NotNull(_notes.Store.Get(_notes.P("sub")).Config);
+        }
+
+        Assert.Contains("g:b", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+    }
+
+    [Fact]
+    public void Read_scopes_nest_and_the_outer_one_decides_when_it_ends()
+    {
+        _notes.Files.Config("", Cfg.Folder(Cfg.Perms(rwAllow: ["g:a"])));
+
+        using (ConfigReadScope.Begin())
+        {
+            using (ConfigReadScope.Begin())
+                Assert.Contains("g:a", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+
+            _notes.Files.Config("", Cfg.Folder(Cfg.Perms(rwAllow: ["g:b"])));
+            Assert.Contains("g:a", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+        }
+
+        Assert.Contains("g:b", _notes.Store.Get(_notes.Root).Config!.Perms.RwAllow);
+    }
+
+    [Fact]
     public void Writing_replaces_the_file_and_leaves_no_temp_file_in_the_folder()
     {
         _notes.Store.WriteText(_notes.Root, Cfg.Folder(Cfg.Perms()));

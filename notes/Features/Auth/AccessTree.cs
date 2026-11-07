@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using notes.Features.Helpers;
+using notes.Features.Permissions;
 
 namespace notes.Features.Auth;
 
@@ -28,6 +29,10 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
         => access.GetAccess(user, physicalPath);
 
+    /// <summary>For an entry the caller has just listed, so it knows whether it is a directory (see <see cref="IEntryAccess.GetAccess(ClaimsPrincipal, string, bool)"/>).</summary>
+    public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
+        => access.GetAccess(user, physicalPath, isDirectory);
+
     /// <summary>Whether the user may see and change the permissions themselves (the configuration of each folder and file).</summary>
     public bool CanManagePermissions(ClaimsPrincipal user)
         => access.CanManagePermissions(user);
@@ -49,31 +54,55 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     {
         string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
         bool isRoot = string.Equals(full, Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir)), StringComparison.OrdinalIgnoreCase);
-        return CheckAncestors(user, physicalPath, includingSelf: !isRoot && !SeesUnreadableNames(user));
+        return CheckAncestors(user, physicalPath, includingSelf: !isRoot && !SeesUnreadableNames(user), existing: null);
     }
 
-    /// <summary>Whether the user may open the entry (see what is in it): it is <see cref="IsKnown">known</see>, and they may read it.</summary>
-    public bool CanOpen(ClaimsPrincipal user, string physicalPath)
-        => CheckAncestors(user, physicalPath, includingSelf: true);
+    /// <summary>
+    /// <see cref="IsKnown(ClaimsPrincipal, string)"/> for an entry that was just found on disk (e.g. by <see cref="IPathService.FindEntries"/>):
+    /// everything above it is a directory, so the permissions needn't look at the disk for any of them.
+    /// </summary>
+    public bool IsKnown(ClaimsPrincipal user, FileSystemInfo existing)
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(existing.FullName));
+        bool isRoot = string.Equals(full, Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir)), StringComparison.OrdinalIgnoreCase);
+        return CheckAncestors(user, existing.FullName, includingSelf: !isRoot && !SeesUnreadableNames(user), existing);
+    }
 
-    private bool CheckAncestors(ClaimsPrincipal user, string physicalPath, bool includingSelf)
+    /// <summary>Whether the user may open the entry (see what is in it): it is <see cref="IsKnown(ClaimsPrincipal, string)">known</see>, and they may read it.</summary>
+    public bool CanOpen(ClaimsPrincipal user, string physicalPath)
+        => CheckAncestors(user, physicalPath, includingSelf: true, existing: null);
+
+    /// <summary><see cref="CanOpen(ClaimsPrincipal, string)"/> for an entry that was just found on disk, see <see cref="IsKnown(ClaimsPrincipal, FileSystemInfo)"/>.</summary>
+    public bool CanOpen(ClaimsPrincipal user, FileSystemInfo existing)
+        => CheckAncestors(user, existing.FullName, includingSelf: true, existing);
+
+    /// <param name="existing">
+    /// The entry at the path if it was just found on disk, so it is known whether it is a directory, and that everything above it is one. If
+    /// null, the permissions look at the disk for each (a path that doesn't exist has no directories above it that must exist either).
+    /// </param>
+    private bool CheckAncestors(ClaimsPrincipal user, string physicalPath, bool includingSelf, FileSystemInfo? existing)
     {
         string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir));
         string? current = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
         if (!IsSameOrInside(current, root))
             return false;
 
+        bool isSelf = true;
         if (!includingSelf)
         {
             if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
                 return true;
             current = Path.GetDirectoryName(current);
+            isSelf = false;
         }
 
         while (current is not null)
         {
-            if (!access.GetAccess(user, current).CanRead)
+            EntryAccessInfo info = existing is null ? access.GetAccess(user, current)
+                : access.GetAccess(user, current, isDirectory: !isSelf || existing is DirectoryInfo);
+            if (!info.CanRead)
                 return false;
+            isSelf = false;
             if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
                 return true;
             current = Path.GetDirectoryName(current);
@@ -102,12 +131,12 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
             if (!seesConfigs && entry is FileInfo && string.Equals(entry.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName));
+            WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName, entry is DirectoryInfo));
             if (!walked.Access.CanRead && !seesUnreadable)
                 continue;
             yield return walked;
 
-            if (walked.Access.CanRead && entry is DirectoryInfo { LinkTarget: null } subdirectory)
+            if (walked.Access.CanRead && entry is DirectoryInfo subdirectory && !PathService.IsLink(subdirectory))
                 foreach (WalkedEntry inner in Walk(user, subdirectory))
                     yield return inner;
         }
@@ -119,6 +148,8 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// </summary>
     public TreeAccess Inspect(ClaimsPrincipal user, string physicalPath)
     {
+        // Every entry inside asks about the same folders: read their configuration once
+        using IDisposable scope = ConfigReadScope.Begin();
         if (!access.GetAccess(user, physicalPath).CanDelete)
             return new TreeAccess(NotRemovable(physicalPath));
         if (!Directory.Exists(physicalPath))

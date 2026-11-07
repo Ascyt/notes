@@ -9,6 +9,14 @@ public sealed class PathServiceTests : IDisposable
 
     public void Dispose() => _notes.Dispose();
 
+    /// <summary>The path as <see cref="PathService.ToPhysicalPath"/> finds it, after checking that <see cref="PathService.FindEntries"/> finds the same.</summary>
+    private string? Find(string virtualPath)
+    {
+        string? physical = _paths.ToPhysicalPath(_notes.Root, virtualPath);
+        Assert.Equal(physical, _paths.FindEntries(_notes.Root, [virtualPath])[0]?.FullName);
+        return physical;
+    }
+
     [Theory]
     [InlineData("a.md")]
     [InlineData("with space.md")]
@@ -44,20 +52,20 @@ public sealed class PathServiceTests : IDisposable
 
     [Fact]
     public void The_root_is_the_empty_path()
-        => Assert.Equal(Path.GetFullPath(_notes.Root), _paths.ToPhysicalPath(_notes.Root, ""));
+        => Assert.Equal(Path.GetFullPath(_notes.Root), Find(""));
 
     [Fact]
     public void Finds_existing_entries_case_insensitively_and_returns_their_real_spelling()
     {
         _notes.Files.File("Dir/File.md");
 
-        Assert.Equal(_notes.P("Dir/File.md"), _paths.ToPhysicalPath(_notes.Root, "dir/file.MD"));
-        Assert.Equal(_notes.P("Dir/File.md"), _paths.ToPhysicalPath(_notes.Root, "/Dir//File.md/"));
+        Assert.Equal(_notes.P("Dir/File.md"), Find("dir/file.MD"));
+        Assert.Equal(_notes.P("Dir/File.md"), Find("/Dir//File.md/"));
     }
 
     [Fact]
     public void Missing_entries_have_no_path()
-        => Assert.Null(_paths.ToPhysicalPath(_notes.Root, "missing.md"));
+        => Assert.Null(Find("missing.md"));
 
     [Theory]
     [InlineData("..")]
@@ -85,7 +93,7 @@ public sealed class PathServiceTests : IDisposable
         _notes.Files.File("_/temp/x");
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(_notes.Root)!, "outside.txt"), "outside");
 
-        Assert.Null(_paths.ToPhysicalPath(_notes.Root, virtualPath));
+        Assert.Null(Find(virtualPath));
     }
 
     [Theory]
@@ -97,7 +105,7 @@ public sealed class PathServiceTests : IDisposable
     [InlineData("~/x")]
     [InlineData("%2e%2e/x")]
     public void Absolute_and_foreign_paths_have_no_path(string virtualPath)
-        => Assert.Null(_paths.ToPhysicalPath(_notes.Root, virtualPath));
+        => Assert.Null(Find(virtualPath));
 
     [Fact]
     public void Links_are_not_followed()
@@ -116,13 +124,57 @@ public sealed class PathServiceTests : IDisposable
                 Assert.Skip("Symbolic links can't be made here (on Windows they need developer mode or admin rights).");
             }
 
-            Assert.Null(_paths.ToPhysicalPath(_notes.Root, "link"));
-            Assert.Null(_paths.ToPhysicalPath(_notes.Root, "link/secret.txt"));
+            Assert.Null(Find("link"));
+            Assert.Null(Find("link/secret.txt"));
         }
         finally
         {
             Directory.Delete(outside, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Many_paths_are_found_together_each_as_on_its_own()
+    {
+        _notes.Files.File("Dir/File.md");
+        _notes.Files.File("dir2/x[1].md");
+        _notes.Files.File("Dir/Sub/deep.md");
+        for (int i = 0; i < 20; i++)
+            _notes.Files.File($"Dir/img{i}.png");
+
+        string[] paths = ["dir/file.MD", "missing.md", "Dir/img3.png", "", "Dir/../dir2/x[1].md", "dir2/x[1].md", "DIR/sub/DEEP.md",
+            "Dir/File.md/nothing", "dir/img19.png", "_/temp", "Dir/img3.png"];
+        IReadOnlyList<FileSystemInfo?> found = _paths.FindEntries(_notes.Root, paths);
+
+        Assert.Equal(paths.Select(p => _paths.ToPhysicalPath(_notes.Root, p)), found.Select(entry => entry?.FullName));
+        Assert.Equal(_notes.P("Dir/img3.png"), found[2]?.FullName);
+        Assert.IsType<DirectoryInfo>(found[3]);
+        Assert.IsType<FileInfo>(found[6]);
+    }
+
+    [Fact]
+    public void A_name_that_looks_like_a_pattern_only_finds_itself()
+    {
+        if (OperatingSystem.IsWindows())
+            Assert.Skip("* and ? can't be in names on Windows.");
+
+        _notes.Files.File("a*.md");
+        _notes.Files.File("ab.md");
+
+        Assert.Equal(_notes.P("a*.md"), Find("a*.md"));
+        Assert.Null(Find("a?.md"));
+    }
+
+    [Fact]
+    public void Where_names_only_differ_in_case_the_exact_spelling_wins()
+    {
+        _notes.Files.File("a.md", "lower");
+        if (File.Exists(_notes.P("A.md")))
+            Assert.Skip("The filesystem here doesn't tell names apart by case.");
+        _notes.Files.File("A.md", "upper");
+
+        Assert.Equal(_notes.P("A.md"), Find("A.md"));
+        Assert.Equal(_notes.P("a.md"), Find("a.md"));
     }
 
     [Fact]

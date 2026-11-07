@@ -31,7 +31,7 @@ public sealed class ZipService : IZipService
         // Same rules as the listing and the path service: nothing that is a link (it could point out of the notes), no reserved folder,
         // and nothing the caller leaves out (what the user may not read)
         FileSystemInfo[] entries = [..new DirectoryInfo(physicalDirectory).EnumerateFileSystemInfos()
-            .Where(entry => entry.LinkTarget is null && !(entry is DirectoryInfo && entry.Name == PathService.ReservedName) && include(entry))];
+            .Where(entry => !PathService.IsLink(entry) && !(entry is DirectoryInfo && entry.Name == PathService.ReservedName) && include(entry))];
 
         // Keeps empty directories, which only exist in a zip as an entry of their own
         if (entries.Length == 0 && prefix != "")

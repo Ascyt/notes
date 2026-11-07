@@ -123,6 +123,29 @@ public sealed class EntryAccessTests : IDisposable
     }
 
     [Fact]
+    public void Knowing_whether_a_path_is_a_directory_does_not_change_the_answer()
+    {
+        _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["l"]), ("f.md", Cfg.Perms(inherit: false, rwReadOnly: ["g:team"]))));
+        _notes.Files.Config("closed", Cfg.Folder(Cfg.Perms(inherit: false)));
+        _notes.Files.File("f.md");
+        _notes.Files.File("g.md");
+        _notes.Files.Dir("open");
+        _notes.Files.Dir("closed");
+
+        foreach (TestUser user in new[] { Users.Alice, Users.Nobody, Users.Anonymous, Users.Admin })
+        {
+            System.Security.Claims.ClaimsPrincipal principal = user.ToPrincipal();
+            foreach (string file in new[] { "f.md", "g.md" })
+                Assert.Equal(_notes.Access.GetAccess(principal, _notes.P(file)), _notes.Access.GetAccess(principal, _notes.P(file), isDirectory: false));
+            foreach (string directory in new[] { "open", "closed", "" })
+                Assert.Equal(_notes.Access.GetAccess(principal, _notes.P(directory)), _notes.Access.GetAccess(principal, _notes.P(directory), isDirectory: true));
+        }
+
+        Assert.Equal(ReadOnly, _notes.Access.GetAccess(Users.Alice.ToPrincipal(), _notes.P("f.md"), isDirectory: false));
+        Assert.Equal(EntryAccessInfo.None, _notes.Access.GetAccess(Users.Alice.ToPrincipal(), _notes.P("closed"), isDirectory: true));
+    }
+
+    [Fact]
     public void An_invalid_configuration_below_does_not_close_what_is_above()
     {
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"])));

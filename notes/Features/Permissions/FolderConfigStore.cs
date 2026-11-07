@@ -21,10 +21,23 @@ public sealed class FolderConfigStore(Config config, ILogger<FolderConfigStore> 
     private static string ConfigPathOf(string physicalDirectory)
         => Path.Combine(physicalDirectory, PathService.ConfigFileName);
 
-    /// <summary>What the folder's configuration says: nothing if there is no file, otherwise what is in it, or why that can't be used.</summary>
+    /// <summary>
+    /// What the folder's configuration says: nothing if there is no file, otherwise what is in it, or why that can't be used. Inside a
+    /// <see cref="ConfigReadScope"/> a folder is looked at on disk only the first time.
+    /// </summary>
     public FolderConfigState Get(string physicalDirectory)
     {
         physicalDirectory = Path.TrimEndingDirectorySeparator(physicalDirectory);
+        if (ConfigReadScope.TryGet(physicalDirectory, out FolderConfigState known))
+            return known;
+
+        FolderConfigState state = Read(physicalDirectory);
+        ConfigReadScope.Remember(physicalDirectory, state);
+        return state;
+    }
+
+    private FolderConfigState Read(string physicalDirectory)
+    {
         string path = ConfigPathOf(physicalDirectory);
         FileInfo file = new(path);
         if (!file.Exists)
@@ -36,9 +49,9 @@ public sealed class FolderConfigStore(Config config, ILogger<FolderConfigStore> 
         if (_cache.TryGetValue(physicalDirectory, out Cached? cached) && cached.LastWriteUtc == file.LastWriteTimeUtc && cached.Length == file.Length)
             return cached.State;
 
-        FolderConfigState state = Load(path, physicalDirectory);
-        _cache[physicalDirectory] = new Cached(file.LastWriteTimeUtc, file.Length, state);
-        return state;
+        FolderConfigState loaded = Load(path, physicalDirectory);
+        _cache[physicalDirectory] = new Cached(file.LastWriteTimeUtc, file.Length, loaded);
+        return loaded;
     }
 
     private FolderConfigState Load(string path, string physicalDirectory)
