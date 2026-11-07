@@ -1,18 +1,31 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Delete
 @using notes.Features.Components.Toolbar
+@using notes.Features.View.Editor
 @model notes.Features.View.Editor.FileView
 
 @{
-    // Whoever can't change anything about the file isn't offered the buttons that do (save, delete), instead of seeing them disabled
-    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: true)];
+    // Whoever can't change anything about the file isn't offered the buttons that do (save, edit, delete), instead of seeing them disabled
+    List<ToolbarButton> toolbarButtons = [];
+    bool isEditing = !Model.IsBinary && !Model.ShowsPreview;
+    // Save is for what can be edited. Next to it the way between the two views of a markdown file: the other view is what the button leads to.
+    if (isEditing && !Model.IsReadOnly)
+        toolbarButtons.Add(ToolbarButton.Save(Model.CanWrite ? null : ReadOnlyReason));
+    if (Model.IsMarkdown)
+    {
+        if (isEditing)
+            toolbarButtons.Add(ToolbarButton.Preview());
+        else if (Model.CanWrite)
+            toolbarButtons.Add(ToolbarButton.Edit());
+    }
+    if (Model.CanConfigure)
+        toolbarButtons.Add(ToolbarButton.Permissions("file"));
+    // Only what the browser can show has raw bytes to look at (see RawHandler)
+    if (Model.IsBinary && Model.Media != MediaKind.None)
+        toolbarButtons.Add(ToolbarButton.Raw());
+    toolbarButtons.Add(ToolbarButton.Download(isFile: true));
     if (!Model.IsReadOnly)
         toolbarButtons.Add(ToolbarButton.Delete("file", Model.DeleteDeniedReason));
-    // The way to the permissions comes before everything but Save, which is for what can be edited
-    if (Model.CanConfigure)
-        toolbarButtons.Insert(0, ToolbarButton.Permissions("file"));
-    if (!Model.IsBinary && !Model.IsReadOnly)
-        toolbarButtons.Insert(0, ToolbarButton.Save(Model.CanWrite ? null : ReadOnlyReason));
 }
 @functions {
     private const string ReadOnlyReason = "Insufficient permissions to change this file.";
@@ -24,6 +37,27 @@
 @if (Model.IsBinary)
 {
     <partial name="/Pages/Editor/BinaryView.cshtml" model="Model"/>
+    return;
+}
+
+@if (Model.ShowsPreview)
+{
+    @* What the markdown looks like. The HTML is made by MarkdownRenderer, which leaves nothing in it that could run a script. *@
+    <link rel="stylesheet" href="~/css/markdown.css" asp-append-version="true"/>
+    <article class="markdown-body">
+        @if (Model.Contents.Length == 0)
+        {
+            <p class="text-muted">This file is empty.</p>
+        }
+        else
+        {
+            @Html.Raw(Model.PreviewHtml)
+        }
+    </article>
+    @if (!Model.IsReadOnly)
+    {
+        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Contents.Length != 0, Kind = "file" }'/>
+    }
     return;
 }
 

@@ -13,7 +13,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Typing_and_saving_with_ctrl_s()
     {
-        await OpenAsync("/docs/a.md");
+        await OpenAsync("/docs/a.md?edit");
         await WaitForEditorAsync();
         await Expect(SaveButton).ToHaveAttributeAsync("aria-disabled", "true");
 
@@ -30,7 +30,10 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task A_file_alice_may_not_change_is_read_only_and_save_says_why()
     {
-        await OpenAsync("/mixed/view.md");
+        // (Markdown that can't be changed is only shown rendered)
+        Tree.Config("readonly", Cfg.Folder(Cfg.Perms(rwReadOnly: ["g:team"])));
+        Tree.File("readonly/view.txt", "view");
+        await OpenAsync("/readonly/view.txt");
         await WaitForEditorAsync();
 
         await Expect(SaveButton).ToHaveAttributeAsync("title", "Save: Insufficient permissions to change this file.");
@@ -39,7 +42,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await Task.Delay(300, TestContext.Current.CancellationToken);
 
         Assert.Equal("view", await Page.EvaluateAsync<string>("() => window.editor.getValue()"));
-        Assert.Equal("view", Tree.Read("mixed/view.md"));
+        Assert.Equal("view", Tree.Read("readonly/view.txt"));
     }
 
     [Fact]
@@ -62,11 +65,90 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         const string evil = "</script><script>window.pwned = 1</script><img src=x onerror=\"window.pwned = 2\">";
         Tree.File("docs/evil.md", evil);
 
-        await OpenAsync("/docs/evil.md");
+        await OpenAsync("/docs/evil.md?edit");
         await WaitForEditorAsync();
 
         Assert.Equal(evil, await Page.EvaluateAsync<string>("() => window.editor.getValue()"));
         Assert.True(await Page.EvaluateAsync<bool>("() => window.pwned === undefined"));
+    }
+
+    // ---- Markdown preview
+
+    [Fact]
+    public async Task Html_in_a_note_is_text_in_the_preview_and_never_runs()
+    {
+        Tree.File("docs/evil.md", "<script>window.pwned = 1</script>\n\n<img src=x onerror=\"window.pwned = 2\">\n\n[go](javascript:window.pwned=3)");
+
+        await OpenAsync("/docs/evil.md");
+        await Expect(Page.Locator(".markdown-body")).ToContainTextAsync("<script>window.pwned = 1</script>");
+        await Page.Locator(".markdown-body").GetByText("go").ClickAsync();
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        Assert.True(await Page.EvaluateAsync<bool>("() => window.pwned === undefined"));
+    }
+
+    [Fact]
+    public async Task Markdown_opens_rendered_and_e_and_p_go_between_it_and_the_editor()
+    {
+        await OpenAsync("/docs/a.md");
+        await Expect(Page.Locator(".markdown-body")).ToContainTextAsync("a");
+        await Expect(Page.Locator("#editor")).ToHaveCountAsync(0);
+
+        await Page.Keyboard.PressAsync("e");
+        await Expect(Page).ToHaveURLAsync(new Regex("/docs/a\\.md\\?edit$"));
+        await WaitForEditorAsync();
+        Assert.Equal("a", await Page.EvaluateAsync<string>("() => window.editor.getValue()"));
+
+        // While the editor has the focus the key is typed. Escape leaves it.
+        await Page.Keyboard.PressAsync("p");
+        Assert.Equal("pa", await Page.EvaluateAsync<string>("() => window.editor.getValue()"));
+        await Page.Keyboard.PressAsync("Escape");
+        await Page.Keyboard.PressAsync("p");
+        await Expect(Page).ToHaveURLAsync(new Regex("/docs/a\\.md\\?$"));
+        await Expect(Page.Locator(".markdown-body")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task The_buttons_of_the_toolbar_go_between_preview_and_editor()
+    {
+        await OpenAsync("/docs/a.md");
+        await Expect(Page.Locator("#save-button")).ToHaveCountAsync(0);
+        await Page.Locator("#edit-button").ClickAsync();
+        await WaitForEditorAsync();
+        await Expect(Page.Locator("#save-button")).ToHaveCountAsync(1);
+
+        await Page.Locator("#preview-button").ClickAsync();
+        await Expect(Page.Locator(".markdown-body")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#edit-button")).ToHaveAttributeAsync("aria-keyshortcuts", "E");
+    }
+
+    [Fact]
+    public async Task Markdown_that_can_not_be_changed_has_no_way_to_the_editor()
+    {
+        await OpenAsync("/mixed/view.md");
+        await Expect(Page.Locator(".markdown-body")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#edit-button")).ToHaveCountAsync(0);
+
+        await Page.Keyboard.PressAsync("e");
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("edit", new Uri(Page.Url).Query);
+
+        await OpenAsync("/mixed/view.md?edit");
+        await Expect(Page.Locator(".markdown-body")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#editor")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Other_text_files_only_have_the_editor()
+    {
+        Tree.File("docs/plain.txt", "text");
+
+        await OpenAsync("/docs/plain.txt");
+        await WaitForEditorAsync();
+
+        await Expect(Page.Locator("#edit-button")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#preview-button")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".markdown-body")).ToHaveCountAsync(0);
     }
 
     // ---- Rename
@@ -114,7 +196,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Unsaved_changes_stop_a_rename()
     {
-        await OpenAsync("/docs/a.md");
+        await OpenAsync("/docs/a.md?edit");
         await WaitForEditorAsync();
         await Page.Keyboard.TypeAsync("x");
 
@@ -141,7 +223,6 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     {
         Tree.File("docs/empty.md");
         await OpenAsync("/docs/empty.md");
-        await WaitForEditorAsync();
 
         await Page.Locator("#delete-button").ClickAsync();
 
@@ -154,7 +235,6 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     public async Task A_file_with_contents_asks_first()
     {
         await OpenAsync("/docs/a.md");
-        await WaitForEditorAsync();
 
         await Page.Locator("#delete-button").ClickAsync();
         await Expect(Page.Locator("#delete-modal")).ToBeVisibleAsync();
@@ -236,7 +316,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Shortcuts_are_announced_to_assistive_technology()
     {
-        await OpenAsync("/docs/a.md");
+        await OpenAsync("/docs/a.md?edit");
 
         await Expect(Page.Locator("#download-button")).ToHaveAttributeAsync("aria-keyshortcuts", "Alt+PageDown");
         await Expect(Page.Locator("#save-button")).ToHaveAttributeAsync("aria-keyshortcuts", "Control+S");

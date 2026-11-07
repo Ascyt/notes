@@ -84,24 +84,6 @@ app.Logger.LogInformation("In working dir: {dir}", dir);
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();
 
-// Says in the log which requests were slow, and how much of it was the session (a call to Keycloak when its token had run out), so that
-// "it takes long" can be told apart: the rest is the app itself
-app.Use(async (context, next) =>
-{
-    long started = System.Diagnostics.Stopwatch.GetTimestamp();
-    try
-    {
-        await next(context);
-    }
-    finally
-    {
-        TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
-        if (elapsed > TimeSpan.FromMilliseconds(500))
-            app.Logger.LogWarning("Slow request: {method} {path}{query} took {ms} ms, of which {sessionMs} ms for the session (status {status})",
-                context.Request.Method, context.Request.Path, context.Request.QueryString, (long)elapsed.TotalMilliseconds,
-                context.Items[SessionRefresh.ElapsedItemKey] ?? 0L, context.Response.StatusCode);
-    }
-});
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/_/Error");

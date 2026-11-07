@@ -129,8 +129,11 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Files_open_in_the_editor_read_only_without_write()
     {
-        string view = await BodyOf(await Client.GetAsync(Users.Alice, "/mixed/view.md"));
-        string open = await BodyOf(await Client.GetAsync(Users.Alice, "/mixed/open.md"));
+        // (Markdown that can't be changed has no editor at all, see MarkdownPreviewTests)
+        Tree.Config("readonly", Cfg.Folder(Cfg.Perms(rwReadOnly: ["g:team"])));
+        Tree.File("readonly/view.txt", "text");
+        string view = await BodyOf(await Client.GetAsync(Users.Alice, "/readonly/view.txt"));
+        string open = await BodyOf(await Client.GetAsync(Users.Alice, "/mixed/open.md?edit"));
 
         Assert.Contains("const canWrite = false;", view);
         Assert.Contains("const canWrite = true;", open);
@@ -209,6 +212,21 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs/page.html?raw"));
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs/drawing.svg?raw"));
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs?raw"));
+    }
+
+    [Fact]
+    public async Task Media_files_have_a_button_to_their_raw_bytes_and_nothing_else_does()
+    {
+        Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
+        Tree.File("docs/blob.bin", [0, 1, 2, 3]);
+
+        string png = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/pic.png"));
+        Assert.Matches(@"<a id=""raw-button"" href=""\?raw""[^>]* key=""\^u""", png);
+        Assert.Contains("fa-regular fa-file-image", png);
+
+        // Binary, but there are no raw bytes of it (?raw is a 404)
+        foreach (string path in new[] { "/docs/blob.bin", "/docs/a.md", "/docs" })
+            Assert.DoesNotContain("id=\"raw-button\"", await BodyOf(await Client.GetAsync(Users.Alice, path)));
     }
 
     [Fact]

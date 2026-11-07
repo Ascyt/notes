@@ -7,7 +7,7 @@
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
   font-family: var(--bs-font-monospace, monospace);
-  font-size: 0.75rem;
+  font-size: 0.625rem;
   white-space: pre;
   text-align: center;
   pointer-events: none;

@@ -129,6 +129,26 @@ public sealed class FileServingTests : IDisposable
     }
 
     [Fact]
+    public async Task Only_markdown_has_a_preview_which_whoever_may_not_write_can_not_leave()
+    {
+        async Task<FileView> Open(string name, bool canWrite, bool edit)
+        {
+            string path = _notes.Files.File(name, "# T");
+            FileView view = new() { VirtualPath = name, PhysicalPath = path, CanWrite = canWrite, EditRequested = edit };
+            await view.InitAsync();
+            return view;
+        }
+
+        Assert.True((await Open("a.md", canWrite: true, edit: false)).ShowsPreview);
+        Assert.Contains("<h1", (await Open("b.MD", canWrite: true, edit: false)).PreviewHtml);
+        Assert.False((await Open("c.md", canWrite: true, edit: true)).ShowsPreview);
+        Assert.True((await Open("d.md", canWrite: false, edit: true)).ShowsPreview);
+        Assert.False((await Open("e.txt", canWrite: true, edit: false)).ShowsPreview);
+        Assert.False((await Open("f.json", canWrite: false, edit: false)).ShowsPreview);
+        Assert.Equal("", (await Open("g.txt", canWrite: true, edit: false)).PreviewHtml);
+    }
+
+    [Fact]
     public async Task A_nul_byte_or_invalid_utf8_makes_a_file_binary()
     {
         Assert.True((await ViewAsync([0x41, 0x00, 0x42])).IsBinary);

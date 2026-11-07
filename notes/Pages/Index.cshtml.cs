@@ -114,6 +114,7 @@ public sealed class IndexModel(Config config,
                 PhysicalPath = PhysicalPath,
                 CanWrite = tree.GetAccess(User, PhysicalPath).CanWrite,
                 CanConfigure = tree.CanManagePermissions(User),
+                EditRequested = Request.Query.ContainsKey("edit"),
                 DeleteDeniedReason = inspected.DeleteDeniedReason,
                 RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, inspected)
             };

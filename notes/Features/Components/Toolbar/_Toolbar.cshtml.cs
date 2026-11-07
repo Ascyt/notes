@@ -40,6 +40,18 @@ public sealed record ToolbarButton(
     public static ToolbarButton Save(string? disabledReason = null)
         => new(Id: "save-button", Icon: "fa-solid fa-floppy-disk", Label: "Save", Key: "^s", OnClick: "saveFile()", Tone: ToolbarTone.Primary, DisabledReason: disabledReason ?? "There is nothing to save.");
 
+    /// <summary>From the rendered markdown to its editor.</summary>
+    public static ToolbarButton Edit()
+        => new(Id: "edit-button", Icon: "fa-solid fa-pencil", Label: "Edit this file", Key: "e", Href: "?edit");
+
+    /// <summary>From the editor of a markdown file to what it looks like rendered.</summary>
+    public static ToolbarButton Preview()
+        => new(Id: "preview-button", Icon: "fa-solid fa-book", Label: "Preview this file", Key: "p", Href: "?");
+
+    /// <summary>The bytes of a media file as the browser shows them, instead of the page around them.</summary>
+    public static ToolbarButton Raw()
+        => new(Id: "raw-button", Icon: "fa-regular fa-file-image", Label: "View the raw image", Key: "^u", Href: "?raw");
+
     public static ToolbarButton Download(bool isFile)
         => new(Id: "download-button", Icon: "fa-solid fa-download", Label: isFile ? "Download this file" : "Download this directory as a zip", Key: "!PageDown", Href: "?download", IsDownload: true);
 

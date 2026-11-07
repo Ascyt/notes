@@ -30,8 +30,23 @@ public class FileView : PageModel
     /// </summary>
     public bool IsReadOnly => !CanWrite && DeleteDeniedReason is not null;
 
+    /// <summary>Whether the address asked for the editor (<c>?edit</c>). Only a markdown file has anything else to show.</summary>
+    public bool EditRequested { get; init; }
+
     public string Contents { get; private set; } = "";
     public bool IsBinary { get; private set; }
+
+    /// <summary>Whether the file is markdown, which is shown rendered unless it is being edited.</summary>
+    public bool IsMarkdown => !IsBinary && Path.GetExtension(VirtualPath).Equals(".md", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the page shows the rendered markdown instead of the editor. That is the default for a markdown file, and all there is for
+    /// whoever may not change it (asking for the editor gets them the preview). Any other text is only ever shown in the editor.
+    /// </summary>
+    public bool ShowsPreview => IsMarkdown && !(EditRequested && CanWrite);
+
+    /// <summary>The HTML of the rendered markdown. Only made when <see cref="ShowsPreview"/>.</summary>
+    public string PreviewHtml { get; private set; } = "";
     public long Size { get; private set; }
     /// <summary>What a binary file is shown as. <see cref="MediaKind.None"/> if the browser has nothing to show it with.</summary>
     public MediaKind Media { get; private set; }
@@ -72,6 +87,8 @@ public class FileView : PageModel
         }
 
         Contents = await System.IO.File.ReadAllTextAsync(PhysicalPath);
+        if (ShowsPreview)
+            PreviewHtml = MarkdownRenderer.ToHtml(Contents);
     }
 
     /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>
