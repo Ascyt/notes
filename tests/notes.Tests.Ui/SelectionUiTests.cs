@@ -47,6 +47,32 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
     }
 
     [Fact]
+    public async Task The_card_has_a_spinner_until_the_server_has_answered()
+    {
+        await OpenAsync("/docs");
+
+        // The answer of the server is held back until the test lets it through
+        TaskCompletionSource release = new();
+        await Page.RouteAsync("**/*?selection=*", async route =>
+        {
+            await release.Task;
+            await route.ContinueAsync();
+        });
+
+        await Box("docs/a.md").CheckAsync();
+
+        await Expect(Bar).ToBeVisibleAsync();
+        await Expect(Page.Locator("#selection-spinner")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#selection-actions")).ToBeHiddenAsync();
+        await Expect(Page.Locator("#selection-count")).ToBeHiddenAsync(); // nothing but the spinner
+
+        release.SetResult();
+
+        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync("1 element selected");
+        await Expect(Page.Locator("#selection-spinner")).ToBeHiddenAsync();
+    }
+
+    [Fact]
     public async Task Locked_entries_have_no_box_that_can_be_ticked()
     {
         await OpenAsync("/mixed");

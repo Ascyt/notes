@@ -28,6 +28,38 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task The_simple_view_is_a_text_field_that_is_remembered_and_saves()
+    {
+        await OpenAsync("/docs/a.md?edit");
+        await WaitForEditorAsync();
+        await Expect(Page.Locator("#simple-editor")).ToBeHiddenAsync();
+
+        // Monaco's contents come along, and so do the changes made in the simple view
+        await Page.Locator("#simple-view-button").ClickAsync();
+        await Expect(Page.Locator("#editor")).ToBeHiddenAsync();
+        await Expect(Page.Locator("#simple-editor")).ToHaveValueAsync("a");
+        await Expect(Page.Locator("#simple-view-button .fa-keyboard")).ToHaveCountAsync(1);
+        await Page.Locator("#simple-editor").FillAsync("a and more");
+        await Expect(SaveButton).ToHaveAttributeAsync("aria-disabled", "false");
+        await SaveButton.ClickAsync();
+        await Eventually(() => Tree.Read("docs/a.md") == "a and more", "the file is saved");
+        await Expect(SaveButton).ToHaveAttributeAsync("aria-disabled", "true");
+
+        // The choice is kept for the next page
+        await OpenAsync("/docs/a.md?edit");
+        await Expect(Page.Locator("#simple-editor")).ToHaveValueAsync("a and more");
+        await Expect(Page.Locator("#editor")).ToBeHiddenAsync();
+
+        await Page.Locator("#simple-editor").FillAsync("changed");
+        await Page.Locator("#simple-view-button").ClickAsync();
+        await WaitForEditorAsync();
+        await Expect(Page.Locator("#simple-editor")).ToBeHiddenAsync();
+        await Expect(Page.Locator("#simple-view-button .fa-mobile-screen-button")).ToHaveCountAsync(1);
+        await Page.WaitForFunctionAsync("() => window.editor.getValue() === 'changed'");
+        await Expect(SaveButton).ToHaveAttributeAsync("aria-disabled", "false");
+    }
+
+    [Fact]
     public async Task A_file_alice_may_not_change_is_read_only_and_save_says_why()
     {
         // (Markdown that can't be changed is only shown rendered)

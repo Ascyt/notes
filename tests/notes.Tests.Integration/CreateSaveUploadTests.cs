@@ -17,8 +17,10 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
         HttpResponseMessage directory = await Client.PostAsync(Users.Alice, "/docs?create=directory");
 
         await AssertStatus(HttpStatusCode.Redirect, file);
-        Assert.Equal("/docs/" + NextName(), file.Headers.Location?.ToString());
-        Assert.Equal("/docs/" + NextName("_1.md"), again.Headers.Location?.ToString());
+        // A new file opens in the editor, a new directory is just opened
+        Assert.Equal("/docs/" + NextName() + "?edit", file.Headers.Location?.ToString());
+        Assert.Equal("/docs/" + NextName("_1.md") + "?edit", again.Headers.Location?.ToString());
+        Assert.Equal("/docs/" + NextName(""), directory.Headers.Location?.ToString());
         Assert.True(Tree.IsFile("docs/" + NextName()));
         Assert.True(Tree.IsDirectory("docs/" + NextName("")));
     }

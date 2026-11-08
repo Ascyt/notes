@@ -18,6 +18,8 @@
         else if (Model.CanWrite)
             toolbarButtons.Add(ToolbarButton.Edit());
     }
+    if (isEditing)
+        toolbarButtons.Add(ToolbarButton.SimpleView());
     if (Model.CanConfigure)
         toolbarButtons.Add(ToolbarButton.Permissions("file"));
     // Only what the browser can show has raw bytes to look at (see RawHandler)
@@ -63,6 +65,8 @@
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 75vh; border: 1px solid var(--bs-border-color);" key="Enter"></div>
+@* The simple view: a plain text field, for phones, where Monaco is awkward to use. Only one of the two is shown. *@
+<textarea id="simple-editor" class="form-control font-monospace" style="height: 75vh; resize: none; font-size: 1rem;" spellcheck="false" key="Enter" aria-label="File contents" hidden></textarea>
 @if (!Model.IsReadOnly)
 {
     <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
@@ -70,20 +74,46 @@
 
 <script src="~/js/editor.js" asp-append-version="true"></script>
 <script>
-    // The editor's key shortcut (see shortcuts.js) focuses it
-    document.getElementById('editor').addEventListener('shortcut', function (e) {
-        e.preventDefault();
-        if (window.editor)
-            window.editor.focus();
-    });
-
+    const SIMPLE_VIEW_KEY = 'notes.simpleEditor';
     const canWrite = @Json.Serialize(Model.CanWrite); // otherwise the editor is read-only and Save stays disabled
-    let savedVersionId = null;
+    const monacoElement = document.getElementById('editor');
+    const simpleElement = document.getElementById('simple-editor');
+    const viewButton = document.getElementById('simple-view-button');
+    const normalize = text => text.replace(/\r\n?/g, '\n');
+
+    let monacoEditor = null;  // only there once Monaco has loaded, which it does only when it is shown (it is a lot to load on a phone)
+    let monacoLoading = null;
+    let useSimple = readSimpleView();
+    let savedValue = normalize(@Json.Serialize(Model.Contents)); // what the file is, as far as this page knows (line breaks as \n, as in the text field)
     let isDirty = false;
     let isSaving = false;
 
+    simpleElement.value = @Json.Serialize(Model.Contents);
+    simpleElement.readOnly = !canWrite;
+
+    // localStorage can throw (blocked storage, private mode), and then the choice just isn't kept
+    function readSimpleView() {
+        try {
+            return localStorage.getItem(SIMPLE_VIEW_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    }
+
+    function writeSimpleView(simple) {
+        try {
+            localStorage.setItem(SIMPLE_VIEW_KEY, String(simple));
+        } catch {
+        }
+    }
+
+    // The contents of whichever view is shown
+    function currentValue() {
+        return useSimple || !monacoEditor ? simpleElement.value : monacoEditor.getValue();
+    }
+
     function updateDirty() {
-        isDirty = window.editor.getModel().getAlternativeVersionId() !== savedVersionId;
+        isDirty = normalize(currentValue()) !== savedValue;
         if (canWrite)
             setButtonDisabled(document.getElementById('save-button'), isDirty ? null : 'There is nothing to save.');
     }
@@ -93,6 +123,18 @@
         setButtonBusy(document.getElementById('save-button'), saving);
     }
 
+    // The editor's key shortcut (see shortcuts.js) focuses it
+    monacoElement.addEventListener('shortcut', function (e) {
+        e.preventDefault();
+        if (monacoEditor)
+            monacoEditor.focus();
+    });
+    simpleElement.addEventListener('shortcut', function (e) {
+        e.preventDefault(); // not the default, which would select all of it
+        simpleElement.focus();
+    });
+    simpleElement.addEventListener('input', updateDirty);
+
     // With nothing to save the Save button (and so its shortcut) does nothing, but the browser's own "save page" is never what is meant
     document.addEventListener('keydown', function (e) {
         if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's')
@@ -100,19 +142,19 @@
     });
 
     async function saveFile() {
-        if (!window.editor || isSaving)
+        if (isSaving || (!useSimple && !monacoEditor))
             return;
 
         setSaving(true);
-        
-        const versionId = window.editor.getModel().getAlternativeVersionId();
+
+        const value = currentValue();
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
         let response;
         try {
             response = await fetch(window.location.pathname, {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': token, 'Content-Type': 'text/plain; charset=utf-8' },
-                body: window.editor.getValue()
+                body: value
             });
         } catch {
             response = { ok: false, status: 'network error' };
@@ -124,12 +166,71 @@
             notify(message || ('Failed to save file (' + response.status + ').'), 'danger');
             return;
         }
-        savedVersionId = versionId;
+        savedValue = normalize(value);
+        updateDirty();
+    }
+
+    // ---- The two views ----
+
+    async function showMonaco() {
+        simpleElement.hidden = true;
+        monacoElement.hidden = false;
+
+        if (!monacoLoading)
+            monacoLoading = createEditor(monacoElement, {
+                basePath: '@Url.Content("~/lib/monaco-editor/min/vs")',
+                value: @Json.Serialize(Model.Contents),
+                language: @Json.Serialize(Model.Language),
+                readOnly: !canWrite,
+                readOnlyMessage: @Json.Serialize(ReadOnlyReason)
+            }).then(function (editor) {
+                monacoEditor = editor;
+                window.editor = editor;
+                editor.onDidChangeModelContent(updateDirty);
+                return editor;
+            });
+
+        const editor = await monacoLoading;
+        if (useSimple)
+            return; // the simple view was chosen again while Monaco loaded
+
+        // What was typed in the simple view meanwhile
+        if (normalize(editor.getValue()) !== simpleElement.value)
+            editor.setValue(simpleElement.value);
+        editor.focus();
+    }
+
+    function showSimple() {
+        if (monacoEditor)
+            simpleElement.value = monacoEditor.getValue();
+        monacoElement.hidden = true;
+        simpleElement.hidden = false;
+    }
+
+    // The button leads to the other view, so its icon is that of the other view
+    function updateViewButton() {
+        const icon = viewButton.querySelector('.btn-icon');
+        icon.classList.remove('fa-solid', 'fa-regular', 'fa-mobile-screen-button', 'fa-keyboard');
+        icon.classList.add(...(useSimple ? ['fa-regular', 'fa-keyboard'] : ['fa-solid', 'fa-mobile-screen-button']));
+        const label = useSimple ? 'Switch to the code editor' : 'Switch to the simple editor (for phones)';
+        viewButton.dataset.label = label;
+        viewButton.setAttribute('aria-label', label);
+        refreshButton(viewButton);
+    }
+
+    function toggleSimpleView() {
+        useSimple = !useSimple;
+        writeSimpleView(useSimple);
+        updateViewButton();
+        if (useSimple)
+            showSimple();
+        else
+            showMonaco();
         updateDirty();
     }
 
     // Deleting needs confirmation unless the file is empty and has no unsaved changes
-    window.needsDeleteConfirmation = () => !window.editor || isDirty || window.editor.getValue() !== '';
+    window.needsDeleteConfirmation = () => (!useSimple && !monacoEditor) || isDirty || currentValue() !== '';
     window.onEntryDeleted = () => { isDirty = false; };
     window.beforeRename = () => {
         if (isDirty || isSaving) {
@@ -144,17 +245,10 @@
             e.preventDefault();
     });
 
-    // Last, as it needs everything above. The editor itself is made once Monaco has loaded.
-    createEditor(document.getElementById('editor'), {
-        basePath: '@Url.Content("~/lib/monaco-editor/min/vs")',
-        value: @Json.Serialize(Model.Contents),
-        language: @Json.Serialize(Model.Language),
-        readOnly: !canWrite,
-        readOnlyMessage: @Json.Serialize(ReadOnlyReason)
-    }).then(function (editor) {
-        window.editor = editor;
-        savedVersionId = editor.getModel().getAlternativeVersionId();
-        editor.onDidChangeModelContent(updateDirty);
-        editor.focus();
-    });
+    // Last, as it needs everything above. Monaco is made once it has loaded.
+    updateViewButton();
+    if (useSimple)
+        showSimple();
+    else
+        showMonaco();
 </script>

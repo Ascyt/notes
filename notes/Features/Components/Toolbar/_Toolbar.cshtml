@@ -29,6 +29,11 @@
         background: var(--bs-secondary-bg);
     }
 
+    /* Looks like the others until it is pointed at: only then is it red */
+    .toolbar-button.toolbar-danger:not(.is-disabled):hover, .toolbar-button.toolbar-danger:not(.is-disabled):focus-visible {
+        color: var(--bs-danger) !important; /* text-body is !important */
+    }
+
     .toolbar-button .spinner-border {
         width: 0.875rem;
         height: 0.875rem;
@@ -46,7 +51,7 @@
 <div class="toolbar d-flex align-items-center gap-1 mb-2" role="toolbar">
     @foreach (ToolbarButton button in Model.Buttons)
     {
-        string tone = button.Tone switch { ToolbarTone.Primary => "text-primary", ToolbarTone.Danger => "text-danger", _ => "text-body" };
+        string tone = button.Tone switch { ToolbarTone.Primary => "text-primary", ToolbarTone.Danger => "text-body toolbar-danger", _ => "text-body" };
         bool disabled = button.DisabledReason is not null;
         @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
         if (button.Href is not null)

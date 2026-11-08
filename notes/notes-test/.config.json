@@ -9,5 +9,7 @@
         "rwReadOnly": ["a"]
     },
     // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions of the folder.
-    "files": []
+    "files": [
+        { "name": "2026-11-08_13-13.md", "perms": { "inherit": true } }
+    ]
 }

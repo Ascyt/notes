@@ -88,13 +88,9 @@
                 row.classList.toggle('table-active', checked);
             }
             renderHeaders();
+            renderStatus();
 
             const count = selected.size;
-            bar.hidden = count === 0;
-            countText.textContent = count + (count === 1 ? ' element selected' : ' elements selected');
-            actions.classList.toggle('d-none', isBusy());
-            setAvailable(clearButton, !isBusy() && count > 0); // and Escape clears the selection only while there is one
-            spinner.classList.toggle('d-none', !isBusy());
 
             // Selected in this very directory: there is nothing to copy or move here, so the card offers Delete instead (and the
             // directory's own Delete button, which would be easily mistaken for it, waits). Otherwise it is Copy and Move.
@@ -115,6 +111,21 @@
                 setButtonDisabled(directoryDeleteButton, allHere
                     ? 'Use Delete in the selection card to delete selected folders, or clear the selection first to delete this directory.'
                     : directoryDeleteReason);
+        }
+
+        // The top of the card: how many are selected. The boxes show a change at once, but the card shows what the server knows, so
+        // until its answer is there the card is only a spinner (and is there even if nothing was selected yet).
+        function renderStatus() {
+            const count = selected.size;
+            const isWaiting = pending > 0;
+            bar.hidden = count === 0 && !isWaiting;
+            countText.classList.toggle('d-none', isWaiting); // only the spinner until the answer is there
+            if (!isWaiting)
+                countText.textContent = count + (count === 1 ? ' element selected' : ' elements selected');
+            // What the buttons would act on is not known until the answer is there
+            actions.classList.toggle('d-none', isBusy() || isWaiting);
+            setAvailable(clearButton, !isBusy() && !isWaiting && count > 0); // and Escape clears the selection only while there is one
+            spinner.classList.toggle('d-none', !isBusy() && !isWaiting);
         }
 
         // Shows or hides one of the card's buttons. Its shortcut only exists while it is shown (a hidden button's would still work).
@@ -163,6 +174,7 @@
         // Changes are sent one after the other, so they arrive in the order they were made
         function send(action, paths) {
             pending++;
+            renderStatus();
             queue = queue.then(async () => {
                 try {
                     const response = await fetch(window.location.pathname + '?selection=' + action, {

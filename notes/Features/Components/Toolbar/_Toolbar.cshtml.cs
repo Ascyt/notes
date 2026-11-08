@@ -9,7 +9,7 @@ public enum ToolbarTone
     Normal,
     /// <summary>Blue: the one thing that is worth doing now (while it can be done).</summary>
     Primary,
-    /// <summary>Red: it destroys something.</summary>
+    /// <summary>It destroys something: usual until it is hovered or focused, then red.</summary>
     Danger
 }
 
@@ -47,6 +47,13 @@ public sealed record ToolbarButton(
     /// <summary>From the editor of a markdown file to what it looks like rendered.</summary>
     public static ToolbarButton Preview()
         => new(Id: "preview-button", Icon: "fa-solid fa-book", Label: "Preview this file", Key: "p", Href: "?");
+
+    /// <summary>
+    /// Between the code editor (Monaco) and the simple view, a plain text field that works better on a phone. The page's script sets the
+    /// icon and label to those of the view it leads to, and keeps the choice.
+    /// </summary>
+    public static ToolbarButton SimpleView()
+        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", OnClick: "toggleSimpleView()");
 
     /// <summary>The bytes of a media file as the browser shows them, instead of the page around them.</summary>
     public static ToolbarButton Raw()

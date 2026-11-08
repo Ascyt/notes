@@ -6,7 +6,7 @@ using notes.Features.Permissions;
 
 namespace notes.Features.Components.Create;
 
-/// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it.</summary>
+/// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it (a file to its editor).</summary>
 public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, TimeProvider time)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string physicalDirectory, string create)
@@ -42,7 +42,8 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
             else
                 Directory.CreateDirectory(newPhysicalPath);
 
-            return new RedirectResult("/" + path.ToVirtualPath(config.Dir, newPhysicalPath));
+            // A new file is there to be written: it opens in the editor, not as the (empty) preview of a markdown file
+            return new RedirectResult("/" + path.ToVirtualPath(config.Dir, newPhysicalPath) + (isFile ? "?edit" : ""));
         }
     }
 }
