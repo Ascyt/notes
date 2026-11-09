@@ -180,7 +180,7 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// <summary>
     /// Why the user can't add entries to the (openable) directory, or null if they can. Only a hint for the page: whether something may be
     /// created is up to the path it gets, which the operation itself checks. The directory's own access is taken for that of what is new
-    /// in it, as new paths are expected to inherit from their directory (see docs/security-specification.md).
+    /// in it, as new paths are expected to inherit from their directory (see docs/development/security-specification.md).
     /// </summary>
     public string? CreateDeniedReason(ClaimsPrincipal user, string physicalDirectory)
         => access.GetAccess(user, physicalDirectory).CanCreate ? null : "Insufficient permissions to add entries to this directory.";

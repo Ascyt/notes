@@ -2,7 +2,7 @@ using notes.Features.Auth;
 
 namespace notes.Tests.Unit;
 
-/// <summary>How the configuration files are resolved into permissions (docs/permissions.md, "What they mean").</summary>
+/// <summary>How the configuration files are resolved into permissions (docs/administration/permissions.md, "What they mean").</summary>
 public sealed class EntryAccessTests : IDisposable
 {
     private readonly TempNotes _notes = new();

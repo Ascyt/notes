@@ -133,12 +133,12 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
         string? updated = ConfigText.SetFileBody(folderText, name, text);
         if (updated is null)
-            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in can't be edited, as it is not valid. Fix the permissions of the folder first.");
+            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in can't be edited, as it is not valid. The permissions of the folder have to be fixed first.");
 
         // What it is now must hold up as a whole. (Not whether every entry has a file: that is the folder's to say when it is saved.)
         ParseResult<FolderConfig> whole = PermissionParser.ParseFolder(updated, existingFiles: null);
         if (!whole.IsValid)
-            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in is not valid. Fix the permissions of the folder first.\n" + whole.ErrorText);
+            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in is not valid. The permissions of the folder have to be fixed first.\n" + whole.ErrorText);
 
         store.WriteText(folder, updated);
         return Saved(ConfigText.GetFileBody(updated, name) ?? text);

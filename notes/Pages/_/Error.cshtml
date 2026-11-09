@@ -15,7 +15,7 @@
             <i class="fa-solid fa-circle-info mt-1"></i>
             <div>
                 <p class="mb-2">
-                    You are not logged in. Some files can only be seen once you log in.
+                    Not logged in. Some files can only be seen after logging in.
                 </p>
                 <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
             </div>
@@ -26,7 +26,7 @@
         <a class="btn btn-outline-secondary" href="/"><i class="fa-solid fa-house"></i> Back to start</a>
         @if (Model.IsServerError)
         {
-            <a class="btn btn-outline-secondary" href="@Model.RequestedPath"><i class="fa-solid fa-rotate-right"></i> Try again</a>
+            <a class="btn btn-outline-secondary" href="@Model.RequestedPath" key="r"><i class="fa-solid fa-rotate-right"></i> Try again</a>
         }
     </div>
 

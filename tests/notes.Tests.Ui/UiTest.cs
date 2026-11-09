@@ -102,6 +102,13 @@ public abstract class UiTest : IAsyncLifetime
     /// <summary>The newest message of the toast stack.</summary>
     protected ILocator Toast => Page.Locator(".toast-card").First;
 
+    /// <summary>The newest message of a kind ("success", "info", "warning" or "danger"). Tests check the kind, never the wording.</summary>
+    protected ILocator ToastOf(string kind) => Page.Locator($".toast-card[data-kind='{kind}']").First;
+
+    /// <summary>That a control is disabled and says why (whatever the words are).</summary>
+    protected static async Task ExpectDisabledWithReason(ILocator control)
+        => await Assertions.Expect(control).ToHaveAttributeAsync("data-disabled-reason", new System.Text.RegularExpressions.Regex(@"\S"));
+
     protected static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
 
     protected static IPageAssertions Expect(IPage page) => Assertions.Expect(page);
@@ -110,11 +117,24 @@ public abstract class UiTest : IAsyncLifetime
     protected static async Task Eventually(Func<bool> condition, string what)
     {
         DateTime end = DateTime.UtcNow.AddSeconds(10);
-        while (!condition())
+        while (!Holds(condition))
         {
             if (DateTime.UtcNow > end)
                 Assert.Fail("Timed out waiting until " + what);
             await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>A file that the server is still writing can't be read yet, which only means that the condition doesn't hold yet.</summary>
+    private static bool Holds(Func<bool> condition)
+    {
+        try
+        {
+            return condition();
+        }
+        catch (IOException)
+        {
+            return false;
         }
     }
 

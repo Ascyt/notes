@@ -171,7 +171,8 @@ public sealed class PermissionParserTests
         ParseResult<FolderConfig> result = Folder("{\n  \"perms\": ,\n}");
 
         string error = Assert.Single(result.Errors);
-        Assert.StartsWith("Not valid JSON (line 2", error);
+        // Says where (line 2), but nothing of the parser it comes from
+        Assert.Matches(@"\b2\b", error);
         Assert.DoesNotContain("LineNumber", error);
         Assert.DoesNotContain("reader options", error);
     }

@@ -48,7 +48,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
         Assert.Contains("const canWrite = true;", body);
         Assert.Matches(@"<a id=""preview-button"" href=""\?""[^>]* key=""p""", body);
         Assert.DoesNotContain("id=\"edit-button\"", body);
-        Assert.DoesNotContain("class=\"markdown-body\"", body);
+        Assert.DoesNotContain("id=\"markdown-preview\"", body);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
             {
                 string body = await BodyOf(await Client.GetAsync(user, path + query));
 
-                Assert.Contains("class=\"markdown-body\"", body);
+                Assert.Contains("id=\"markdown-preview\"", body);
                 Assert.DoesNotContain("id=\"editor\"", body);
                 Assert.DoesNotContain("id=\"save-button\"", body);
                 Assert.DoesNotContain("id=\"edit-button\"", body);
@@ -121,7 +121,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/empty.md"));
 
-        Assert.Contains("This file is empty.", body);
+        Assert.Contains("id=\"empty-file\"", body);
     }
 
     [Fact]

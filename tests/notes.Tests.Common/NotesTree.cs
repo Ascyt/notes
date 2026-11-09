@@ -69,7 +69,7 @@ public sealed class NotesTree(string root)
         => string.Join('\n', List().Select(path => System.IO.File.Exists(Physical(path)) ? path + "=" + Read(path) : path + "/"));
 }
 
-/// <summary>Writes configuration files (docs/permissions.md) for the tests.</summary>
+/// <summary>Writes configuration files (docs/administration/permissions.md) for the tests.</summary>
 public static class Cfg
 {
     /// <summary>The version the configurations are written with (Config:Version of the app's appsettings).</summary>

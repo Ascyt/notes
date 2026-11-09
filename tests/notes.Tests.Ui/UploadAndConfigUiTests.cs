@@ -19,7 +19,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await Expect(Page.Locator("#upload-list li")).ToHaveCountAsync(2);
         await Page.Locator("#upload-confirm").ClickAsync();
 
-        await Expect(Toast).ToContainTextAsync("Uploaded 2 files.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         await Expect(Page.Locator("a[href='/docs/one.md']")).ToBeVisibleAsync();
         Assert.Equal("first", Tree.Read("docs/one.md"));
         Assert.Equal("second", Tree.Read("docs/two.md"));
@@ -35,7 +35,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await Input.SetInputFilesAsync([File("big.bin", contents)]);
         await Page.Locator("#upload-confirm").ClickAsync();
 
-        await Expect(Toast).ToContainTextAsync("Uploaded 1 file.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         Assert.Equal(contents, await System.IO.File.ReadAllBytesAsync(Tree.Physical("docs/big.bin"), TestContext.Current.CancellationToken));
     }
 
@@ -47,7 +47,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await Input.SetInputFilesAsync([File("a.md", "new"u8.ToArray())]);
         await Page.Locator("#upload-confirm").ClickAsync();
 
-        await Expect(Toast).ToContainTextAsync("Uploaded 1 file.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         Assert.Equal("a", Tree.Read("docs/a.md"));
         Assert.Equal("new", Tree.Read("docs/a (1).md"));
     }
@@ -62,7 +62,8 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await Input.SetInputFilesAsync([File("open.md", "x"u8.ToArray())]);
         await Page.Locator("#upload-confirm").ClickAsync();
 
-        await Expect(Page.Locator("#upload-error")).ToContainTextAsync("Failed to upload open.md (Insufficient permissions to create 'open (1).md' here.)");
+        // Names the file that failed
+        await Expect(Page.Locator("#upload-error")).ToContainTextAsync("open.md");
         await Expect(Page.Locator("#upload-list li")).ToHaveCountAsync(1);
         await Expect(Page.Locator("#upload-confirm")).ToBeEnabledAsync();
         Assert.False(Tree.Exists("mixed/open (1).md"));
@@ -102,7 +103,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         Tree.Config("docs/nested", Cfg.Folder(Cfg.Perms(cdDeny: ["g:team"]), ("b.md", Cfg.Perms(cdAllow: ["g:team"]))));
         await OpenAsync("/docs/nested/b.md");
 
-        await Expect(Page.Locator("#rename-input")).ToHaveAttributeAsync("title", "Rename: Insufficient permissions to add entries to the parent directory.");
+        await ExpectDisabledWithReason(Page.Locator("#rename-input"));
         await Expect(Page.Locator("#delete-button")).ToHaveAttributeAsync("aria-disabled", "false");
     }
 
@@ -132,15 +133,15 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
 
         await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": true, \"rwAllow\": [\"a\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
-        await Assertions.Expect(page.Locator("#config-errors")).ToContainTextAsync("can't be in this list");
-        await Assertions.Expect(page.Locator(".toast-card[role='alert']")).ToContainTextAsync("The permissions are not valid.");
+        await Assertions.Expect(page.Locator("#config-errors")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".toast-card[data-kind='danger']")).ToBeVisibleAsync();
         Assert.Null(Tree.ReadConfig("docs"));
 
         await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": false, \"rwAllow\": [\"u:carol\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
         await Assertions.Expect(page.Locator("#config-errors")).ToBeHiddenAsync();
         await Eventually(() => Tree.ReadConfig("docs")?.Contains("u:carol") == true, "the permissions are saved");
-        await Assertions.Expect(page.Locator("#save-button")).ToHaveAttributeAsync("title", "Save: There is nothing to save.");
+        await ExpectDisabledWithReason(page.Locator("#save-button"));
         // What was saved has the entry for the file, and the editor shows it
         await page.WaitForFunctionAsync("() => window.editor.getValue().includes('a.md')");
 

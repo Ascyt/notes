@@ -12,7 +12,7 @@ namespace notes.Pages._;
 /// </summary>
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
-public sealed class ErrorModel : PageModel
+public sealed class ErrorModel(TimeProvider time) : PageModel
 {
     public new int StatusCode { get; private set; }
     public string Reason { get; private set; } = "";
@@ -56,15 +56,15 @@ public sealed class ErrorModel : PageModel
             StatusCodes.Status405MethodNotAllowed => "This address does not support that kind of request.",
             StatusCodes.Status408RequestTimeout => "The request took too long to arrive.",
             StatusCodes.Status413PayloadTooLarge => "The request was too large.",
-            StatusCodes.Status429TooManyRequests => "Too many requests were made in a short time. Try again in a moment.",
+            StatusCodes.Status429TooManyRequests => "Too many requests were made in a short time. Retrying in a moment may help.",
             StatusCodes.Status502BadGateway or StatusCodes.Status503ServiceUnavailable or StatusCodes.Status504GatewayTimeout
-                => "The server is temporarily unavailable. Try again in a moment.",
-            >= 500 => "Something went wrong on the server while handling your request.",
+                => "The server is temporarily unavailable. Retrying in a moment may help.",
+            >= 500 => "Something went wrong on the server while handling the request.",
             _ => "The request could not be completed."
         };
 
         RequestedPath = HttpContext.OriginalPathAndQuery;
         RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
-        Timestamp = DateTimeOffset.UtcNow;
+        Timestamp = time.GetUtcNow();
     }
 }

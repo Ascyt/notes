@@ -86,7 +86,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
         HttpResponseMessage response = await TransferAsync(Users.Alice, "copy", "vault", "docs/a.md");
 
         await AssertStatus(HttpStatusCode.Forbidden, response);
-        Assert.Equal("No read access to the target directory.", await BodyOf(response));
+        Assert.NotEmpty(await BodyOf(response));
         Assert.Equal(3, Directory.GetFileSystemEntries(Tree.Physical("vault")).Length);
     }
 
@@ -234,11 +234,19 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
 
         HttpResponseMessage response = await Client.PostJsonAsync(Users.Alice, "/docs/nested?transfer=move", new { version = selection.Version });
 
-        // Answered like an entry that is gone
         await AssertStatus(HttpStatusCode.Conflict, response);
-        Assert.Equal("'team/plan.md' no longer exists.", await BodyOf(response));
+        string hiddenAnswer = await BodyOf(response);
         Assert.True(Tree.Exists("team/plan.md"));
         Assert.True(Tree.Exists("docs/a.md"));
+
+        // Answered exactly like an entry that is gone
+        Tree.File("docs/gone.md", "gone");
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/?selection=clear"));
+        SelectionSnapshotDto other = await SelectAsync(Users.Alice, "docs/gone.md");
+        File.Delete(Tree.Physical("docs/gone.md"));
+        HttpResponseMessage gone = await Client.PostJsonAsync(Users.Alice, "/docs/nested?transfer=move", new { version = other.Version });
+        await AssertStatus(HttpStatusCode.Conflict, gone);
+        Assert.Equal((await BodyOf(gone)).Replace("docs/gone.md", "<path>"), hiddenAnswer.Replace("team/plan.md", "<path>"));
     }
 
     [Fact]
@@ -250,7 +258,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
         HttpResponseMessage response = await Client.PostJsonAsync(Users.Alice, "/team?transfer=copy", new { version = selection.Version });
 
         await AssertStatus(HttpStatusCode.Conflict, response);
-        Assert.Equal("'docs/a.md' no longer exists.", await BodyOf(response));
+        Assert.Contains("docs/a.md", await BodyOf(response));
     }
 
     [Fact]

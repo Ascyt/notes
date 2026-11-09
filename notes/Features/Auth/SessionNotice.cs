@@ -43,10 +43,13 @@ public static class SessionNotice
     public static string? MessageFor(HttpContext context)
         => context.Items[ItemKey] switch
         {
-            Ended => "Your session has ended, so you were logged out. Log in again to continue.",
-            Unverified => "Your session could not be checked with the login server for too long, so you were logged out. Log in again to continue.",
+            Ended => "The session has ended. Logging in again is needed to continue.",
+            Unverified => "The session could not be checked with the login server for too long and has ended. Logging in again is needed to continue.",
             _ => null
         };
+
+    /// <summary>Which notice this page has (<see cref="Ended"/>, <see cref="Unverified"/>), or null.</summary>
+    public static string? Of(HttpContext context) => context.Items[ItemKey] as string;
 }
 
 /// <summary>The notice on a page of the notes for someone who is not logged in: that they may need to, to see more or to change anything.</summary>

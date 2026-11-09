@@ -17,7 +17,6 @@
     @* Also in the head, so that the theme is set before anything is painted *@
     <script src="~/js/theme.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    @* <link rel="stylesheet" href="~/notes.styles.css" asp-append-version="true"/> *@
 </head>
 <body>
 <header>
@@ -28,11 +27,11 @@
             <button id="theme-toggle" type="button" class="btn btn-sm btn-outline-secondary ms-auto ms-sm-2 me-2 me-sm-0 order-sm-last" key="!+A">
                 <i class="fa-solid fa-moon theme-icon-light"></i><i class="fa-solid fa-sun theme-icon-dark"></i>
             </button>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                    aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu"
+                    aria-expanded="false" aria-label="Menu" title="Menu" key="!M">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+            <div id="navbar-menu" class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                 <ul class="navbar-nav flex-grow-1">
                     <li class="nav-item">
                         <a class="nav-link text-body" asp-area="" asp-page="/_/About" key="F1">About</a>
@@ -65,14 +64,14 @@
 </div>
 
 <footer class="container pb-3 small text-secondary">
-    <div>Right control to show keyboard shortcuts.</div>
-    <div>
+    <div>Holding Right Ctrl shows the keyboard shortcuts.</div>
+    @* Rarely used: one shortcut focuses the links, and Tab goes through them *@
+    <div id="footer-links" tabindex="-1" key="!+F">
         Licensed under <a class="text-secondary" href="https://github.com/Ascyt/notes/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
         • <a class="text-secondary" href="https://github.com/Ascyt/notes" target="_blank">Source code</a>
     </div>
 </footer>
 
-<script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/shortcuts/shortcuts.js"asp-append-version="true"></script>
 

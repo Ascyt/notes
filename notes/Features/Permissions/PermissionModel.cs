@@ -4,7 +4,7 @@ using notes.Features.Auth;
 
 namespace notes.Features.Permissions;
 
-// What the configuration means, and how it is resolved, is specified in docs/permissions.md. Keep the two in step.
+// What the configuration means, and how it is resolved, is specified in docs/administration/permissions.md. Keep the two in step.
 
 /// <summary>
 /// Who a permission is for. Written in the configuration as <c>u:name</c> (a user), <c>g:name</c> (a Keycloak group) or <c>r:name</c> (a

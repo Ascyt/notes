@@ -17,12 +17,12 @@ docker compose exec notes rm /keys/killed
 docker compose restart notes
 ```
 
-Then enable the realm again in the admin console: *Realm settings* → *Enabled*.
+Then the realm is enabled again in the admin console: *Realm settings* → *Enabled*.
 
 ## Keycloak
 
 To disable the realm, the app logs in as the service account of its own client, which has the realm's `manage-realm` role. The realm file sets this up. For a realm that was imported before, set by hand: *Clients* → `notes-web` → *Capability config*: *Service accounts roles* on. Then, on its *Service accounts roles* tab, *Assign role* → filter by clients → `realm-management` `manage-realm`.
 
-Without it the kill switch still shuts the app down, but says that the realm could not be disabled.
+Without it the kill switch still shuts the app down, and the log says that the realm could not be disabled.
 
 `manage-realm` lets the app change the settings of the `notes` realm (not of the master realm). So someone who takes over the app could change them too.

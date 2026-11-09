@@ -20,7 +20,7 @@ public sealed record MigrationResult(string Text, SemVersion? From, bool Changed
 /// Brings the text of a <c>.config.json</c> up to the current version of the app (<c>Config:Version</c> in appsettings): every migration newer
 /// than the version the text has, up to the current one, is applied in order, and the text gets the current version. Not every version has a
 /// migration: if none lies between, only the version is set, in the text as it is (comments and layout stay). Migrations are the steps of
-/// <see cref="ConfigMigrations.All"/>; what writing one involves is described in docs/permissions.md.
+/// <see cref="ConfigMigrations.All"/>; what writing one involves is described in docs/administration/permissions.md.
 /// </summary>
 public sealed class ConfigMigrator
 {

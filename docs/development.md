@@ -1,25 +1,20 @@
 # Development
 
-## Running locally
+How the app is built and how to work on it.
 
-`dotnet run` uses the running Keycloak: `appsettings.Development.json` reads the realm's discovery document from `localhost:8080`, but the issuer is the public `AUTH_HOST` URL, so the browser is sent to the public Keycloak to log in (the tunnel must be up). Adjust `Config:Auth:Authority` there (or with user secrets) if your hostname differs.
+- [Principles](development/principles.md): the rules every change follows. The place to start.
+- [Running locally](development/running-locally.md): starting the app on a development machine.
+- [Migrations of the permissions files](development/config-migrations.md): changing the format of `.config.json` without breaking existing files.
+- [Tests](development/tests.md): what is tested where, how to run the tests, and the screenshots they take.
+- [Security specification](development/security-specification.md): who may do what, the reference for the code and its tests.
 
-When running locally, the [kill switch](kill-switch.md) leaves its marker as `notes/killed` in the project. Delete it to get the app back.
+## How the app is put together
 
-## Tests
+An ASP.NET Core app with Razor Pages, in `notes/`:
 
-```
-tests/notes.Tests.Unit          the logic on its own: paths, the permission parser and its resolution, config text editing, selections, uploads, session renewal
-tests/notes.Tests.Integration   the whole app in memory, against the security specification: every endpoint, as every kind of user, with every kind of attack
-tests/notes.Tests.Ui            the page scripts in a real browser (Playwright, using the installed Edge or Chrome; no download needed)
-tests/notes.Tests.Common        what they share: the app with a fake login and a fake clock, users, the tree of notes they start from
-```
+- `Pages/Index.cshtml(.cs)` answers every address of the notes. It finds the file or directory the address points at and hands the request to the feature that answers it; the query string says which one (`?edit`, `?download`, `?config`, …).
+- `Features/` holds the features, one folder each: the login and the permissions (`Auth`, `Permissions`), the parts of the pages (`Components/`: toolbar, selection, upload, rename, …), the kill switch.
+- `Pages/` holds the pages themselves: the directory listing (`Browse`), the file views and editors (`Editor`), the permissions editor (`ConfigEditor`), and the pages of the app under `/_/`.
+- `wwwroot/` holds the scripts and styles, with the libraries in `wwwroot/lib` (LibMan).
 
-The integration tests check the app against the [security specification](security-specification.md). Users are signed in by a header instead of Keycloak (`TestAuthentication`), and the app's clock (`TimeProvider`) is a fake one that the tests move, so nothing waits for real time.
-
-- All: `dotnet test`
-- Quick (no timing tests): `dotnet test -- --filter-not-trait "Category=Timing"`
-- One project: `dotnet test --project tests/notes.Tests.Integration`
-- UI tests with another browser: set `NOTES_UI_BROWSER` to `chrome` or `chromium`; to watch them, set `NOTES_UI_HEADED=1`.
-
-Tests tagged `Category=Timing` are about time running out (stale uploads, selection lifetime, session renewal, changes during a running download or transfer).
+Logins go through Keycloak (see [Sessions](administration/sessions.md)); the notes and their permissions are files on disk (see [Permissions](administration/permissions.md)).

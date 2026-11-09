@@ -12,6 +12,9 @@
 //   https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values
 //
 // Triggering clicks the element, or focuses it if it is a text field. Disabled elements (also aria-disabled="true") are skipped.
+// An element that can't be clicked (e.g. a <div tabindex="-1"> around a few links) is focused instead, so that Tab then goes
+// through what is in it: one shortcut for a group of rarely used links, instead of one each:
+//   <div tabindex="-1" key="!+F"><a href="..">License</a> <a href="..">Source</a></div>
 // To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
 // and call preventDefault() to skip the default action:
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
@@ -78,6 +81,8 @@
     // Fields that take typing. Boxes and buttons made of an input don't: a shortcut works while they have the focus (e.g. right after ticking a box).
     const TYPING_INPUT = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset])';
 
+    const CLICKABLE = 'a, button, input, select, textarea, summary, label, [role=button], [onclick]';
+
     function isEditable(target) {
         return target instanceof Element && target.closest(TYPING_INPUT + ', textarea, select, [contenteditable=""], [contenteditable="true"]') !== null;
     }
@@ -91,6 +96,9 @@
             el.focus();
             if (typeof el.select === 'function' && el.matches('input, textarea'))
                 el.select();
+        } else if (!el.matches(CLICKABLE)) {
+            // A group of rarely used links or buttons has one shortcut for all of them: focusing it, from where Tab reaches each
+            el.focus();
         } else {
             el.click();
         }

@@ -18,7 +18,7 @@ public sealed record ParseResult<T>(T? Value, IReadOnlyList<string> Errors) wher
 }
 
 /// <summary>
-/// Reads and validates the text of a configuration: JSON in which comments are allowed, and nothing else the schema (docs/permissions.md)
+/// Reads and validates the text of a configuration: JSON in which comments are allowed, and nothing else the schema (docs/administration/permissions.md)
 /// doesn't say. It is strict: unknown or repeated properties, a value of the wrong type or a principal that is spelled wrong are errors, so
 /// is a principal that is in two of the lists that exclude each other. A problem is never guessed away, as that could grant what nobody meant to.
 /// </summary>

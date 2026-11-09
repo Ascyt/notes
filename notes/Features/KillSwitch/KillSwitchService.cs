@@ -10,7 +10,7 @@ namespace notes.Features.KillSwitch;
 /// <summary>
 /// Shuts the site down when an admin pulls the kill switch: the app answers every request with a "shut down" page from then on, also after a
 /// restart, and the Keycloak realm is disabled so that nobody can log in or renew a session. Keycloak itself keeps running, so that the realm
-/// can be enabled again from its admin console. See docs/kill-switch.md for how to bring the site back.
+/// can be enabled again from its admin console. See docs/administration/kill-switch.md for how to bring the site back.
 /// </summary>
 /// <remarks>
 /// The process keeps running: Docker would only start it again. The app can't stop the containers either, as that would need the Docker

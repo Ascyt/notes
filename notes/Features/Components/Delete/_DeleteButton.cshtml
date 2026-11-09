@@ -11,11 +11,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                Are you sure you want to delete the current @Model.Kind? This cannot be undone.
+                The current @Model.Kind will be deleted. This cannot be undone.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">Cancel</button>
-                <button type="button" class="btn btn-danger" onclick="deleteEntry()" key="Enter">
+                <button type="button" id="delete-confirm" class="btn btn-danger" onclick="deleteEntry()" key="Enter">
                     <i class="fa-regular fa-trash-can"></i> Delete @Model.Kind
                 </button>
             </div>

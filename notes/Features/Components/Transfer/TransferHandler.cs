@@ -66,7 +66,7 @@ public sealed class TransferHandler(ISelectionService selection, ITransferServic
             case TransferBeginOutcome.Busy:
                 return new ConflictObjectResult("A copy or move is already in progress.");
             case TransferBeginOutcome.Changed:
-                return new ConflictObjectResult("The selection was changed in the meantime (in another tab?). Check it and try again.");
+                return new ConflictObjectResult("The selection was changed in the meantime (in another tab?). Nothing was done.");
             case TransferBeginOutcome.Empty:
                 return new BadRequestObjectResult("Nothing is selected.");
         }

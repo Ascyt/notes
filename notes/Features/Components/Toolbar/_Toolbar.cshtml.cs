@@ -53,7 +53,7 @@ public sealed record ToolbarButton(
     /// icon and label to those of the view it leads to, and keeps the choice.
     /// </summary>
     public static ToolbarButton SimpleView()
-        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", OnClick: "toggleSimpleView()");
+        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", Key: "!+E", OnClick: "toggleSimpleView()");
 
     /// <summary>The bytes of a media file as the browser shows them, instead of the page around them.</summary>
     public static ToolbarButton Raw()

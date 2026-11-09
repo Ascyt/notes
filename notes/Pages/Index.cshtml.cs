@@ -24,7 +24,7 @@ namespace notes.Pages;
 /// There is no gate in front of it: anyone may ask for anything, and what they get is decided per entry. Whatever the request, the user must
 /// be allowed to know of the entry it is for (<see cref="AccessTree.IsKnown"/>); one they aren't is answered exactly like one that doesn't exist.
 /// Opening it (its page, its bytes, a download) also needs read access to it, otherwise 403.
-/// Everything beyond that is up to the feature, see docs/security-specification.md.
+/// Everything beyond that is up to the feature, see docs/development/security-specification.md.
 /// </remarks>
 public sealed class IndexModel(Config config,
     IPathService path,

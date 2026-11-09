@@ -46,10 +46,10 @@
 {
     @* What the markdown looks like. The HTML is made by MarkdownRenderer, which leaves nothing in it that could run a script. *@
     <link rel="stylesheet" href="~/css/markdown.css" asp-append-version="true"/>
-    <article class="markdown-body">
+    <article id="markdown-preview" class="markdown-body">
         @if (Model.Contents.Length == 0)
         {
-            <p class="text-muted">This file is empty.</p>
+            <p id="empty-file" class="text-muted">This file is empty.</p>
         }
         else
         {
@@ -214,6 +214,7 @@
         icon.classList.add(...(useSimple ? ['fa-regular', 'fa-keyboard'] : ['fa-solid', 'fa-mobile-screen-button']));
         const label = useSimple ? 'Switch to the code editor' : 'Switch to the simple editor (for phones)';
         viewButton.dataset.label = label;
+        viewButton.dataset.leadsTo = useSimple ? 'code' : 'simple';
         viewButton.setAttribute('aria-label', label);
         refreshButton(viewButton);
     }
@@ -234,7 +235,7 @@
     window.onEntryDeleted = () => { isDirty = false; };
     window.beforeRename = () => {
         if (isDirty || isSaving) {
-            notify('The file has unsaved changes. Save it before renaming.', 'warning');
+            notify('The file has unsaved changes, which have to be saved before renaming.', 'warning');
             return false;
         }
     };

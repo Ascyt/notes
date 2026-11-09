@@ -79,7 +79,7 @@
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
 
   # Outbound-only connection to Cloudflare, so the machine needs no public IP or open port.
-  # The public hostnames of the tunnel are configured in the Cloudflare dashboard (see docs/deployment.md).
+  # The public hostnames of the tunnel are configured in the Cloudflare dashboard (see docs/administration/deployment.md).
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7
     restart: unless-stopped

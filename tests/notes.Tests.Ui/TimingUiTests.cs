@@ -40,7 +40,7 @@ public sealed class TimingUiTests(TimingUiTests.Fixture fixture) : UiTest(fixtur
         App.Time.Advance(TimeSpan.FromMinutes(31));
         await Page.Locator("#selection-copy").ClickAsync();
 
-        await Expect(Page.Locator(".toast-card[role='alert']")).ToContainTextAsync("The selection was changed in the meantime");
+        await Expect(ToastOf("danger")).ToBeVisibleAsync();
         await Expect(Bar).ToBeHiddenAsync();
         Assert.False(Tree.Exists("team/a.md"));
     }
@@ -64,7 +64,7 @@ public sealed class TimingUiTests(TimingUiTests.Fixture fixture) : UiTest(fixtur
             await Assertions.Expect(other.Locator("#selection-spinner")).ToBeVisibleAsync();
             await Assertions.Expect(other.Locator("#selection-actions")).ToBeHiddenAsync();
             await Assertions.Expect(other.Locator("tr.entry-row[data-path='docs/a.md'] .entry-select")).ToBeDisabledAsync();
-            copied = Expect(Toast).ToContainTextAsync("Copied 1 element here.");
+            copied = Expect(ToastOf("success")).ToBeVisibleAsync();
         }
 
         await copied;

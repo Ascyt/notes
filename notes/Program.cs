@@ -47,7 +47,7 @@ builder.Services.AddSingleton<IUploadService, UploadService>();
 builder.Services.AddMemoryCache();
 // The cache expires entries (the selections) by the app's clock
 builder.Services.AddOptions<MemoryCacheOptions>().Configure<TimeProvider>((options, time) => options.Clock = new TimeProviderClock(time));
-// Permissions: what they mean and who checks them where is specified in docs/security-specification.md
+// Permissions: what they mean and who checks them where is specified in docs/development/security-specification.md
 // The version of the app is set in appsettings (Config:Version); .config.json files from older versions are migrated when read.
 // Neither a version that isn't one nor migrations that don't fit it let the app start.
 builder.Services.AddSingleton(services => new ConfigMigrator(ConfigVersions.Parse(config.Version), ConfigMigrations.All, services.GetRequiredService<ILogger<ConfigMigrator>>()));

@@ -166,7 +166,7 @@ public sealed class PathService : IPathService
     public const string ReservedName = "_";
 
     /// <summary>
-    /// Name of the file in every directory that holds its permissions (see docs/permissions.md). It is never listed, and not a valid name, so
+    /// Name of the file in every directory that holds its permissions (see docs/administration/permissions.md). It is never listed, and not a valid name, so
     /// no path, upload, create or rename can ever lead to it: only the permissions editor reads and writes it.
     /// </summary>
     public const string ConfigFileName = ".config.json";

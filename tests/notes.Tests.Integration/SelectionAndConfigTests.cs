@@ -108,7 +108,9 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
         {
             HttpResponseMessage response = await Client.PostAsync(user, "/" + path + "?config", grant);
             await AssertStatus(HttpStatusCode.NotFound, response);
-            Assert.Equal("Path not found.", await BodyOf(response));
+            // Exactly like a path that doesn't exist
+            HttpResponseMessage missing = await Client.PostAsync(user, "/does-not-exist.md?config", grant);
+            Assert.Equal(await BodyOf(missing), await BodyOf(response));
         }
 
         Assert.Equal(before, Tree.Snapshot());
@@ -234,7 +236,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
 
     [Fact]
     public async Task An_invalid_saved_configuration_is_pointed_out_to_admins()
-        => Assert.Contains("is not valid", await BodyOf(await Client.GetAsync(Users.Admin, "/broken?config")));
+        => Assert.Contains("id=\"config-warning\"", await BodyOf(await Client.GetAsync(Users.Admin, "/broken?config")));
 
     [Fact]
     public async Task Too_long_permissions_are_refused()

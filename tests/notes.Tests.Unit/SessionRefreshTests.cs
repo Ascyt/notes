@@ -18,7 +18,7 @@ using notes.Features.Auth;
 namespace notes.Tests.Unit;
 
 /// <summary>
-/// Keeping the session in step with Keycloak (docs/permissions.md, "Changes in Keycloak take effect within minutes"). Keycloak is replaced by
+/// Keeping the session in step with Keycloak (docs/administration/permissions.md, "Changes in Keycloak take effect within minutes"). Keycloak is replaced by
 /// a fake token endpoint, and the app's clock by a fake one.
 /// </summary>
 [Trait("Category", "Timing")]
@@ -303,7 +303,7 @@ public sealed class SessionRefreshTests : IDisposable
         await SessionRefresh.ValidateAsync(context);
 
         Assert.True(IsLoggedOut(context));
-        Assert.Contains("Your session has ended", Notice(context));
+        Assert.Equal(SessionNotice.Ended, SessionNotice.Of(context.HttpContext));
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public sealed class SessionRefreshTests : IDisposable
         await SessionRefresh.ValidateAsync(context);
 
         Assert.True(IsLoggedOut(context));
-        Assert.Contains("could not be checked", Notice(context));
+        Assert.Equal(SessionNotice.Unverified, SessionNotice.Of(context.HttpContext));
     }
 
     [Fact]

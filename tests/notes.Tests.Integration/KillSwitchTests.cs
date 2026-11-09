@@ -1,4 +1,5 @@
 using System.Net;
+using notes.Features.KillSwitch;
 
 namespace notes.Tests.Integration;
 
@@ -45,7 +46,7 @@ public sealed class KillSwitchShutdownTests(NotesAppFactory app) : IntegrationTe
             HttpResponseMessage page = await Client.GetAsync(user, "/");
             await AssertStatus(HttpStatusCode.ServiceUnavailable, page);
             string body = await BodyOf(page);
-            Assert.Contains("This site has been shut down.", body);
+            Assert.Equal(KillSwitchService.ShutdownPage, body);
             // Nothing of why, or of the server
             Assert.DoesNotContain("kill", body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Keycloak", body);
@@ -69,7 +70,7 @@ public sealed class KillSwitchRestartTests
         {
             HttpResponseMessage page = await client.GetAsync(Users.Admin, url);
             Assert.Equal(HttpStatusCode.ServiceUnavailable, page.StatusCode);
-            Assert.Contains("This site has been shut down.", await page.Content.ReadAsStringAsync(cancellation));
+            Assert.Equal(KillSwitchService.ShutdownPage, await page.Content.ReadAsStringAsync(cancellation));
         }
     }
 }

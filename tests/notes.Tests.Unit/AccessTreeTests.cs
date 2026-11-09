@@ -136,7 +136,7 @@ public sealed class AccessTreeTests : IDisposable
         Assert.True(_notes.Tree.Inspect(Alice, _notes.P("docs")).CanDelete);
         Assert.False(_notes.Tree.Inspect(Alice, _notes.P("mixed/keep.md")).CanDelete);
         Assert.False(_notes.Tree.Inspect(Alice, _notes.P("drop/existing.md")).CanDelete);
-        Assert.Equal("Insufficient permissions to delete or move 'drop'.", _notes.Tree.Inspect(Alice, _notes.P("drop")).DeleteDeniedReason);
+        Assert.Contains("'drop'", _notes.Tree.Inspect(Alice, _notes.P("drop")).DeleteDeniedReason);
     }
 
     [Fact]

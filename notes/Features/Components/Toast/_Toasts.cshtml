@@ -69,6 +69,7 @@
             card.className = 'floating-card toast-card card shadow';
             card.style.borderRight = '0.25rem solid var(--bs-' + color + ')'; // the kind, at a glance
             card.setAttribute('role', kind === 'danger' ? 'alert' : 'status');
+            card.dataset.kind = KINDS[kind] ? kind : 'success';
             card.title = 'Click to dismiss';
 
             const body = document.createElement('div');

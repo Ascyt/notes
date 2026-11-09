@@ -7,8 +7,8 @@ This document describes who may do what with the notes. It is the reference for 
 
 ## Two layers
 
-1. **No gate.** Anyone, signed in or not, may request any path of the notes; the page of the notes has no authorization of its own. Without `Read` on the root, what they get is the root page with the login link and nothing of the notes. Only what is not part of the notes is gated: the Hangfire dashboard is for admins (`NotesAccess.AdminPolicyName`), and every failed authorization is answered with the same 404 as a missing path.
-2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything. For everyone else it reads the `.config.json` of the folders (see [permissions.md](permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
+1. **No gate.** Anyone, signed in or not, may request any path of the notes; the page of the notes has no authorization of its own. Without `Read` on the root, what they get is the root page with the login link and nothing of the notes. Only what is not part of the notes (the pages under `/_/`, see [Pages outside the notes](#pages-outside-the-notes)) can be gated, and every failed authorization there is answered with the same 404 as a missing path.
+2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything. For everyone else it reads the `.config.json` of the folders (see [permissions.md](../administration/permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
 
 **Anonymous users** (not logged in) are only the principal `a` of the configuration, which stands for all users, so what is given to `a` is given to logged-in users as well (they never get less than anonymous users), who are also the principal `l`. `a` can be given `Read` (or denied it) but never `Write`, `Create` or `Delete`: the parser refuses such a configuration (`l` may be given anything). They have no user id, so they can't select, upload or transfer anything either, and the pages tell them that they may need to log in. Because they can't change anything, they have no way to find out that a name is taken (see "Name collisions" below), so for them an entry they may not read is **hidden**, not just locked: it isn't listed, and its address answers 404 (see [Known, openable, hidden](#known-openable-hidden)).
 
@@ -86,6 +86,8 @@ How the app keeps to this:
 
 Listings must never show more about an unreadable entry than its name and kind. A feature that adds sizes, dates, previews, counts or the like must leave them out for unreadable entries.
 
+Apart from the notes, nobody but admins learns anything about how the site is run: physical paths, host names, configuration, stack traces, or why the site is down. The source code is public, so how the app works is no secret; these details of the installation are.
+
 ## Operations
 
 "Known" and "openable" are as defined above. "The tree" means the entry and everything inside it, at any depth. The root directory can never be renamed or deleted.
@@ -117,6 +119,18 @@ Notes on the table:
 - **Copy, move, delete and rename are checked completely before anything is changed** (`TransferPlanner`). A copy then copies exactly the entries that were checked: nothing unreadable, and nothing that appeared later.
 - **The UI disables what the permissions don't allow and says why.** This covers the selection card and the Delete, Rename, Upload, Create and Save controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again.
 
+### Pages outside the notes
+
+Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a reserved name (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers) and is never part of the notes. These pages are not covered by the permissions of the notes.
+
+| Page | Request | Required |
+|---|---|---|
+| Log in, log out | `GET /_/Login`, `POST /_/Logout` | Nothing |
+| About | `GET /_/About` | Nothing |
+| Error page | shown for an error status | Nothing. It names only the requested path, a request id and the time. |
+| Background jobs (Hangfire dashboard) | `/_/Hangfire` | Admin (`NotesAccess.AdminPolicyName`, otherwise 404) |
+| Shut the site down ([kill switch](../administration/kill-switch.md)) | `POST /_/Shutdown` | Admin (otherwise 404) and the antiforgery token. Afterwards every request, by anyone, gets the same page that only says the site is shut down (503). |
+
 ## Concurrency
 
 - **One lock for structure changes.** Every operation that adds, removes or renames entries holds the single `StructureLock` while it checks permissions and acts on them: create, upload (only while placing the finished file), rename, delete, copy and move. Nothing can appear inside a directory between a move or delete checking it and moving or deleting it. Saving changes no entries and doesn't take the lock.
@@ -125,19 +139,19 @@ Notes on the table:
 
 ## Rules for new features
 
-1. **Ask `IEntryAccess` for every decision, never the role.** Usually you go through `AccessTree`:
+1. **Ask `IEntryAccess` for every decision about the notes, never the role.** Usually through `AccessTree`:
    - `IsKnown` or `CanOpen` for the entry a request is about;
    - `Walk` for everything inside a directory;
    - `Inspect` for what a page shows about a tree.
 
-   Only `EntryAccess` itself looks at roles and groups (for admin-only features, ask `CanManagePermissions`). The Hangfire policy is the one other place that mentions the admin role.
+   Within the notes, only `EntryAccess` looks at roles and groups (for admin-only features, ask `CanManagePermissions`). Pages outside the notes that are for admins use the admin policy (`NotesAccess.AdminPolicyName`).
 2. **Pick the permissions from the definitions above.** Seeing contents needs `Read`, changing contents needs `Write`, bringing something into existence at a path needs `Create`, and taking it away needs `Delete`. Doing any of this inside a directory needs `Read` on that directory. If none of them fits, extend `EntryAccessInfo` and this document. Don't stretch an existing permission.
 3. **Answer hidden like missing.** Return the same 404 and the same message. Return 403 only for known entries.
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
 5. **Show unreadable entries by name and kind only.** Show no other attribute.
 6. **Lock structure changes.** If the feature adds, removes or renames entries, hold the `StructureLock` from the permission check until the change is done.
 7. **Don't leave the user guessing in the UI.** A control the user can't use is disabled, with the reason as its tooltip. Don't hide it, and don't leave it to fail. The server checks again regardless.
-8. **Record the feature here.** Add it to [Operations](#operations). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
+8. **Record the feature here.** Add it to [Operations](#operations) (or to [Pages outside the notes](#pages-outside-the-notes)). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
 
 ## Where it is implemented
 
@@ -154,3 +168,4 @@ Notes on the table:
 | Copy, move, delete, rename checks | `notes/Features/Components/Transfer/TransferPlanner.cs` |
 | Structure lock | `notes/Features/Helpers/StructureLock.cs` |
 | Create, upload, save, download | their handlers in `notes/Features/Components/*` and `notes/Pages/Editor` |
+| Shutting the site down | `notes/Features/KillSwitch/KillSwitchService.cs`, `notes/Pages/_/Shutdown.cshtml.cs` |

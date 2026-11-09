@@ -4,8 +4,8 @@ using notes.Features.Permissions;
 
 namespace notes.Features.Auth;
 
-// What the permissions mean, and which operation needs which, is specified in docs/security-specification.md. Keep the two in step.
-// Where they come from (the configuration files) is specified in docs/permissions.md.
+// What the permissions mean, and which operation needs which, is specified in docs/development/security-specification.md. Keep the two in step.
+// Where they come from (the configuration files) is specified in docs/administration/permissions.md.
 
 /// <summary>
 /// What may be done with the contents of an entry: seeing them, and changing them. Each level includes the one before. The entry's name
@@ -81,7 +81,7 @@ public interface IEntryAccess
 }
 
 /// <summary>
-/// Decides from the configuration file of each folder (docs/permissions.md). Admins may do anything; for everyone else the permissions
+/// Decides from the configuration file of each folder (docs/administration/permissions.md). Admins may do anything; for everyone else the permissions
 /// come from the nearest entries that say anything about them, looking at the file's own entry first, then at its folder, then at the folders
 /// above it, going up only past entries with <c>inherit: true</c> (the first one with <c>inherit: false</c> is the last one looked at). What nothing says anything about is denied, and so is everything under a folder whose
 /// configuration is invalid.

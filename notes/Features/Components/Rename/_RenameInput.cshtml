@@ -4,7 +4,7 @@
     @Html.AntiForgeryToken()
     @if (Model.DisabledReason is not null)
     {
-        <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" readonly title="Rename: @Model.DisabledReason" style="cursor: not-allowed;"/>
+        <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" readonly title="Rename: @Model.DisabledReason" data-disabled-reason="@Model.DisabledReason" style="cursor: not-allowed;"/>
     }
     else
     {

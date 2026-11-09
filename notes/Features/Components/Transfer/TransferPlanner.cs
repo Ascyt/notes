@@ -11,7 +11,7 @@ namespace notes.Features.Components.Transfer;
 /// <see cref="TransferException"/> for the first problem it finds. Must run under the <see cref="StructureLock"/>, together with what
 /// is done with its result, so that nothing it didn't see can appear in the meantime.
 /// </summary>
-/// <remarks>The permissions each kind needs are specified in docs/security-specification.md.</remarks>
+/// <remarks>The permissions each kind needs are specified in docs/development/security-specification.md.</remarks>
 public sealed class TransferPlanner(Config config, IPathService path, AccessTree tree)
 {
     public TransferPlan Plan(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)

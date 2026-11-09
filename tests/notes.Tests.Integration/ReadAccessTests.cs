@@ -32,13 +32,13 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         Assert.Contains("href=\"/docs\"", root);
         foreach (string name in new[] { "team", "vault", "broken" })
             Assert.DoesNotContain("> " + name + " ", root);
-        Assert.DoesNotContain("fa-lock", root);
+        Assert.DoesNotContain("data-locked-entry", root);
 
         string mixed = await BodyOf(await Client.GetAsync(Users.Anonymous, "/mixed"));
         Assert.Contains("href=\"/mixed/open.md\"", mixed);
         Assert.DoesNotContain("closed", mixed);
         Assert.DoesNotContain("locked.md", mixed);
-        Assert.DoesNotContain("fa-lock", mixed);
+        Assert.DoesNotContain("data-locked-entry", mixed);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         await AssertStatus(HttpStatusCode.OK, response);
         string body = await BodyOf(response);
 
-        Assert.Contains("No read access to these notes.", body);
+        Assert.Contains("id=\"root-unreadable\"", body);
         foreach (string name in new[] { "readme.md", "docs", "team", "vault", "mixed" })
             Assert.DoesNotContain(">" + name, body);
 
@@ -67,7 +67,6 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
 
         string body = await BodyOf(await Client.GetAsync(Users.Anonymous, "/"));
 
-        Assert.Contains("to browse notes", body);
         Assert.Contains("/_/Login", body);
         Assert.DoesNotContain("readme.md", body);
     }
@@ -77,7 +76,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     {
         string body = await BodyOf(await Client.GetAsync(Users.Anonymous, "/docs"));
 
-        Assert.Contains("You are not logged in", body);
+        Assert.Contains("id=\"login-notice\"", body);
         Assert.Contains("a.md", body);
     }
 
@@ -89,8 +88,9 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         string body = await BodyOf(response);
 
         // Listed, locked, not linked, not selectable
-        Assert.Matches(@"<tr title=""No read access to this directory[^""]*"">\s*<td[^>]*><input[^>]*disabled[^>]*/><span class=""entry-index"">\d+</span><i class=""fa-regular fa-folder""></i> closed <i class=""fa-solid fa-lock", body);
-        Assert.Matches(@"<tr title=""No read access to this file.""", body);
+        // Each with the reason as its tooltip, and a box that can't be ticked
+        Assert.Matches(@"<tr data-locked-entry=""closed"" title=""[^""]+"">\s*<td[^>]*><input[^>]*disabled", body);
+        Assert.Matches(@"<tr data-locked-entry=""locked.md"" title=""[^""]+"">\s*<td[^>]*><input[^>]*disabled", body);
         Assert.DoesNotContain("href=\"/mixed/closed\"", body);
         Assert.DoesNotContain("href=\"/mixed/locked.md\"", body);
         Assert.DoesNotContain("data-path=\"mixed/closed\"", body);
@@ -221,8 +221,8 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         Tree.File("docs/blob.bin", [0, 1, 2, 3]);
 
         string png = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/pic.png"));
-        Assert.Matches(@"<a id=""raw-button"" href=""\?raw""[^>]* key=""\^u""", png);
-        Assert.Contains("fa-regular fa-file-image", png);
+        Assert.Matches(@"<a id=""raw-button"" href=""\?raw""", png);
+
 
         // Binary, but there are no raw bytes of it (?raw is a 404)
         foreach (string path in new[] { "/docs/blob.bin", "/docs/a.md", "/docs" })

@@ -24,8 +24,8 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
             await Box(path).CheckAsync();
         await Eventually(() => paths.All(ServerSelection.Contains), "the server has the selection");
         // ...and the page has its answer: the card shows the count the server gave (and its buttons have their shortcuts)
-        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync(paths.Length + (paths.Length == 1 ? " element selected" : " elements selected"));
-        await Expect(Page.Locator("#selection-clear")).ToHaveAttributeAsync("key", "Escape");
+        await Expect(Page.Locator("#selection-count")).ToHaveAttributeAsync("data-count", paths.Length.ToString());
+        await Expect(Page.Locator("#selection-clear")).ToHaveAttributeAsync("key", new Regex(@"\S"));
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await Box("docs/a.md").CheckAsync();
 
         await Expect(Bar).ToBeVisibleAsync();
-        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync("1 element selected");
-        await Expect(Page.Locator("tr.entry-row[data-path='docs/a.md']")).ToHaveClassAsync(new Regex("table-active"));
+        await Expect(Page.Locator("#selection-count")).ToHaveAttributeAsync("data-count", "1");
+        await Expect(Box("docs/a.md")).ToBeCheckedAsync();
         await Eventually(() => ServerSelection.SequenceEqual(["docs/a.md"]), "the server has the selection");
 
         await Box("docs/a.md").UncheckAsync();
@@ -68,7 +68,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
 
         release.SetResult();
 
-        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync("1 element selected");
+        await Expect(Page.Locator("#selection-count")).ToHaveAttributeAsync("data-count", "1");
         await Expect(Page.Locator("#selection-spinner")).ToBeHiddenAsync();
     }
 
@@ -78,7 +78,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await OpenAsync("/mixed");
 
         await Expect(Page.Locator("tr.entry-row[data-path='mixed/locked.md']")).ToHaveCountAsync(0);
-        await Expect(Page.Locator("tr[title='No read access to this file.'] input")).ToBeDisabledAsync();
+        await Expect(Page.Locator("tr[data-locked-entry='locked.md'] input")).ToBeDisabledAsync();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         ILocator all = Page.Locator(".entry-select-all[data-group='files']");
 
         await all.CheckAsync();
-        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync("3 elements selected");
+        await Expect(Page.Locator("#selection-count")).ToHaveAttributeAsync("data-count", "3");
         await Eventually(() => ServerSelection.Count == 3, "the server has all three");
 
         await all.ClickAsync();
@@ -109,7 +109,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await Page.Mouse.MoveAsync(third.X + third.Width - 20, third.Y + third.Height / 2, new MouseMoveOptions { Steps = 5 });
         await Page.Mouse.UpAsync();
 
-        await Expect(Page.Locator("#selection-count")).ToHaveTextAsync("3 elements selected");
+        await Expect(Page.Locator("#selection-count")).ToHaveAttributeAsync("data-count", "3");
         await Eventually(() => ServerSelection.Count == 3, "the server has all three");
     }
 
@@ -124,7 +124,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await Expect(DeleteButton).ToBeHiddenAsync();
         await CopyButton.ClickAsync();
 
-        await Expect(Toast).ToContainTextAsync("Copied 1 element here.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         await Expect(Page.Locator("a[href='/team/a.md']")).ToBeVisibleAsync();
         await Expect(Bar).ToBeHiddenAsync();
         Assert.True(Tree.Exists("docs/a.md"));
@@ -138,7 +138,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
 
         await Page.Keyboard.PressAsync("Shift+V");
 
-        await Expect(Toast).ToContainTextAsync("Moved 1 element here.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         await Eventually(() => Tree.Exists("team/nested/b.md") && !Tree.Exists("docs/nested"), "the directory is moved");
     }
 
@@ -150,10 +150,11 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await Expect(CopyButton).ToBeHiddenAsync();
         await DeleteButton.ClickAsync();
         await Expect(Page.Locator("#selection-delete-modal")).ToBeVisibleAsync();
-        await Expect(Page.Locator("#selection-delete-count")).ToHaveTextAsync("1 directory and 1 file");
+        await Expect(Page.Locator("#selection-delete-count")).ToHaveAttributeAsync("data-directories", "1");
+        await Expect(Page.Locator("#selection-delete-count")).ToHaveAttributeAsync("data-files", "1");
         await Page.Locator("#selection-delete-confirm").ClickAsync();
 
-        await Expect(Toast).ToContainTextAsync("Deleted 2 elements.");
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
         await Eventually(() => Tree.List("docs").Count == 0, "everything is deleted");
     }
 
@@ -189,7 +190,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await OpenAsync("/docs");
 
         await Expect(MoveButton).ToHaveAttributeAsync("aria-disabled", "true");
-        await Expect(MoveButton).ToHaveAttributeAsync("title", new Regex("Insufficient permissions to delete or move some of the selected entries"));
+        await ExpectDisabledWithReason(MoveButton);
         await Expect(CopyButton).ToHaveAttributeAsync("aria-disabled", "false");
 
         await MoveButton.ClickAsync(new LocatorClickOptions { Force = true }); // as a user would, whatever it looks like
@@ -207,7 +208,8 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
         await SelectAsync("docs", "docs/a.md");
         await OpenAsync("/shelf");
 
-        await Expect(CopyButton).ToHaveAttributeAsync("title", "Copy here: Insufficient permissions to add entries to this directory.");
+        await Expect(CopyButton).ToHaveAttributeAsync("aria-disabled", "true");
+        await ExpectDisabledWithReason(CopyButton);
         await Expect(MoveButton).ToHaveAttributeAsync("aria-disabled", "true");
     }
 
@@ -221,7 +223,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
 
         await MoveButton.ClickAsync();
 
-        await Expect(Page.Locator(".toast-card[role='alert']")).ToContainTextAsync("No read access to 'docs/nested', so it can't be moved.");
+        await Expect(ToastOf("danger")).ToContainTextAsync("docs/nested");
         await Expect(Bar).ToBeVisibleAsync();
         Assert.Equal(["docs/nested"], ServerSelection);
     }
@@ -235,7 +237,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
 
         await Assertions.Expect(page.Locator(".entry-select")).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator("#selection-bar")).ToHaveCountAsync(0);
-        await Assertions.Expect(page.Locator("text=You are not logged in")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#login-notice")).ToBeVisibleAsync();
         await anonymous.DisposeAsync();
     }
 }

@@ -46,7 +46,7 @@ public sealed class TransferService(TransferPlanner planner, TransferExecutor ex
             // The exception's message names paths on the server, which are for the log only
             logger.LogError(e, "{kind} into {target} failed", kind, physicalTarget);
             return new TransferResult(StatusCodes.Status500InternalServerError,
-                $"The {kind.ToString().ToLowerInvariant()} failed and was undone: the server could not change one of the entries (it may be in use). Try again in a moment.");
+                $"The {kind.ToString().ToLowerInvariant()} failed and was undone: the server could not change one of the entries (it may be in use). Retrying in a moment may help.");
         }
     }
 

@@ -1,6 +1,6 @@
 # Permissions
 
-Who may see and change what is written down in a file called `.config.json` in each directory of the notes. Only admins (users with the `admin` realm role) can see or change these files. Everything else about what the permissions *mean* is in [security-specification.md](security-specification.md); this document is about how to write them.
+Who may see and change what is written down in a file called `.config.json` in each directory of the notes. Only admins (users with the `admin` realm role) can see or change these files. Everything else about what the permissions *mean* is in the [security specification](../development/security-specification.md); this document is about how they are written.
 
 ## Editing
 
@@ -34,9 +34,9 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
 }
 ```
 
-- **`version`** is the version of the format of the file, `major.minor.patch` (see [Versions and migrations](#versions-and-migrations)). The app keeps it up to date: don't change it. Saving a directory's permissions needs it, and refuses one that is newer than the app's.
+- **`version`** is the version of the format of the file, `major.minor.patch` (see [Versions and migrations](#versions-and-migrations)). The app keeps it up to date; it is not changed by hand. Saving a directory's permissions needs it, and refuses one that is newer than the app's.
 - **Principals** are `u:<user name>`, `g:<group>` and `r:<role>`. User names are not case sensitive, group and role names are. A user also matches `u:<id>` with their Keycloak id.
-- **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. Mind that `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
+- **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
 - **`l`** stands for **all users who are logged in**, so that no group with everyone in it has to be made in Keycloak. It is allowed in every list, e.g. `"rwAllow": ["l"]` lets every logged-in user write, while `"rwReadOnly": ["a"]` lets the public read.
 - **Only `inherit` is required** in a `perms` block; a list that is missing is empty.
 - **A principal can be in only one of the `rw` lists, and in only one of the `cd` lists** (it may be in one of each). Anything else is an error when saving.
@@ -52,29 +52,7 @@ The format of `.config.json` will change over time (a new required property, a p
 - The migrated text is what the app uses and what the editor shows. It is **written to disk** when the app starts (every `.config.json` under the notes is looked at once), and by anything that writes the file anyway (saving it, or adding, renaming and removing a file's entry). A file that can't be migrated (a migration fails) is left as it is, logged, and counts as invalid.
 - **Comments:** a file that goes through a real migration is written again in the standard layout, without its comments (a migration changes the structure, which text can't follow). A file for which only the version has to be set (no migration lies between, which is the case for most versions) keeps everything, comments included.
 
-### Adding a migration
-
-1. Change the format in the code (`PermissionParser`, `ConfigSchema`, `ConfigText.Default`, ...) and here.
-2. Write a class that implements `IConfigMigration` (`notes/Features/Permissions/Migrations`): `Version` (what a file is at afterwards), `Description`, and `Apply(JsonObject root)`, which changes the file's root object in place. It sees the format of the version before it, and must not set `version`. Throw an `InvalidOperationException` if the file isn't what it can work with: nothing is saved then.
-3. Add it to `ConfigMigrations.All`, and raise `Config:Version` in `appsettings.json` to its version (or higher; the app doesn't start if a migration leads past it, or if two lead to the same version). Pick the version by what changed: major for what old files can't be read as, minor for something new, patch for a fix.
-4. Add a test with a file of the old format (`ConfigMigratorTests` shows how), and make `Cfg.Version` in the tests the new version.
-
-```csharp
-public sealed class MovePermsIntoAccess : IConfigMigration
-{
-    public SemVersion Version => new(1, 1, 0);
-    public string Description => "perms moves into access.perms";
-
-    public void Apply(JsonObject root)
-    {
-        JsonNode perms = root["perms"] ?? throw new InvalidOperationException("There is no perms.");
-        _ = root.Remove("perms");
-        root["access"] = new JsonObject { ["perms"] = perms };
-    }
-}
-```
-
-Migrations are never changed or removed once they were released: a file can be as old as the first version.
+How a migration is added is in [Migrations of the permissions files](../development/config-migrations.md).
 
 ## What they mean
 
@@ -97,9 +75,9 @@ A user needs to read the root to get anywhere, and every directory above somethi
 
 ## Keycloak
 
-The app takes the permissions' principals from the session: the user name (`preferred_username`), the groups (`groups`) and the realm roles (`roles`). The realm file creates the mappers for the last two. Groups are what an admin will use most: create a group in the Keycloak console, add users to it, and write `g:<its name>` into the permissions. A group can also be given realm roles, which then show up as `r:<role>`.
+The app takes the permissions' principals from the session: the user name (`preferred_username`), the groups (`groups`) and the realm roles (`roles`). The realm file creates the mappers for the last two. Groups are what an admin uses most: a group made in the Keycloak console, with users added to it, is `g:<its name>` in the permissions. A group can also be given realm roles, which then show up as `r:<role>`.
 
-For a realm that was imported before this existed, add the mapper by hand: *Clients* → `notes-web` → *Client scopes* → `notes-web-dedicated` → *Add mapper* → *By configuration* → **Group Membership**, with *Token Claim Name* `groups` and *Full group path* **off**, added to the ID token and access token. Also set the realm's *Access Token Lifespan* to a couple of minutes (the realm file uses 2). The session lifetimes are in [Sessions](sessions.md#keycloak).
+For a realm that was imported before this existed, the mapper is added by hand: *Clients* → `notes-web` → *Client scopes* → `notes-web-dedicated` → *Add mapper* → *By configuration* → **Group Membership**, with *Token Claim Name* `groups` and *Full group path* **off**, added to the ID token and access token. The realm's *Access Token Lifespan* is set to a couple of minutes (the realm file uses 2). The session lifetimes are in [Sessions](sessions.md#keycloak).
 
 ### Changes in Keycloak take effect within minutes
 

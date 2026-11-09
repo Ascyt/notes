@@ -15,7 +15,7 @@
                can't be used (permissions) are disabled with the reason, like the toolbar buttons (site.js). *@
             <button type="button" id="selection-copy" class="btn btn-sm btn-outline-primary d-none" data-key="v" data-label="Copy here"><i class="fa-regular fa-copy"></i> Copy here</button>
             <button type="button" id="selection-move" class="btn btn-sm btn-outline-primary d-none" data-key="+v" data-label="Move here"><i class="fa-solid fa-arrow-right-to-bracket"></i> Move here</button>
-            <button type="button" id="selection-delete" class="btn btn-sm btn-outline-danger d-none" data-key="Delete" data-label="Delete"><i class="fa-regular fa-trash-can"></i> Delete</button>
+            <button type="button" id="selection-delete" class="btn btn-sm btn-outline-secondary btn-danger-on-hover d-none" data-key="Delete" data-label="Delete"><i class="fa-regular fa-trash-can"></i> Delete</button>
         </div>
         <span id="selection-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-label="Working"></span>
         <button type="button" id="selection-clear" class="btn-close" aria-label="Clear selection" title="Clear selection" data-key="Escape"></button>
@@ -30,7 +30,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                Are you sure you want to delete <strong id="selection-delete-count"></strong><span id="selection-delete-inside"></span>? This cannot be undone.
+                <strong id="selection-delete-count"></strong><span id="selection-delete-inside"></span> will be deleted. This cannot be undone.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">Cancel</button>
@@ -120,8 +120,10 @@
             const isWaiting = pending > 0;
             bar.hidden = count === 0 && !isWaiting;
             countText.classList.toggle('d-none', isWaiting); // only the spinner until the answer is there
-            if (!isWaiting)
+            if (!isWaiting) {
                 countText.textContent = count + (count === 1 ? ' element selected' : ' elements selected');
+                countText.dataset.count = count;
+            }
             // What the buttons would act on is not known until the answer is there
             actions.classList.toggle('d-none', isBusy() || isWaiting);
             setAvailable(clearButton, !isBusy() && !isWaiting && count > 0); // and Escape clears the selection only while there is one
@@ -367,9 +369,12 @@
                 parts.push(directories + (directories === 1 ? ' directory' : ' directories'));
             if (files > 0)
                 parts.push(files + (files === 1 ? ' file' : ' files'));
-            document.getElementById('selection-delete-count').textContent = parts.join(' and ');
+            const countElement = document.getElementById('selection-delete-count');
+            countElement.textContent = parts.join(' and ');
+            countElement.dataset.directories = directories;
+            countElement.dataset.files = files;
             document.getElementById('selection-delete-inside').textContent = directories > 0
-                ? ', including everything inside the selected ' + (directories === 1 ? 'directory' : 'directories')
+                ? ', including everything inside the selected ' + (directories === 1 ? 'directory' : 'directories') + ','
                 : '';
             bootstrap.Modal.getOrCreateInstance(deleteModal).show();
         });
