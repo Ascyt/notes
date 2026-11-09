@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace notes.Tests.Integration;
 
@@ -117,6 +119,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     {
         const string text = """
             {
+                "version": "1.0.0",
                 // only carol
                 "perms": { "inherit": false, "rwAllow": ["u:carol"], "cdAllow": ["u:carol"] },
                 "files": [
@@ -140,6 +143,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     {
         const string text = """
             {
+                "version": "1.0.0",
                 "perms": { "inherit": true },
                 "files": [ // filled in by the app
                 ]
@@ -167,10 +171,14 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     }
 
     [Theory]
-    [InlineData("""{ "perms": { "inherit": true, "rwAllow": ["a"] }, "files": [] }""")]
-    [InlineData("""{ "perms": { "inherit": true, "cdCreateOnly": ["a"] }, "files": [] }""")]
-    [InlineData("""{ "perms": { "inherit": true }, "files": [ { "name": "missing.md", "perms": { "inherit": true } } ] }""")]
-    [InlineData("""{ "perms": { "inherit": true } }""")]
+    [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true, "rwAllow": ["a"] }, "files": [] }""")]
+    [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true, "cdCreateOnly": ["a"] }, "files": [] }""")]
+    [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true }, "files": [ { "name": "missing.md", "perms": { "inherit": true } } ] }""")]
+    [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true } }""")]
+    [InlineData("""{ "perms": { "inherit": true }, "files": [] }""")] // no version
+    [InlineData("""{ "version": "2.0.0", "perms": { "inherit": true }, "files": [] }""")] // from a newer version of the app
+    [InlineData("""{ "version": "1", "perms": { "inherit": true }, "files": [] }""")]
+    [InlineData("""{ "version": 1, "perms": { "inherit": true }, "files": [] }""")]
     [InlineData("{")]
     [InlineData("")]
     public async Task Invalid_permissions_change_nothing(string text)
@@ -180,6 +188,28 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
         await AssertStatus(HttpStatusCode.BadRequest, await Client.PostAsync(Users.Admin, "/docs?config", text));
 
         Assert.Equal(before, Tree.Snapshot());
+    }
+
+    [Fact]
+    public async Task A_configuration_of_an_older_version_is_saved_as_the_current_one()
+    {
+        HttpResponseMessage response = await Client.PostAsync(Users.Admin, "/docs?config", """{ "version": "0.5.0", "perms": { "inherit": true }, "files": [] }""");
+
+        await AssertStatus(HttpStatusCode.OK, response);
+        Assert.Contains("\"version\": \"1.0.0\"", Tree.ReadConfig("docs"));
+    }
+
+    [Fact]
+    public async Task The_configuration_the_editor_shows_has_the_current_version_even_if_the_file_has_none()
+    {
+        Tree.Config("legacy", """{ "perms": { "inherit": true }, "files": [] }""");
+
+        // A page, in which the text of the editor is a string of the script
+        string page = await BodyOf(await Client.GetAsync(Users.Admin, "/legacy?config"));
+        Match contents = Regex.Match(page, @"value: (""(?:[^""\\]|\\.)*""),");
+        Assert.True(contents.Success, page);
+
+        Assert.Contains("\"version\": \"1.0.0\"", JsonSerializer.Deserialize<string>(contents.Groups[1].Value));
     }
 
     [Fact]

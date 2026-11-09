@@ -1,4 +1,5 @@
 {
+    "version": "1.0.0",
     // Who may do what in this folder. Subfolders and files start from these permissions.
     // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
     // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read).

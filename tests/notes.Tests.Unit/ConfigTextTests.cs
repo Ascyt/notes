@@ -1,4 +1,5 @@
 using notes.Features.Permissions;
+using Semver;
 
 namespace notes.Tests.Unit;
 
@@ -29,11 +30,12 @@ public sealed class ConfigTextTests
     [Fact]
     public void The_default_is_valid_and_has_an_entry_for_every_file()
     {
-        string text = ConfigText.Default(["b.md", "A.md", "it's ü & co.md"]);
+        string text = ConfigText.Default(["b.md", "A.md", "it's ü & co.md"], new SemVersion(1, 2, 3));
 
         AssertValid(text);
+        Assert.Contains("\"version\": \"1.2.3\"", text);
         Assert.Equal(["A.md", "b.md", "it's ü & co.md"], ConfigText.FileNames(text));
-        AssertValid(ConfigText.Default([]));
+        AssertValid(ConfigText.Default([], new SemVersion(1, 0, 0)));
         Assert.True(PermissionParser.ParseFileBody(ConfigText.DefaultFileBody()).IsValid);
     }
 
@@ -88,7 +90,7 @@ public sealed class ConfigTextTests
     [Fact]
     public void Removing_every_file_one_by_one()
     {
-        string text = ConfigText.Default(["a.md", "b.md", "c.md"]);
+        string text = ConfigText.Default(["a.md", "b.md", "c.md"], new SemVersion(1, 0, 0));
         foreach (string name in new[] { "b.md", "c.md", "a.md" })
         {
             text = ConfigText.RemoveFile(text, name)!;
@@ -228,6 +230,42 @@ public sealed class ConfigTextTests
         string? added = ConfigText.AddFile(nested, "a.md");
         Assert.Contains("\"x\": { \"files\": [] }", added);
     }
+
+    [Fact]
+    public void Setting_the_version_adds_it_first_and_keeps_the_comments()
+    {
+        string? text = ConfigText.SetVersion(Commented, new SemVersion(1, 0, 0));
+
+        AssertValid(text);
+        Assert.StartsWith("{\n    \"version\": \"1.0.0\",\n    // who may do what", text);
+        Assert.Contains("// the plan", text);
+        Assert.Contains("// carol's", text);
+        Assert.Contains("// keep", text);
+    }
+
+    [Fact]
+    public void Setting_the_version_replaces_the_one_there_is()
+    {
+        string? text = ConfigText.SetVersion("""{ "perms": { "inherit": true }, /* v */ "version": "1.0.0" /* x */, "files": [] }""", new SemVersion(2, 1, 0));
+
+        Assert.Equal("""{ "perms": { "inherit": true }, /* v */ "version": "2.1.0" /* x */, "files": [] }""", text);
+    }
+
+    [Fact]
+    public void Setting_the_version_on_one_line_stays_on_it()
+    {
+        string? text = ConfigText.SetVersion("""{ "perms": { "inherit": true }, "files": [] }""", new SemVersion(1, 0, 0));
+
+        Assert.Equal("""{ "version": "1.0.0", "perms": { "inherit": true }, "files": [] }""", text);
+        AssertValid(text);
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("[]")]
+    [InlineData("")]
+    public void The_version_can_not_be_set_in_text_that_is_not_an_object(string text)
+        => Assert.Null(ConfigText.SetVersion(text, new SemVersion(1, 0, 0)));
 
     [Fact]
     public void Non_ascii_names_and_comments_survive()

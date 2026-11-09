@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using notes.Features.Helpers;
+using notes.Features.Permissions.Migrations;
 
 namespace notes.Features.Permissions;
 
@@ -11,8 +12,11 @@ namespace notes.Features.Permissions;
 /// <remarks>
 /// Whoever changes the files of a folder tells the store (<see cref="FileAdded"/>, <see cref="FileRenamed"/>, <see cref="FileRemoved"/>) while
 /// still holding the <see cref="StructureLock"/>, and so does everything that writes a configuration. The store takes no lock itself.
+/// A file that is from an older version of the format (see <see cref="ConfigMigrator"/>) is always read as the current one: what the store
+/// gives out is brought up to date, in memory. What is on disk is brought up to date by <see cref="MigrateAll"/> when the app starts, and by
+/// any write (reads don't write: they don't hold the lock).
 /// </remarks>
-public sealed class FolderConfigStore(Config config, ILogger<FolderConfigStore> logger)
+public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, ILogger<FolderConfigStore> logger)
 {
     private sealed record Cached(DateTime LastWriteUtc, long Length, FolderConfigState State);
 
@@ -67,18 +71,77 @@ public sealed class FolderConfigStore(Config config, ILogger<FolderConfigStore> 
             return new FolderConfigState(null, ["The configuration file can't be read by the server."]);
         }
 
-        ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(text, existingFiles: null);
+        MigrationResult migrated = migrator.Migrate(text);
+        if (migrated.Error is not null)
+        {
+            logger.LogWarning("The configuration of {directory} can't be brought up to date, so only admins have access there: {error}", physicalDirectory, migrated.Error);
+            return new FolderConfigState(null, [migrated.Error]);
+        }
+
+        ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(migrated.Text, existingFiles: null);
         if (!parsed.IsValid)
             logger.LogWarning("The configuration of {directory} is invalid, so only admins have access there:\n{errors}", physicalDirectory, parsed.ErrorText);
 
         return new FolderConfigState(parsed.Value, parsed.Errors);
     }
 
-    /// <summary>The text of the folder's configuration file as it is, or null if there is none.</summary>
+    /// <summary>
+    /// The text of the folder's configuration file, brought up to date if it is from an older version (as it is if that can't be done, which
+    /// <see cref="Get"/> then says), or null if there is none.
+    /// </summary>
     public string? ReadText(string physicalDirectory)
     {
         string path = ConfigPathOf(physicalDirectory);
-        return File.Exists(path) ? File.ReadAllText(path) : null;
+        return File.Exists(path) ? migrator.Migrate(File.ReadAllText(path)).Text : null;
+    }
+
+    /// <summary>
+    /// Brings every configuration file under the notes directory up to date on disk, which reading does only in memory. Done once when the app
+    /// starts, before anything else uses the notes. A file that can't be brought up to date is left as it is, and logged (<see cref="Get"/>
+    /// treats it as invalid).
+    /// </summary>
+    /// <returns>How many files were rewritten.</returns>
+    public int MigrateAll()
+    {
+        string root = Path.GetFullPath(config.Dir);
+        EnumerationOptions options = new()
+        {
+            RecurseSubdirectories = true,
+            MatchCasing = MatchCasing.CaseInsensitive,
+            // Links are never followed, they could lead out of the notes (see PathService)
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = true
+        };
+
+        int migratedCount = 0;
+        // (Listed before anything is written, so that writing doesn't change what is listed)
+        foreach (string path in Directory.EnumerateFiles(root, PathService.ConfigFileName, options).ToList())
+        {
+            string directory = Path.GetDirectoryName(path)!;
+            // The folder for globally saved data is no part of the notes
+            if (Path.GetRelativePath(root, directory).Split(Path.DirectorySeparatorChar)[0] == PathService.ReservedName)
+                continue;
+
+            try
+            {
+                string text = File.ReadAllText(path);
+                MigrationResult migrated = migrator.Migrate(text);
+                if (migrated.Error is not null)
+                    logger.LogError("The configuration {path} was not migrated: {error}", path, migrated.Error);
+                else if (migrated.Changed)
+                {
+                    WriteText(directory, migrated.Text);
+                    migratedCount++;
+                    logger.LogInformation("Migrated the configuration {path} from {from} to {to}", path, migrated.From, migrator.Current);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                logger.LogError(e, "Could not migrate {path}", path);
+            }
+        }
+
+        return migratedCount;
     }
 
     /// <summary>
@@ -133,8 +196,16 @@ public sealed class FolderConfigStore(Config config, ILogger<FolderConfigStore> 
             if (!File.Exists(path))
                 return;
 
+            // Edited as the current version has it (a file from an older one is written as the current one then)
             string text = File.ReadAllText(path);
-            if (edit(text) is not { } updated)
+            MigrationResult migrated = migrator.Migrate(text);
+            if (migrated.Error is not null)
+            {
+                logger.LogWarning("Could not {what} a file entry in {path}: {error}", what, path, migrated.Error);
+                return;
+            }
+
+            if (edit(migrated.Text) is not { } updated)
             {
                 logger.LogWarning("Could not {what} a file entry in {path}: it can't be edited (is it valid?)", what, path);
                 return;

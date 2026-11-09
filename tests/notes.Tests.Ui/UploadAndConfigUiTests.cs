@@ -130,13 +130,13 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await page.GotoAsync("/docs?config");
         await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
 
-        await page.EvaluateAsync("() => window.editor.setValue('{ \"perms\": { \"inherit\": true, \"rwAllow\": [\"a\"] }, \"files\": [] }')");
+        await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": true, \"rwAllow\": [\"a\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
         await Assertions.Expect(page.Locator("#config-errors")).ToContainTextAsync("can't be in this list");
         await Assertions.Expect(page.Locator(".toast-card[role='alert']")).ToContainTextAsync("The permissions are not valid.");
         Assert.Null(Tree.ReadConfig("docs"));
 
-        await page.EvaluateAsync("() => window.editor.setValue('{ \"perms\": { \"inherit\": false, \"rwAllow\": [\"u:carol\"] }, \"files\": [] }')");
+        await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": false, \"rwAllow\": [\"u:carol\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
         await Assertions.Expect(page.Locator("#config-errors")).ToBeHiddenAsync();
         await Eventually(() => Tree.ReadConfig("docs")?.Contains("u:carol") == true, "the permissions are saved");

@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Helpers;
+using notes.Features.Permissions.Migrations;
 using notes.Features.View.ConfigEditor;
 
 namespace notes.Features.Permissions;
@@ -11,7 +12,7 @@ namespace notes.Features.Permissions;
 /// permissions. The text is checked completely before anything is written (<see cref="PermissionParser"/>), and what is saved is the text as
 /// it was sent, with its comments, plus the entries that the files of the folder need.
 /// </summary>
-public sealed class ConfigHandler(FolderConfigStore store, StructureLock structureLock, ILogger<ConfigHandler> logger)
+public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, ILogger<ConfigHandler> logger)
 {
     public ConfigEditorView CreateView(string virtualPath, string physicalPath)
     {
@@ -20,9 +21,10 @@ public sealed class ConfigHandler(FolderConfigStore store, StructureLock structu
         string? saved = store.ReadText(folder);
 
         // A configuration that was saved but doesn't hold up is said so, as the folder is closed to everyone else until it does
+        // (the store says why: it also knows what couldn't be migrated)
         string? warning = null;
-        if (saved is not null && PermissionParser.ParseFolder(saved, existingFiles: null) is { IsValid: false } invalid)
-            warning = "The saved configuration of this folder is not valid. Until it is fixed, only admins have access to everything under it.\n" + invalid.ErrorText;
+        if (saved is not null && store.Get(folder) is { IsInvalid: true } invalid)
+            warning = "The saved configuration of this folder is not valid. Until it is fixed, only admins have access to everything under it.\n" + ParseResult<FolderConfig>.Failed(invalid.Errors).ErrorText;
 
         if (isFile)
         {
@@ -38,7 +40,7 @@ public sealed class ConfigHandler(FolderConfigStore store, StructureLock structu
             };
         }
 
-        string defaultText = ConfigText.Default(FolderConfigStore.FileNamesOf(folder));
+        string defaultText = ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
         return new ConfigEditorView
         {
             VirtualPath = virtualPath,
@@ -83,6 +85,22 @@ public sealed class ConfigHandler(FolderConfigStore store, StructureLock structu
     private IActionResult SaveFolder(string folder, string text)
     {
         IReadOnlySet<string> files = FolderConfigStore.FileNamesOf(folder);
+
+        // What was sent may be an older version's (pasted in, say): it is brought up to date, and then checked as the current version
+        MigrationResult migrated = migrator.Migrate(text);
+        if (migrated.Error is not null)
+            return Failed(StatusCodes.Status400BadRequest, ParseResult<FolderConfig>.Failed([migrated.Error]).ErrorText);
+
+        // Without a version it can't be told which one it is written for, and guessing would apply migrations to what may be up to date already
+        if (migrated.From == ConfigVersions.Zero)
+        {
+            List<string> errors = [.. PermissionParser.ParseFolder(text, files).Errors];
+            if (errors.Count == 0)
+                errors.Add($"version: is required. Write \"{PermissionParser.VersionKey}\": \"{migrator.Current}\" (the version of this app's format) as the first property.");
+            return Failed(StatusCodes.Status400BadRequest, ParseResult<FolderConfig>.Failed(errors).ErrorText);
+        }
+
+        text = migrated.Text;
         ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(text, files);
         if (!parsed.IsValid)
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
@@ -112,7 +130,7 @@ public sealed class ConfigHandler(FolderConfigStore store, StructureLock structu
         // The entry goes into the configuration of the folder (made now if it has none), whose other entries and comments stay
         string folder = Path.GetDirectoryName(physicalPath)!;
         string name = Path.GetFileName(physicalPath);
-        string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder));
+        string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
         string? updated = ConfigText.SetFileBody(folderText, name, text);
         if (updated is null)
             return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in can't be edited, as it is not valid. Fix the permissions of the folder first.");

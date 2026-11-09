@@ -1,5 +1,6 @@
 using System.Text.Json;
-using notes.Features.Helpers;
+using notes.Features.Helpers; 
+using notes.Features.Permissions.Migrations;
 
 namespace notes.Features.Permissions;
 
@@ -26,6 +27,7 @@ public static class PermissionParser
     /// <summary>The longest text that is read, in characters. Far more than a folder with thousands of files needs.</summary>
     public const int MaxLength = 1024 * 1024;
 
+    public const string VersionKey = "version";
     public const string InheritKey = "inherit";
     public const string PermsKey = "perms";
     public const string FilesKey = "files";
@@ -45,7 +47,9 @@ public static class PermissionParser
     };
 
     /// <summary>
-    /// Reads the configuration of a folder: <c>{ "perms": {...}, "files": [ { "name": "...", "perms": {...} } ] }</c>.
+    /// Reads the configuration of a folder: <c>{ "version": "...", "perms": {...}, "files": [ { "name": "...", "perms": {...} } ] }</c>.
+    /// The version only has to be spelled right here: that it is the current one is for <see cref="Migrations.ConfigMigrator"/> to see to,
+    /// before the text is read.
     /// </summary>
     /// <param name="existingFiles">
     /// The names of the files in the folder. If given, every entry of <c>files</c> must be one of them (this is what saving checks). The
@@ -58,9 +62,12 @@ public static class PermissionParser
         if (document is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [PermsKey, FilesKey], required: [PermsKey, FilesKey], errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [VersionKey, PermsKey, FilesKey], required: [PermsKey, FilesKey], errors);
         if (root is null)
             return ParseResult<FolderConfig>.Failed(errors);
+
+        if (root.TryGetValue(VersionKey, out JsonElement version) && (version.ValueKind != JsonValueKind.String || !ConfigVersions.TryParse(version.GetString(), out _)))
+            errors.Add($"{VersionKey}: must be a version like \"1.0.0\" (major.minor.patch).");
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
         List<FileEntry> files = [];

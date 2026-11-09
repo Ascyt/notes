@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Semver;
 
 namespace notes.Features.Permissions;
 
@@ -24,11 +25,13 @@ public static class ConfigText
     // ---- What the configuration of a folder starts as
 
     /// <summary>The text of a configuration that was never written: it permits nothing beyond what the folder above does, and has an entry for every file.</summary>
-    public static string Default(IEnumerable<string> fileNames)
+    public static string Default(IEnumerable<string> fileNames, SemVersion version)
     {
         StringBuilder text = new();
-        text.Append("""
+        text.Append($$"""
                     {
+                        // The version of this file's format. The app keeps it up to date: don't change it.
+                        "version": "{{version}}",
                         // Who may do what in this folder. Subfolders and files start from these permissions.
                         // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
                         // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read).
@@ -58,6 +61,53 @@ public static class ConfigText
 
     private static string Quote(string text)
         => JsonSerializer.Serialize(text, StringOptions);
+
+    // ---- The version
+
+    /// <summary>
+    /// The text with <c>version</c> set to the version: its value replaced if the root object has the property, otherwise the property added
+    /// first. Nothing else changes, comments included. Null if the text isn't valid JSON or its root isn't an object.
+    /// </summary>
+    public static string? SetVersion(string text, SemVersion version)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        string value = Quote(version.ToString());
+        try
+        {
+            Utf8JsonReader reader = new(bytes, ReaderOptions);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                return null;
+
+            int open = (int)reader.TokenStartIndex;
+            int firstProperty = -1;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (firstProperty < 0)
+                    firstProperty = (int)reader.TokenStartIndex;
+
+                bool isVersion = reader.ValueTextEquals(PermissionParser.VersionKey);
+                _ = reader.Read();
+                if (isVersion && reader.TokenType == JsonTokenType.String)
+                    return Encoding.UTF8.GetString(Replace(bytes, (int)reader.TokenStartIndex, (int)reader.BytesConsumed, value));
+
+                reader.Skip();
+            }
+
+            if (reader.TokenType != JsonTokenType.EndObject)
+                return null;
+
+            // Added first, laid out like the properties are: on a line of its own if they are, otherwise next to them
+            string property = $"\"{PermissionParser.VersionKey}\": {value}";
+            string inserted = firstProperty < 0 ? "\n" + IndentOfLine(bytes, open) + "    " + property + "\n" + IndentOfLine(bytes, open)
+                : StartsLine(bytes, firstProperty) ? "\n" + IndentOfLine(bytes, firstProperty) + property + ","
+                : " " + property + ",";
+            return Encoding.UTF8.GetString(Replace(bytes, open + 1, open + 1, inserted));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     // ---- The names of the files
 

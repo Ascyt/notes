@@ -72,6 +72,9 @@ public sealed class NotesTree(string root)
 /// <summary>Writes configuration files (docs/permissions.md) for the tests.</summary>
 public static class Cfg
 {
+    /// <summary>The version the configurations are written with (Config:Version of the app's appsettings).</summary>
+    public const string Version = "1.0.0";
+
     /// <summary>A <c>perms</c> block.</summary>
     public static JsonObject Perms(bool inherit = true, string[]? rwAllow = null, string[]? rwReadOnly = null, string[]? rwDeny = null,
         string[]? cdAllow = null, string[]? cdCreateOnly = null, string[]? cdDeny = null)
@@ -96,6 +99,7 @@ public static class Cfg
     public static string Folder(JsonObject perms, params (string Name, JsonObject Perms)[] files)
         => new JsonObject
         {
+            ["version"] = Version,
             ["perms"] = perms,
             ["files"] = new JsonArray([..files.Select(file => (JsonNode)new JsonObject { ["name"] = file.Name, ["perms"] = file.Perms })])
         }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });

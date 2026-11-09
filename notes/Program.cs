@@ -14,6 +14,7 @@ using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
 using notes.Features.Permissions;
+using notes.Features.Permissions.Migrations;
 using notes.Features.View.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -46,6 +47,9 @@ builder.Services.AddMemoryCache();
 // The cache expires entries (the selections) by the app's clock
 builder.Services.AddOptions<MemoryCacheOptions>().Configure<TimeProvider>((options, time) => options.Clock = new TimeProviderClock(time));
 // Permissions: what they mean and who checks them where is specified in docs/security-specification.md
+// The version of the app is set in appsettings (Config:Version); .config.json files from older versions are migrated when read.
+// Neither a version that isn't one nor migrations that don't fit it let the app start.
+builder.Services.AddSingleton(services => new ConfigMigrator(ConfigVersions.Parse(config.Version), ConfigMigrations.All, services.GetRequiredService<ILogger<ConfigMigrator>>()));
 builder.Services.AddSingleton<FolderConfigStore>();
 builder.Services.AddSingleton<IEntryAccess, EntryAccess>();
 builder.Services.AddSingleton<AccessTree>();
@@ -80,6 +84,9 @@ if (!Directory.Exists(dir))
     app.Logger.LogInformation("Created directory: {dir}", dir);
 }
 app.Logger.LogInformation("In working dir: {dir}", dir);
+
+// Writes what was migrated while reading back to the files, now that nothing else is using them
+_ = app.Services.GetRequiredService<FolderConfigStore>().MigrateAll();
 
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();

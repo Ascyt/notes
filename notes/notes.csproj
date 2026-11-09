@@ -33,6 +33,7 @@
       <PackageReference Include="Markdig" Version="1.6.0" />
       <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+      <PackageReference Include="Semver" Version="3.0.0" />
     </ItemGroup>
 
     <ItemGroup>
