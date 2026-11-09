@@ -311,6 +311,22 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task The_kill_switch_asks_first_by_shortcut_too()
+    {
+        IBrowserContext admin = await NewContextAsync(Users.Admin);
+        IPage page = await admin.NewPageAsync();
+        await page.GotoAsync("/");
+
+        // Not pulled here: that would shut down the app the other tests use (see KillSwitchTests of the integration tests)
+        await page.Keyboard.PressAsync("Control+Alt+Shift+Delete");
+        await Assertions.Expect(page.Locator("#kill-switch-modal")).ToBeVisibleAsync();
+        // Bootstrap takes the focus into the modal once it has faded in, and ignores closing it before that
+        await page.WaitForFunctionAsync("() => document.getElementById('kill-switch-modal').contains(document.activeElement)");
+        await page.Keyboard.PressAsync("Escape");
+        await Assertions.Expect(page.Locator("#kill-switch-modal")).ToBeHiddenAsync();
+    }
+
+    [Fact]
     public async Task A_shortcut_clicks_its_button()
     {
         await OpenAsync("/docs");

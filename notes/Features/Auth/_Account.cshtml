@@ -3,7 +3,17 @@
 <ul class="navbar-nav align-items-sm-center gap-sm-2">
     @if (Model.IsAuthenticated)
     {
-        <li class="nav-item"><span class="navbar-text"><i class="@(User.IsInRole(NotesAccess.AdminRole) ? "fa-solid fa-user-gear" : "fa-regular fa-user")"></i> @Model.UserName</span></li>
+        @if (Model.IsAdmin)
+        {
+            <li class="nav-item">
+                @* The confirmation is in the layout (_KillSwitchModal) *@
+                <button type="button" class="btn btn-sm btn-outline-secondary kill-switch-button" data-bs-toggle="modal" data-bs-target="#kill-switch-modal"
+                        title="Kill switch" aria-label="Kill switch" key="^!+Delete">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+            </li>
+        }
+        <li class="nav-item"><span class="navbar-text"><i class="@(Model.IsAdmin ? "fa-solid fa-user-gear" : "fa-regular fa-user")"></i> @Model.UserName</span></li>
         <li class="nav-item">
             <form method="post" asp-page="/_/Logout">
                 <button type="submit" class="btn btn-sm btn-outline-secondary" key="!L"><i class="fa-solid fa-right-from-bracket"></i> Log out</button>

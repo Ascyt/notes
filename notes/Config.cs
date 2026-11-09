@@ -14,5 +14,7 @@ public sealed class Config
     public string Title { get; init; } = "Notes";
     /// <summary>Where the keys protecting the login session and antiforgery tokens are kept, so they survive restarts.</summary>
     public string? KeysDir { get; init; }
+    /// <summary>The file that keeps the site shut down once the kill switch was pulled. By default "killed" in <see cref="KeysDir"/> (or the app's directory).</summary>
+    public string? KillSwitchMarker { get; init; }
     public required AuthConfig Auth { get; init; }
 }

@@ -44,12 +44,16 @@
                         </li>
                     }
                 </ul>
-                <partial name="/Features/Auth/_Account.cshtml"model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, UserName = User.Identity?.Name ?? "", ReturnUrl = Context.OriginalPathAndQuery }'/>
+                <partial name="/Features/Auth/_Account.cshtml"model='new _Account { IsAuthenticated = User.Identity?.IsAuthenticated == true, IsAdmin = User.IsInRole(NotesAccess.AdminRole), UserName = User.Identity?.Name ?? "", ReturnUrl = Context.OriginalPathAndQuery }'/>
             </div>
         </div>
     </nav>
 </header>
 <partial name="/Features/Components/Toast/_Toasts.cshtml" model="new _Toasts()"/>
+@if (User.IsInRole(NotesAccess.AdminRole))
+{
+    <partial name="/Features/KillSwitch/_KillSwitchModal.cshtml" model="new notes.Features.KillSwitch._KillSwitchModal()"/>
+}
 @if (SessionNotice.MessageFor(Context) is { } sessionNotice)
 {
     <partial name="/Features/Auth/_SessionNotice.cshtml" model='new _SessionNotice { Message = sessionNotice, ReturnUrl = Context.OriginalPathAndQuery }'/>

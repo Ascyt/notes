@@ -44,3 +44,13 @@ body {
   background-color: var(--bs-btn-bg);
   border-color: var(--bs-btn-border-color);
 }
+
+/* The kill switch looks like the buttons next to it, and only shows that it is dangerous when about to be used */
+.kill-switch-button {
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--bs-danger);
+    --bs-btn-hover-border-color: var(--bs-danger);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--bs-danger);
+    --bs-btn-active-border-color: var(--bs-danger);
+}

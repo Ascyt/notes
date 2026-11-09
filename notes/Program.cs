@@ -13,6 +13,7 @@ using notes.Features.Components.Selection;
 using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
+using notes.Features.KillSwitch;
 using notes.Features.Permissions;
 using notes.Features.Permissions.Migrations;
 using notes.Features.View.Editor;
@@ -69,6 +70,7 @@ builder.Services.AddSingleton<RenameHandler>();
 builder.Services.AddSingleton<SaveHandler>();
 builder.Services.AddSingleton<DeleteHandler>();
 builder.Services.AddSingleton<ConfigHandler>();
+builder.Services.AddSingleton<KillSwitchService>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());
@@ -90,6 +92,8 @@ _ = app.Services.GetRequiredService<FolderConfigStore>().MigrateAll();
 
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();
+// Once shut down, the app answers nothing but that
+app.UseKillSwitch();
 
 if (!app.Environment.IsDevelopment())
 {

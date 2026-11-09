@@ -9,8 +9,11 @@
   "duplicateEmailsAllowed": false,
   "bruteForceProtected": true,
   "accessTokenLifespan": 120,
-  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 28800,
+  "rememberMe": true,
+  "ssoSessionIdleTimeoutRememberMe": 604800,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
   "roles": {
     "realm": [
       {
@@ -19,6 +22,16 @@
       }
     ]
   },
+  "users": [
+    {
+      "username": "service-account-notes-web",
+      "enabled": true,
+      "serviceAccountClientId": "notes-web",
+      "clientRoles": {
+        "realm-management": ["manage-realm"]
+      }
+    }
+  ],
   "clients": [
     {
       "clientId": "notes-web",
@@ -30,7 +43,7 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
+      "serviceAccountsEnabled": true,
       "redirectUris": [
         "https://${NOTES_HOST}/signin-oidc",
         "http://localhost:5243/signin-oidc",

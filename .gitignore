@@ -26,3 +26,6 @@ Thumbs.db
 
 # Notes and other runtime data of the compose stack
 data/
+
+# Marker of the kill switch when running locally (in production it is in the keys volume)
+notes/killed

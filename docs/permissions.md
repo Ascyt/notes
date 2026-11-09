@@ -99,10 +99,10 @@ A user needs to read the root to get anywhere, and every directory above somethi
 
 The app takes the permissions' principals from the session: the user name (`preferred_username`), the groups (`groups`) and the realm roles (`roles`). The realm file creates the mappers for the last two. Groups are what an admin will use most: create a group in the Keycloak console, add users to it, and write `g:<its name>` into the permissions. A group can also be given realm roles, which then show up as `r:<role>`.
 
-For a realm that was imported before this existed, add the mapper by hand: *Clients* → `notes-web` → *Client scopes* → `notes-web-dedicated` → *Add mapper* → *By configuration* → **Group Membership**, with *Token Claim Name* `groups` and *Full group path* **off**, added to the ID token and access token. Also set the realm's *Access Token Lifespan* to a couple of minutes (the realm file uses 2) and the SSO session idle and maximum to 8 hours (the lifetime of the app's cookie).
+For a realm that was imported before this existed, add the mapper by hand: *Clients* → `notes-web` → *Client scopes* → `notes-web-dedicated` → *Add mapper* → *By configuration* → **Group Membership**, with *Token Claim Name* `groups` and *Full group path* **off**, added to the ID token and access token. Also set the realm's *Access Token Lifespan* to a couple of minutes (the realm file uses 2). The session lifetimes are in [Sessions](sessions.md#keycloak).
 
 ### Changes in Keycloak take effect within minutes
 
 Groups and roles are copied from the tokens into the session when a user logs in. To keep them current, the access token is short-lived, and when it has run out the app gets a new one with the refresh token, which carries the groups and roles the user has by then. So a change takes effect within the access token lifespan, with no need to log in again.
 
-If Keycloak says the session is over (the user logged out elsewhere, was disabled or deleted, or the SSO session expired), the user is logged out and the next page tells them so. If Keycloak can't be reached when a token is to be renewed, the session is kept for ten minutes and then ended, with a notice. Refresh token rotation ("Revoke Refresh Token") must stay off in the realm: requests that arrive together would otherwise each use the same refresh token.
+What happens when Keycloak refuses, or can't be reached, is in [Sessions](sessions.md#when-a-session-ends).

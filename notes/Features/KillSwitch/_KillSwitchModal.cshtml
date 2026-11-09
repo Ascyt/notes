@@ -1,0 +1,22 @@
+@model notes.Features.KillSwitch._KillSwitchModal
+
+@* The confirmation behind the kill switch of the navigation bar (admins only) *@
+
+<div class="modal fade" id="kill-switch-modal" tabindex="-1" aria-labelledby="kill-switch-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" asp-page="/_/Shutdown">
+            <div class="modal-header">
+                <h5 class="modal-title" id="kill-switch-modal-title">Shut down the site?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>This takes the site down and disables the login server's realm, for everyone. All sessions end at once.</p>
+                <p class="mb-0">The site stays down until it is brought back by hand on the server.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">Cancel</button>
+                <button type="submit" class="btn btn-danger" key="Enter"><i class="fa-solid fa-power-off"></i> Shut down</button>
+            </div>
+        </form>
+    </div>
+</div>

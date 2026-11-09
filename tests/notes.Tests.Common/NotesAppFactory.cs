@@ -22,9 +22,14 @@ public class NotesAppFactory : WebApplicationFactory<Program>
 {
     public NotesAppFactory()
     {
-        NotesDir = Path.Combine(Path.GetTempPath(), "notes-tests", Guid.NewGuid().ToString("N"));
+        string id = Guid.NewGuid().ToString("N");
+        NotesDir = Path.Combine(Path.GetTempPath(), "notes-tests", id);
         Directory.CreateDirectory(NotesDir);
+        KillSwitchMarker = Path.Combine(Path.GetTempPath(), "notes-tests", id + ".killed");
     }
+
+    /// <summary>Where the kill switch of this app leaves its marker (by default it would be in the project's directory).</summary>
+    public string KillSwitchMarker { get; }
 
     /// <summary>The notes directory of this app (physical).</summary>
     public string NotesDir { get; }
@@ -63,6 +68,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
         // Settings (not ConfigureAppConfiguration), as Program reads the configuration before the app is built
         builder.UseSetting("Config:Dir", NotesDir);
         builder.UseSetting("Config:Title", "Notes");
+        builder.UseSetting("Config:KillSwitchMarker", KillSwitchMarker);
         builder.UseSetting("Config:Auth:Authority", "https://auth.invalid/realms/notes");
         builder.UseSetting("Config:Auth:ClientId", "notes-web");
         builder.UseSetting("Config:Auth:ClientSecret", "test-secret");
@@ -116,6 +122,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
         try
         {
             Directory.Delete(NotesDir, recursive: true);
+            File.Delete(KillSwitchMarker);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
