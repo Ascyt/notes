@@ -13,7 +13,7 @@ The whole setup (Cloudflare tunnel, Keycloak, the first admin) is in [Deployment
 
 ## Documentation
 
-- [Using the app](docs/using.md): browsing, viewing and editing files, organizing them, the keyboard.
+- [Using the app](docs/usage.md): browsing, viewing and editing files, organizing them, the keyboard.
 - [Administration](docs/administration.md): deployment, sessions, permissions, the kill switch.
 - [Development](docs/development.md): the principles of this repository, how the app is put together, running it locally, the tests, and the security specification.
 

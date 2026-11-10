@@ -55,6 +55,14 @@ public sealed record ToolbarButton(
     public static ToolbarButton SimpleView()
         => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", Key: "!+E", OnClick: "toggleSimpleView()");
 
+    /// <summary>Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.</summary>
+    public static ToolbarButton ZoomIn()
+        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!+ !++", OnClick: "editorZoom.zoomIn()");
+
+    /// <summary>Makes the text of the editor smaller.</summary>
+    public static ToolbarButton ZoomOut()
+        => new(Id: "zoom-out-button", Icon: "fa-solid fa-magnifying-glass-minus", Label: "Zoom out", Key: "!-", OnClick: "editorZoom.zoomOut()");
+
     /// <summary>The bytes of a media file as the browser shows them, instead of the page around them.</summary>
     public static ToolbarButton Raw()
         => new(Id: "raw-button", Icon: "fa-regular fa-file-image", Label: "View the raw image", Key: "^u", Href: "?raw");

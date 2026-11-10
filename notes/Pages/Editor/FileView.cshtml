@@ -19,7 +19,11 @@
             toolbarButtons.Add(ToolbarButton.Edit());
     }
     if (isEditing)
+    {
         toolbarButtons.Add(ToolbarButton.SimpleView());
+        toolbarButtons.Add(ToolbarButton.ZoomOut());
+        toolbarButtons.Add(ToolbarButton.ZoomIn());
+    }
     if (Model.CanConfigure)
         toolbarButtons.Add(ToolbarButton.Permissions("file"));
     // Only what the browser can show has raw bytes to look at (see RawHandler)
@@ -153,6 +157,12 @@
         simpleElement.focus();
     });
     simpleElement.addEventListener('input', updateDirty);
+
+    // One zoom for both views (see editor.js), so switching keeps the size
+    editorZoom.bindZoomKeys(simpleElement);
+    editorZoom.onChange(function (factor) {
+        simpleElement.style.fontSize = factor + 'rem';
+    });
 
     // With nothing to save the Save button (and so its shortcut) does nothing, but the browser's own "save page" is never what is meant
     document.addEventListener('keydown', function (e) {

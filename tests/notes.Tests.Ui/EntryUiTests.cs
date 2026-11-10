@@ -60,6 +60,36 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task Zooming_is_shared_by_both_views_kept_and_stops_at_its_limit()
+    {
+        const string MonacoFontSize = "() => window.editor.getOption(monaco.editor.EditorOption.fontSize)";
+        const string SimpleFontSize = "() => parseFloat(getComputedStyle(document.getElementById('simple-editor')).fontSize)";
+        await OpenAsync("/docs/a.md?edit");
+        await WaitForEditorAsync();
+        double usualMonacoSize = await Page.EvaluateAsync<double>(MonacoFontSize);
+
+        await Page.Locator("#zoom-in-button").ClickAsync();
+        Assert.True(await Page.EvaluateAsync<double>(MonacoFontSize) > usualMonacoSize);
+
+        // The simple view has the same zoom
+        double usualSimpleSize = await Page.EvaluateAsync<double>("() => parseFloat(getComputedStyle(document.documentElement).fontSize)");
+        await Page.Locator("#simple-view-button").ClickAsync();
+        Assert.True(await Page.EvaluateAsync<double>(SimpleFontSize) > usualSimpleSize);
+
+        // Kept for the next page, and back to the usual size with Ctrl+0 inside the editor
+        await OpenAsync("/docs/a.md?edit");
+        Assert.True(await Page.EvaluateAsync<double>(SimpleFontSize) > usualSimpleSize);
+        await Page.Locator("#simple-editor").FocusAsync();
+        await Page.Keyboard.PressAsync("Control+0");
+        Assert.Equal(usualSimpleSize, await Page.EvaluateAsync<double>(SimpleFontSize));
+
+        // Zooming out as far as it goes disables the button, with the reason
+        await Page.EvaluateAsync("() => { while (editorZoom.canZoomOut) editorZoom.zoomOut(); }");
+        await ExpectDisabledWithReason(Page.Locator("#zoom-out-button"));
+        await Expect(Page.Locator("#zoom-in-button")).ToHaveAttributeAsync("aria-disabled", "false");
+    }
+
+    [Fact]
     public async Task A_file_alice_may_not_change_is_read_only_and_save_says_why()
     {
         // (Markdown that can't be changed is only shown rendered)

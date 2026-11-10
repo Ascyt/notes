@@ -150,4 +150,24 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         Assert.Contains("u:carol", Tree.ReadConfig("docs"));
         await admin.DisposeAsync();
     }
+
+    [Fact]
+    public async Task The_permissions_editor_zooms_like_the_editor_of_a_file()
+    {
+        const string MonacoFontSize = "() => window.editor.getOption(monaco.editor.EditorOption.fontSize)";
+        IBrowserContext admin = await NewContextAsync(Users.Admin);
+        IPage page = await admin.NewPageAsync();
+        await page.GotoAsync("/docs?config");
+        await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        double usualSize = await page.EvaluateAsync<double>(MonacoFontSize);
+
+        await page.Locator("#zoom-out-button").ClickAsync();
+        Assert.True(await page.EvaluateAsync<double>(MonacoFontSize) < usualSize);
+
+        // The same zoom in the editor of a file
+        await page.GotoAsync("/docs/a.md?edit");
+        await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        Assert.True(await page.EvaluateAsync<double>(MonacoFontSize) < usualSize);
+        await admin.DisposeAsync();
+    }
 }

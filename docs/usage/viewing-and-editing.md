@@ -41,6 +41,8 @@ Every text file can be edited in the browser. There are two editors, and the cho
 
 The phone icon in the toolbar switches to the simple editor, the keyboard icon back to the code editor. The floppy disk icon (or Ctrl+S) saves; it is only blue while there is something to save. Leaving the page with unsaved changes asks first.
 
+The magnifying glass icons (or Alt+Plus and Alt+Minus) make the text of the editor larger and smaller; inside the editor, Ctrl+Plus, Ctrl+Minus and Ctrl+scrolling do the same, and Ctrl+0 goes back to the usual size. Both editors share the zoom, and it is kept in the browser.
+
 A file that may be read but not changed opens in the editor as read-only, and the Save icon says why it can't be used.
 
 ## Images, video, audio and PDF

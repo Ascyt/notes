@@ -4,7 +4,7 @@ Who may see and change what is written down in a file called `.config.json` in e
 
 ## Editing
 
-Admins have a gear button below the breadcrumb of every directory and file (leftmost in a directory, right of Save in a file; shortcut `c`). It opens the permissions of that entry at `?config`, in an editor. Save checks the text completely and says what is wrong, and saves it exactly as written (nothing is reformatted). Reset puts the default into the editor (nothing changes until Save).
+Admins have a gear button below the breadcrumb of every directory and file (leftmost in a directory, right of Save in a file; shortcut `c`). It opens the permissions of that entry at `?config`, in an editor. Save checks the text completely and says what is wrong, and saves it exactly as written (nothing is reformatted). Reset puts the default into the editor (nothing changes until Save). The magnifying glass icons zoom the editor, as in the [editor of a file](../usage/viewing-and-editing.md#the-editors), with which it shares the zoom.
 
 - For a **directory** the editor shows its whole `.config.json`.
 - For a **file** it shows only that file's entry in the `.config.json` of the directory it is in, without the `name`.
