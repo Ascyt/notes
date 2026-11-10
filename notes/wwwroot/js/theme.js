@@ -5,6 +5,7 @@
 //
 //   getTheme()      'light' or 'dark'
 //   toggleTheme()   switches to the other one, and saves it
+//   showTheme(t)    shows 'light' or 'dark' without saving it
 //
 // A `themechange` event is fired on window whenever the theme is applied, for what has to follow it by itself (e.g. Monaco, see editor.js).
 // This script is loaded in the head, so the theme is set before the page is first painted.
@@ -46,6 +47,9 @@
     window.getTheme = function () {
         return document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
     };
+
+    // For a while only, e.g. to print in the light theme: the choice that is kept stays as it was
+    window.showTheme = applyTheme;
 
     window.toggleTheme = function () {
         const theme = window.getTheme() === 'dark' ? 'light' : 'dark';

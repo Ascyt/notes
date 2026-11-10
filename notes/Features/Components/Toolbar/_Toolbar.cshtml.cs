@@ -67,6 +67,13 @@ public sealed record ToolbarButton(
     public static ToolbarButton Raw()
         => new(Id: "raw-button", Icon: "fa-regular fa-file-image", Label: "View the raw image", Key: "^u", Href: "?raw");
 
+    /// <summary>
+    /// Saves the rendered markdown as a PDF, through the browser's print dialog (markdown-print.js). Ctrl+P, which prints anyway, goes
+    /// through it too, so that the PDF always looks the same.
+    /// </summary>
+    public static ToolbarButton SaveAsPdf()
+        => new(Id: "pdf-button", Icon: "fa-solid fa-file-pdf", Label: "Save as PDF (print)", Key: "^p", OnClick: "printMarkdown()");
+
     public static ToolbarButton Download(bool isFile)
         => new(Id: "download-button", Icon: "fa-solid fa-download", Label: isFile ? "Download this file" : "Download this directory as a zip", Key: "!PageDown", Href: "?download", IsDownload: true);
 

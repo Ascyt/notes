@@ -72,7 +72,10 @@
             }
         }
 
-        renderAll();
-        window.addEventListener('themechange', renderAll);
+        // Kept, so that printing (markdown-print.js) can wait for the diagrams in the colors of the theme it prints in
+        window.markdownDiagramsRendered = renderAll();
+        window.addEventListener('themechange', function () {
+            window.markdownDiagramsRendered = renderAll();
+        });
     }
 })();

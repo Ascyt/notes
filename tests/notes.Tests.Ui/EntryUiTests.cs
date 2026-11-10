@@ -237,6 +237,59 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task Saving_as_pdf_prints_in_the_light_theme_with_the_file_name_as_title_and_puts_both_back()
+    {
+        _ = Tree.File("docs/diagram.md", "```mermaid\ngraph TD; A-->B\n```");
+        await OpenAsync("/docs/diagram.md");
+        await Expect(Page.Locator("#markdown-preview .markdown-diagram svg")).ToHaveCountAsync(1);
+        if (await Page.EvaluateAsync<string>("() => getTheme()") != "dark")
+            await Page.Locator("#theme-toggle").ClickAsync();
+        string title = await Page.TitleAsync();
+
+        // The print dialog can't be used from a test: what the page is like when it would open is noted instead
+        _ = await Page.EvaluateAsync("""
+            () => window.print = () => window.printed = {
+                theme: getTheme(),
+                title: document.title
+            }
+            """);
+        await Page.Keyboard.PressAsync("Control+p");
+        _ = await Page.WaitForFunctionAsync("() => window.printed !== undefined");
+        Assert.Equal("light", await Page.EvaluateAsync<string>("() => window.printed.theme"));
+        Assert.Equal("diagram", await Page.EvaluateAsync<string>("() => window.printed.title"));
+
+        _ = await Page.EvaluateAsync("() => window.dispatchEvent(new Event('afterprint'))");
+        Assert.Equal("dark", await Page.EvaluateAsync<string>("() => getTheme()"));
+        Assert.Equal(title, await Page.TitleAsync());
+        Assert.Equal("dark", await Page.EvaluateAsync<string>("() => localStorage.getItem('theme')"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Saving_as_pdf_tells_to_turn_off_the_browsers_header_and_footer_only_where_they_can_not_be_replaced(bool canReplace)
+    {
+        // Firefox, for instance, has no page margin boxes
+        if (!canReplace)
+            await Page.AddInitScriptAsync("delete window.CSSMarginRule");
+        await Page.Clock.InstallAsync(); // holds the frames back, so what happens before the dialog opens can be looked at
+        await OpenAsync("/docs/a.md");
+        // The print dialog blocks the page, so the hint must already be there when it opens
+        _ = await Page.EvaluateAsync("() => window.print = () => window.hintsWhenPrinted = document.querySelectorAll(\".toast-card[data-kind='info']\").length");
+
+        await Page.Locator("#pdf-button").ClickAsync();
+        if (!canReplace)
+        {
+            await Expect(Page.Locator(".toast-card[data-kind='info']")).ToBeVisibleAsync();
+            Assert.True(await Page.EvaluateAsync<bool>("() => window.hintsWhenPrinted === undefined"), "the dialog waits until the hint is drawn");
+        }
+        await Page.Clock.RunForAsync(100);
+        _ = await Page.WaitForFunctionAsync("() => window.hintsWhenPrinted !== undefined");
+
+        Assert.Equal(canReplace ? 0 : 1, await Page.EvaluateAsync<int>("() => window.hintsWhenPrinted"));
+    }
+
+    [Fact]
     public async Task Tapping_an_abbreviation_shows_what_it_stands_for_and_tapping_elsewhere_hides_it()
     {
         _ = Tree.File("docs/abbreviations.md", "The W3C makes standards.\n\n*[W3C]: World Wide Web Consortium");

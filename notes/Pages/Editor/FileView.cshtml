@@ -29,6 +29,8 @@
     // Only what the browser can show has raw bytes to look at (see RawHandler)
     if (Model.IsBinary && Model.Media != MediaKind.None)
         toolbarButtons.Add(ToolbarButton.Raw());
+    if (Model.ShowsPreview)
+        toolbarButtons.Add(ToolbarButton.SaveAsPdf());
     toolbarButtons.Add(ToolbarButton.Download(isFile: true));
     if (!Model.IsReadOnly)
         toolbarButtons.Add(ToolbarButton.Delete("file", Model.DeleteDeniedReason));
@@ -88,6 +90,7 @@
     {
         <script src="~/js/markdown/markdown.js" asp-append-version="true"></script>
     }
+    <script src="~/js/markdown/markdown-print.js" asp-append-version="true"></script>
     @if (Model.CanWrite)
     {
         <script src="~/js/markdown/markdown-edit-here.js" asp-append-version="true"></script>

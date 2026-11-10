@@ -207,3 +207,51 @@
 [data-bs-theme="dark"] .markdown-body pre .jsonKey, [data-bs-theme="dark"] .markdown-body pre .powershellVariable { color: #ff8700; }
 [data-bs-theme="dark"] .markdown-body pre .jsonString { color: #4ec9b0; }
 [data-bs-theme="dark"] .markdown-body pre .builtinFunction, [data-bs-theme="dark"] .markdown-body pre .sqlSystemFunction { color: #dcdcaa; }
+
+/* Printing, and so saving as a PDF (markdown-print.js): only the text, over the whole width of the paper. The page around it (navigation,
+   breadcrumb, toolbar, notices, footer) is left out, and what scrolls on the screen wraps or grows instead, as paper can't scroll. */
+@media print {
+  /* A header and footer of its own: the browser's are drawn right at the edge of the paper, whatever the margins. Defining these replaces
+     them (where the browser supports it). The header is put in by markdown-print.js, as CSS can't know the file name or the date. */
+  @page {
+    margin: 2cm;
+
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font: 9pt sans-serif;
+      color: #6c757d;
+    }
+  }
+
+  body > :not(.container-fluid:has(.markdown-frame)), main > :not(.markdown-frame), .markdown-edit-here {
+    display: none !important;
+  }
+
+  .container-fluid:has(.markdown-frame), .markdown-frame .container {
+    max-width: none;
+    padding: 0;
+  }
+
+  .markdown-body {
+    max-width: none;
+    padding-left: 0 !important;
+  }
+
+  .markdown-body pre {
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+
+  .markdown-body table {
+    display: table;
+    overflow: visible;
+  }
+
+  .markdown-body pre, .markdown-body blockquote, .markdown-body tr, .markdown-body img, .markdown-body .markdown-diagram, .markdown-body .katex-display {
+    break-inside: avoid;
+  }
+
+  .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    break-after: avoid;
+  }
+}
