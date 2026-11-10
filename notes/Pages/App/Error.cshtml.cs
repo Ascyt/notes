@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
 using notes.Extensions;
 
-namespace notes.Pages._;
+namespace notes.Pages.App;
 
 /// <summary>
 /// Shown for every failed request: unhandled exceptions (exception handler) and empty error responses such as

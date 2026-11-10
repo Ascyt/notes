@@ -15,7 +15,7 @@ public sealed class EntryAccessTests : IDisposable
     [Fact]
     public void Without_any_configuration_only_admins_have_access()
     {
-        _notes.Files.File("a/b.md");
+        _ = _notes.Files.File("a/b.md");
 
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, ""));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "a/b.md"));
@@ -40,7 +40,7 @@ public sealed class EntryAccessTests : IDisposable
     public void A_folder_gives_its_permissions_to_everything_in_it()
     {
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwReadOnly: ["g:team"])));
-        _notes.Files.File("a/b/c.md");
+        _ = _notes.Files.File("a/b/c.md");
 
         Assert.Equal(ReadOnly, _notes.Get(Users.Alice, "a/b/c.md"));
         Assert.Equal(ReadOnly, _notes.Get(Users.Alice, "a/b"));
@@ -94,7 +94,7 @@ public sealed class EntryAccessTests : IDisposable
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "SECRET.MD"));
         Assert.Equal(new EntryAccessInfo(ReadAccess.ReadAndWrite, CreateAccess.None), _notes.Get(Users.Carol, "secret.md"));
 
-        _notes.Files.File("secret.md");
+        _ = _notes.Files.File("secret.md");
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "secret.md"));
 
         Assert.Equal(new EntryAccessInfo(ReadAccess.Read, CreateAccess.CreateAndDelete), _notes.Get(Users.Alice, "readonly.md"));
@@ -104,7 +104,7 @@ public sealed class EntryAccessTests : IDisposable
     public void A_directory_is_its_own_folder_and_its_name_in_the_folder_above_means_nothing()
     {
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"]), ("dir", Cfg.Perms(inherit: false))));
-        _notes.Files.Dir("dir");
+        _ = _notes.Files.Dir("dir");
 
         Assert.True(_notes.Get(Users.Alice, "dir").CanRead);
     }
@@ -114,7 +114,7 @@ public sealed class EntryAccessTests : IDisposable
     {
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["a"])));
         _notes.Files.Config("dir", """{ "perms": { "inherit": true, "rwAllow": ["a"] }, "files": [] }""");
-        _notes.Files.File("dir/sub/x.md");
+        _ = _notes.Files.File("dir/sub/x.md");
 
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "dir"));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "dir/sub/x.md"));
@@ -127,10 +127,10 @@ public sealed class EntryAccessTests : IDisposable
     {
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["l"]), ("f.md", Cfg.Perms(inherit: false, rwReadOnly: ["g:team"]))));
         _notes.Files.Config("closed", Cfg.Folder(Cfg.Perms(inherit: false)));
-        _notes.Files.File("f.md");
-        _notes.Files.File("g.md");
-        _notes.Files.Dir("open");
-        _notes.Files.Dir("closed");
+        _ = _notes.Files.File("f.md");
+        _ = _notes.Files.File("g.md");
+        _ = _notes.Files.Dir("open");
+        _ = _notes.Files.Dir("closed");
 
         foreach (TestUser user in new[] { Users.Alice, Users.Nobody, Users.Anonymous, Users.Admin })
         {
@@ -206,8 +206,8 @@ public sealed class EntryAccessTests : IDisposable
 
         EntryAccessInfo before = _notes.Get(Users.Alice, "f.md");
         EntryAccessInfo otherBefore = _notes.Get(Users.Alice, "g.md");
-        _notes.Files.File("f.md");
-        _notes.Files.File("g.md");
+        _ = _notes.Files.File("f.md");
+        _ = _notes.Files.File("g.md");
 
         Assert.Equal(before, _notes.Get(Users.Alice, "f.md"));
         Assert.Equal(otherBefore, _notes.Get(Users.Alice, "g.md"));

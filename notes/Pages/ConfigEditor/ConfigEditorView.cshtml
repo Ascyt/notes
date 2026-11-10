@@ -1,6 +1,6 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Toolbar
-@model notes.Features.View.ConfigEditor.ConfigEditorView
+@model notes.Pages.ConfigEditor.ConfigEditorView
 
 @* The permissions of a directory or file (?config), edited as the JSON they are saved as. It is an editor like the one of a file, with
    Save, and a Reset that puts the default into it. What is wrong with the text is told by the server when saving, and by the schema
@@ -46,7 +46,7 @@
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 65vh; border: 1px solid var(--bs-border-color);" key="Enter"></div>
 
-<script src="~/js/editor.js" asp-append-version="true"></script>
+<script src="~/js/editor/editor.js" asp-append-version="true"></script>
 <script>
     const defaultContents = @Json.Serialize(Model.DefaultContents);
     const errorBox = document.getElementById('config-errors');

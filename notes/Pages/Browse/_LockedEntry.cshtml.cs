@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Features.View.Browse;
+namespace notes.Pages.Browse;
 
 /// <summary>A row of the listing for an entry the user may not read: only its name, which can't be opened or selected.</summary>
 public class _LockedEntry : PageModel

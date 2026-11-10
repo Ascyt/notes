@@ -35,7 +35,7 @@ public sealed class ZipService : IZipService
 
         // Keeps empty directories, which only exist in a zip as an entry of their own
         if (entries.Length == 0 && prefix != "")
-            zip.CreateEntry(prefix);
+            _ = zip.CreateEntry(prefix);
 
         foreach (FileSystemInfo entry in entries)
         {

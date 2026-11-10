@@ -55,7 +55,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task A_copy_by_someone_who_is_not_admin_has_no_permissions_of_its_own()
     {
-        await SucceedsAsync(await TransferAsync(Users.Alice, "copy", "docs", "team"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Alice, "copy", "docs", "team"));
 
         Assert.Null(Tree.ReadConfig("docs/team"));
         // So it has those of where it went: bob may read docs, so he may read the copy (he may not read team)
@@ -66,7 +66,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task An_admins_copy_takes_everything_along_with_the_permissions()
     {
-        await SucceedsAsync(await TransferAsync(Users.Admin, "copy", "docs", "mixed"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Admin, "copy", "docs", "mixed"));
 
         Assert.Equal(Tree.ReadConfig("mixed"), Tree.ReadConfig("docs/mixed"));
         Assert.True(Tree.Exists("docs/mixed/closed/hidden.md"));
@@ -104,21 +104,21 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Clashes_and_impossible_targets()
     {
-        Tree.File("team/a.md", "team's");
+        _ = Tree.File("team/a.md", "team's");
 
         await FailsAndChangesNothingAsync(HttpStatusCode.Conflict, () => TransferAsync(Users.Alice, "copy", "team", "docs/a.md"), Users.Alice);
-        await Client.PostAsync(Users.Alice, "/?selection=clear");
+        _ = await Client.PostAsync(Users.Alice, "/?selection=clear");
         await FailsAndChangesNothingAsync(HttpStatusCode.BadRequest, () => TransferAsync(Users.Alice, "copy", "docs/nested", "docs"), Users.Alice);
-        await Client.PostAsync(Users.Alice, "/?selection=clear");
+        _ = await Client.PostAsync(Users.Alice, "/?selection=clear");
         await FailsAndChangesNothingAsync(HttpStatusCode.BadRequest, () => TransferAsync(Users.Alice, "move", "docs", "docs"), Users.Alice);
-        await Client.PostAsync(Users.Alice, "/?selection=clear");
+        _ = await Client.PostAsync(Users.Alice, "/?selection=clear");
         await FailsAndChangesNothingAsync(HttpStatusCode.BadRequest, () => TransferAsync(Users.Alice, "copy", "docs", "docs/a.md"), Users.Alice);
     }
 
     [Fact]
     public async Task Two_entries_of_the_same_name_conflict()
     {
-        Tree.File("team/sub/a.md");
+        _ = Tree.File("team/sub/a.md");
 
         await FailsAndChangesNothingAsync(HttpStatusCode.Conflict, () => TransferAsync(Users.Alice, "copy", "mixed", "docs/a.md", "team/sub/a.md"), Users.Alice);
     }
@@ -128,7 +128,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Moving_a_directory()
     {
-        await SucceedsAsync(await TransferAsync(Users.Alice, "move", "team", "docs"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Alice, "move", "team", "docs"));
 
         Assert.False(Tree.Exists("docs"));
         Assert.Equal("b", Tree.Read("team/docs/nested/b.md"));
@@ -150,7 +150,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Create_only_is_enough_to_move_into()
     {
-        await SucceedsAsync(await TransferAsync(Users.Alice, "move", "drop", "docs/a.md"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Alice, "move", "drop", "docs/a.md"));
 
         Assert.True(Tree.Exists("drop/a.md"));
         Assert.False(Tree.Exists("docs/a.md"));
@@ -167,7 +167,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task A_moved_file_leaves_its_permissions_behind()
     {
-        await SucceedsAsync(await TransferAsync(Users.Alice, "move", "docs", "mixed/view.md"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Alice, "move", "docs", "mixed/view.md"));
 
         Assert.DoesNotContain("view.md", Tree.ReadConfig("mixed"));
         await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/docs/view.md", "writable here"));
@@ -178,7 +178,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Deleting_the_selection()
     {
-        await SucceedsAsync(await TransferAsync(Users.Alice, "delete", "docs", "docs/a.md", "docs/nested"));
+        _ = await SucceedsAsync(await TransferAsync(Users.Alice, "delete", "docs", "docs/a.md", "docs/nested"));
 
         Assert.Empty(Tree.List("docs"));
     }
@@ -193,7 +193,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     public async Task An_outdated_selection_is_not_transferred()
     {
         SelectionSnapshotDto old = await SelectAsync(Users.Alice, "docs/a.md");
-        await SelectAsync(Users.Alice, "docs/nested");
+        _ = await SelectAsync(Users.Alice, "docs/nested");
 
         HttpResponseMessage response = await Client.PostJsonAsync(Users.Alice, "/team?transfer=copy", new { version = old.Version });
 
@@ -227,7 +227,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task What_was_selected_is_checked_again_when_it_is_transferred()
     {
-        await SelectAsync(Users.Alice, "team/plan.md");
+        _ = await SelectAsync(Users.Alice, "team/plan.md");
         SelectionSnapshotDto selection = await SelectAsync(Users.Alice, "docs/a.md");
         // Meanwhile an admin closes team to alice: plan.md is now hidden from her
         Tree.Config("team", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["u:carol"], cdAllow: ["u:carol"])));
@@ -240,7 +240,7 @@ public sealed class TransferTests(NotesAppFactory app) : IntegrationTest(app)
         Assert.True(Tree.Exists("docs/a.md"));
 
         // Answered exactly like an entry that is gone
-        Tree.File("docs/gone.md", "gone");
+        _ = Tree.File("docs/gone.md", "gone");
         await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/?selection=clear"));
         SelectionSnapshotDto other = await SelectAsync(Users.Alice, "docs/gone.md");
         File.Delete(Tree.Physical("docs/gone.md"));

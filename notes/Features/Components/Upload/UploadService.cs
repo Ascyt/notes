@@ -33,7 +33,7 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
         // The id is made here and only exists as a file in the user's own folder, so a chunk can only ever be
         // written to an upload that this user started (a made-up or someone else's id finds nothing)
         string userDirectory = UserTempDirectory(userId);
-        Directory.CreateDirectory(userDirectory);
+        _ = Directory.CreateDirectory(userDirectory);
 
         Guid uploadId = Guid.NewGuid();
         using (FileStream temp = new(Path.Combine(userDirectory, TempName(uploadId)), FileMode.CreateNew, FileAccess.Write, FileShare.None))

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace notes.Features.View.Editor;
+namespace notes.Pages.Editor;
 
 /// <summary>Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page.</summary>
 public sealed class RawHandler

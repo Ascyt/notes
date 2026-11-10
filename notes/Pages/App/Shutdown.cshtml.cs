@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
 using notes.Features.KillSwitch;
 
-namespace notes.Pages._;
+namespace notes.Pages.App;
 
 /// <summary>
 /// Where the kill switch in the navigation bar (admins only) posts to. Named vaguely, as is everything the browser gets: why the site went

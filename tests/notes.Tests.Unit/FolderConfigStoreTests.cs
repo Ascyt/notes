@@ -240,8 +240,8 @@ public sealed class FolderConfigStoreTests : IDisposable
     public void The_names_of_the_files_leave_out_the_configuration_and_directories()
     {
         _notes.Files.Config("dir", Cfg.Folder(Cfg.Perms()));
-        _notes.Files.File("dir/a.md");
-        _notes.Files.Dir("dir/sub");
+        _ = _notes.Files.File("dir/a.md");
+        _ = _notes.Files.Dir("dir/sub");
 
         Assert.Equal(["a.md"], FolderConfigStore.FileNamesOf(_notes.P("dir")));
     }

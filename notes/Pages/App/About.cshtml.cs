@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Pages._;
+namespace notes.Pages.App;
 
 public sealed class AboutModel : PageModel
 {

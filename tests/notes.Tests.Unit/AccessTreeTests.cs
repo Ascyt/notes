@@ -104,7 +104,7 @@ public sealed class AccessTreeTests : IDisposable
     [Fact]
     public void A_walk_of_the_root_never_enters_the_reserved_folder_or_what_alice_may_not_read()
     {
-        _notes.Files.File("_/temp/user/x.part");
+        _ = _notes.Files.File("_/temp/user/x.part");
 
         List<string> walked = WalkAs(Users.Alice, "");
 

@@ -116,7 +116,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task The_reserved_folder_is_never_listed()
     {
-        Tree.File("_/temp/user/x/y.part");
+        _ = Tree.File("_/temp/user/x/y.part");
 
         foreach (TestUser user in new[] { Users.Alice, Users.Admin })
         {
@@ -131,12 +131,12 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     {
         // (Markdown that can't be changed has no editor at all, see MarkdownPreviewTests)
         Tree.Config("readonly", Cfg.Folder(Cfg.Perms(rwReadOnly: ["g:team"])));
-        Tree.File("readonly/view.txt", "text");
+        _ = Tree.File("readonly/view.txt", "text");
         string view = await BodyOf(await Client.GetAsync(Users.Alice, "/readonly/view.txt"));
         string open = await BodyOf(await Client.GetAsync(Users.Alice, "/mixed/open.md?edit"));
 
-        Assert.Contains("const canWrite = false;", view);
-        Assert.Contains("const canWrite = true;", open);
+        Assert.Contains("\"canWrite\":false", view);
+        Assert.Contains("\"canWrite\":true", open);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task A_zip_leaves_out_what_alice_may_not_read_and_the_configurations()
     {
-        Tree.File("_/temp/x");
+        _ = Tree.File("_/temp/x");
 
         List<string> names = await ZipNamesAsync(await Client.GetAsync(Users.Alice, "/?download"));
 
@@ -200,9 +200,9 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Raw_bytes_only_for_media_and_never_sniffed()
     {
-        Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
-        Tree.File("docs/page.html", "<script>alert(1)</script>");
-        Tree.File("docs/drawing.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>");
+        _ = Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
+        _ = Tree.File("docs/page.html", "<script>alert(1)</script>");
+        _ = Tree.File("docs/drawing.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>");
 
         HttpResponseMessage png = await Client.GetAsync(Users.Alice, "/docs/pic.png?raw");
         await AssertStatus(HttpStatusCode.OK, png);
@@ -217,8 +217,8 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Media_files_have_a_button_to_their_raw_bytes_and_nothing_else_does()
     {
-        Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
-        Tree.File("docs/blob.bin", [0, 1, 2, 3]);
+        _ = Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
+        _ = Tree.File("docs/blob.bin", [0, 1, 2, 3]);
 
         string png = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/pic.png"));
         Assert.Matches(@"<a id=""raw-button"" href=""\?raw""", png);
@@ -232,7 +232,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Html_in_a_note_is_shown_as_text_and_can_not_break_out_of_the_page()
     {
-        Tree.File("docs/evil.md", "</script><script>window.pwned = 1</script><img src=x onerror=alert(1)>");
+        _ = Tree.File("docs/evil.md", "</script><script>window.pwned = 1</script><img src=x onerror=alert(1)>");
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/evil.md"));
 
@@ -244,7 +244,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     public async Task Names_are_encoded_in_listings()
     {
         string name = OperatingSystem.IsWindows() ? "a'b&c onmouseover=alert(1).md" : "\"><img src=x onerror=alert(1)>.md";
-        Tree.File("docs/" + name);
+        _ = Tree.File("docs/" + name);
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/docs"));
 

@@ -14,9 +14,9 @@ public sealed class PathTraversalTests : IntegrationTest, IDisposable
     {
         // Next to the notes: what a way out would reach
         _outside = Path.Combine(Path.GetDirectoryName(App.NotesDir)!, "outside-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_outside);
+        _ = Directory.CreateDirectory(_outside);
         File.WriteAllText(Path.Combine(_outside, "secret.txt"), "OUTSIDE SECRET");
-        Tree.File("_/temp/user/alice-id/0123.part", "someone's upload");
+        _ = Tree.File("_/temp/user/alice-id/0123.part", "someone's upload");
     }
 
     public void Dispose() => Directory.Delete(_outside, recursive: true);
@@ -115,8 +115,8 @@ public sealed class PathTraversalTests : IntegrationTest, IDisposable
     {
         try
         {
-            Directory.CreateSymbolicLink(Tree.Physical("docs/link"), _outside);
-            File.CreateSymbolicLink(Tree.Physical("docs/link.txt"), Path.Combine(_outside, "secret.txt"));
+            _ = Directory.CreateSymbolicLink(Tree.Physical("docs/link"), _outside);
+            _ = File.CreateSymbolicLink(Tree.Physical("docs/link.txt"), Path.Combine(_outside, "secret.txt"));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

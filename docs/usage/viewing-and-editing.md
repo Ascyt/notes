@@ -28,6 +28,8 @@ A link to another site opens in a new tab; a link to the notes stays in the same
 
 The pencil icon (or `e`) opens the editor, the book icon (or `p`) goes back to the rendered view. Without permission to change the file, there is only the rendered view.
 
+Pointing anywhere on the line of a part of the rendered text (a paragraph, a list item, a heading, a code block, …), tapping it on a phone, or moving the focus into it shows a small pencil to its left. It opens the editor with the cursor where that part is written, scrolled to the middle of the editor.
+
 ## The editors
 
 Every text file can be edited in the browser. There are two editors, and the choice between them is kept in the browser:

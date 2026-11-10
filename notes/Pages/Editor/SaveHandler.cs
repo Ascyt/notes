@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 
-namespace notes.Features.View.Editor;
+namespace notes.Pages.Editor;
 
 /// <summary>Answers the editor's save: a POST whose body is the new contents of the file. Needs write access to the file.</summary>
 public sealed class SaveHandler(AccessTree tree)

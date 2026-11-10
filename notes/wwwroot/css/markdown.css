@@ -4,6 +4,36 @@
   overflow-wrap: anywhere;
 }
 
+/* The button that edits a part of the text where it is written (markdown-edit-here.js) sits in a gutter left of the text. Where the
+   page already leaves that much room beside the text (a wide screen), no room is added; otherwise only what is missing.
+   The frame is the full width of the page's content, which the text's container is centered in. */
+.markdown-frame {
+  container-type: inline-size;
+}
+
+.markdown-edit-gutter {
+  --markdown-edit-gutter: 2rem;
+  padding-left: max(0px, calc(var(--markdown-edit-gutter) - var(--bs-gutter-x) * 0.5 - (100cqw - 100%) / 2));
+}
+
+.markdown-edit-here {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  text-decoration: none;
+  opacity: 0.6;
+}
+
+.markdown-edit-here:hover, .markdown-edit-here:focus-visible {
+  background: var(--bs-secondary-bg);
+  opacity: 1;
+}
+
 .markdown-body img {
   max-width: 100%;
 }

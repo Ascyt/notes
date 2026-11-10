@@ -1,8 +1,15 @@
 ﻿using System.Buffers;
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using notes.Pages.Editor.Markdown;
 
-namespace notes.Features.View.Editor;
+namespace notes.Pages.Editor;
+
+/// <summary>What the editor's script (file-editor.js) is told about the file.</summary>
+/// <param name="CanWrite">Whether it may be changed; otherwise the editor is read-only and Save stays disabled.</param>
+/// <param name="MonacoPath">Where Monaco is served from.</param>
+/// <param name="ReadOnlyMessage">What the editor says when typing into it while it is read-only.</param>
+public sealed record FileEditorOptions(bool CanWrite, string Contents, string Language, string MonacoPath, string ReadOnlyMessage);
 
 public class FileView : PageModel
 {

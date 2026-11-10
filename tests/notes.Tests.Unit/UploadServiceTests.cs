@@ -16,7 +16,7 @@ public sealed class UploadServiceTests : IDisposable
     public UploadServiceTests()
     {
         _uploads = new UploadService(_notes.Config, new PathService(), new StructureLock(), _notes.Store, _time);
-        _notes.Files.Dir("dir");
+        _ = _notes.Files.Dir("dir");
     }
 
     public void Dispose() => _notes.Dispose();
@@ -31,7 +31,7 @@ public sealed class UploadServiceTests : IDisposable
     [Fact]
     public void Uploads_in_chunks_and_never_overwrites()
     {
-        _notes.Files.File("dir/a.md", "old");
+        _ = _notes.Files.File("dir/a.md", "old");
 
         string id = _uploads.StartUpload("u");
         Assert.Equal("", Chunk("u", id, "a.md", 0, false, "hello ").Result);
@@ -46,7 +46,7 @@ public sealed class UploadServiceTests : IDisposable
     public async Task A_retried_chunk_overwrites_but_a_gap_is_refused()
     {
         string id = _uploads.StartUpload("u");
-        await Chunk("u", id, "a.md", 0, false, "abc");
+        _ = await Chunk("u", id, "a.md", 0, false, "abc");
 
         Assert.Null(await Chunk("u", id, "a.md", 10, false, "gap"));
         Assert.Equal("", await Chunk("u", id, "a.md", 1, false, "XY"));
@@ -70,7 +70,7 @@ public sealed class UploadServiceTests : IDisposable
     [Fact]
     public async Task The_final_name_is_asked_about_and_a_refusal_discards_the_upload()
     {
-        _notes.Files.File("dir/a.md");
+        _ = _notes.Files.File("dir/a.md");
         string id = _uploads.StartUpload("u");
 
         await Assert.ThrowsAsync<AccessDeniedException>(() => Chunk("u", id, "a.md", 0, true, "x", mayCreate: path => !path.EndsWith("a (1).md", StringComparison.Ordinal)));
@@ -83,7 +83,7 @@ public sealed class UploadServiceTests : IDisposable
     public async Task Aborting_discards_what_was_uploaded()
     {
         string id = _uploads.StartUpload("u");
-        await Chunk("u", id, "a.md", 0, false, "x");
+        _ = await Chunk("u", id, "a.md", 0, false, "x");
 
         _uploads.AbortUpload("u", Guid.Parse(id));
 
@@ -113,7 +113,7 @@ public sealed class UploadServiceTests : IDisposable
     public async Task Stale_uploads_are_deleted_after_an_hour_and_recent_ones_kept()
     {
         string old = _uploads.StartUpload("u");
-        await Chunk("u", old, "a.md", 0, false, "x");
+        _ = await Chunk("u", old, "a.md", 0, false, "x");
 
         _time.Advance(TimeSpan.FromMinutes(59));
         Assert.Equal(0, _uploads.DeleteStaleUploads(TimeSpan.FromHours(1)));
@@ -129,7 +129,7 @@ public sealed class UploadServiceTests : IDisposable
     [Trait("Category", "Timing")]
     public void The_job_runs_with_an_hour()
     {
-        _uploads.StartUpload("u");
+        _ = _uploads.StartUpload("u");
         ClearStaleUploadsJob job = new(_uploads, NullLogger<ClearStaleUploadsJob>.Instance);
 
         job.Run();

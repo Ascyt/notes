@@ -45,7 +45,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     [Fact]
     public async Task Selections_are_per_user()
     {
-        await SelectAsync(Users.Alice, "docs/a.md");
+        _ = await SelectAsync(Users.Alice, "docs/a.md");
 
         Assert.Empty((await GetSelectionAsync(Users.Carol)).Paths);
         Assert.Equal(["docs/a.md"], (await GetSelectionAsync(Users.Alice)).Paths);
@@ -63,7 +63,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     [Fact]
     public async Task Unselecting_needs_nothing()
     {
-        await SelectAsync(Users.Alice, "team/plan.md");
+        _ = await SelectAsync(Users.Alice, "team/plan.md");
         Tree.Config("team", Cfg.Folder(Cfg.Perms(inherit: false)));
 
         HttpResponseMessage response = await Client.PostJsonAsync(Users.Alice, "/?selection=remove", new { paths = new[] { "team/plan.md" } });

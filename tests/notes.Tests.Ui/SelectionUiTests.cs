@@ -53,7 +53,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
 
         // The answer of the server is held back until the test lets it through
         TaskCompletionSource release = new();
-        await Page.RouteAsync("**/*?selection=*", async route =>
+        _ = await Page.RouteAsync("**/*?selection=*", async route =>
         {
             await release.Task;
             await route.ContinueAsync();
@@ -248,7 +248,7 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
     {
         IBrowserContext anonymous = await NewContextAsync(Users.Anonymous);
         IPage page = await anonymous.NewPageAsync();
-        await page.GotoAsync("/docs");
+        _ = await page.GotoAsync("/docs");
 
         await Assertions.Expect(page.Locator(".entry-select")).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator("#selection-bar")).ToHaveCountAsync(0);

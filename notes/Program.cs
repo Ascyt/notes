@@ -16,7 +16,7 @@ using notes.Features.Helpers;
 using notes.Features.KillSwitch;
 using notes.Features.Permissions;
 using notes.Features.Permissions.Migrations;
-using notes.Features.View.Editor;
+using notes.Pages.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 

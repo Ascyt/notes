@@ -49,7 +49,7 @@ public sealed class SelectionServiceTests : IDisposable
     [Fact]
     public void Users_have_their_own_selections()
     {
-        _selections.Add("u", [File("a.md")]);
+        _ = _selections.Add("u", [File("a.md")]);
 
         Assert.Empty(_selections.Get("v").Paths);
     }
@@ -85,7 +85,7 @@ public sealed class SelectionServiceTests : IDisposable
     public void A_failed_transfer_keeps_the_selection()
     {
         SelectionSnapshot selection = _selections.Add("u", [File("a.md")])!;
-        _selections.TryBeginTransfer("u", selection.Version);
+        _ = _selections.TryBeginTransfer("u", selection.Version);
 
         _selections.EndTransfer("u", clear: false);
 
@@ -96,7 +96,7 @@ public sealed class SelectionServiceTests : IDisposable
     public void A_transfer_of_an_outdated_or_empty_selection_does_not_start()
     {
         SelectionSnapshot old = _selections.Add("u", [File("a.md")])!;
-        _selections.Add("u", [File("b.md")]);
+        _ = _selections.Add("u", [File("b.md")]);
 
         Assert.Equal(TransferBeginOutcome.Changed, _selections.TryBeginTransfer("u", old.Version).Outcome);
         SelectionSnapshot cleared = _selections.Clear("u")!;
@@ -109,7 +109,7 @@ public sealed class SelectionServiceTests : IDisposable
     [Trait("Category", "Timing")]
     public void A_selection_is_forgotten_after_30_minutes_without_use()
     {
-        _selections.Add("u", [File("a.md")]);
+        _ = _selections.Add("u", [File("a.md")]);
 
         _time.Advance(TimeSpan.FromMinutes(31));
 
@@ -120,7 +120,7 @@ public sealed class SelectionServiceTests : IDisposable
     [Trait("Category", "Timing")]
     public void Every_use_renews_the_lifetime()
     {
-        _selections.Add("u", [File("a.md")]);
+        _ = _selections.Add("u", [File("a.md")]);
 
         for (int i = 0; i < 4; i++)
         {

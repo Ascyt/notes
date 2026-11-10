@@ -100,6 +100,8 @@ A change to a format that is stored raises its version and comes with a migratio
 - Few comments, short and simple, that say why, not what.
 - Every view and partial gets its data through a typed viewmodel, not through loose variables or `ViewData`.
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
+- Namespaces always follow the folders: what is in `notes/Pages/Editor/Markdown` is in `notes.Pages.Editor.Markdown`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
+- A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
 ### 18. Few dependencies
 

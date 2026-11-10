@@ -60,7 +60,7 @@ public sealed class RenameDeleteTests(NotesAppFactory app) : IntegrationTest(app
     [Fact]
     public async Task Taken_names_conflict()
     {
-        Tree.File("docs/taken.md", "taken");
+        _ = Tree.File("docs/taken.md", "taken");
 
         await AssertStatus(HttpStatusCode.Conflict, await RenameAsync(Users.Alice, "docs/a.md", "taken.md"));
         await AssertStatus(HttpStatusCode.Conflict, await RenameAsync(Users.Alice, "docs/a.md", "TAKEN.MD"));
@@ -153,7 +153,7 @@ public sealed class RenameDeleteTests(NotesAppFactory app) : IntegrationTest(app
     [Fact]
     public async Task Renaming_to_another_spelling_of_the_configuration_file_does_not_tell_whether_there_is_one()
     {
-        Tree.File("mixed/x.md");
+        _ = Tree.File("mixed/x.md");
 
         HttpResponseMessage withConfig = await RenameAsync(Users.Alice, "mixed/x.md", ".config.json.");
         HttpResponseMessage withoutConfig = await RenameAsync(Users.Alice, "docs/a.md", ".config.json.");
@@ -222,7 +222,7 @@ public sealed class RenameDeleteTests(NotesAppFactory app) : IntegrationTest(app
 
         Assert.DoesNotContain("view.md", Tree.ReadConfig("mixed"));
         // A new file of that name has the permissions of the folder, not those of the old one
-        Tree.File("mixed/view.md");
+        _ = Tree.File("mixed/view.md");
         await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/mixed/view.md", "writable now"));
     }
 

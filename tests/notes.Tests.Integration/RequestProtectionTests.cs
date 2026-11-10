@@ -108,7 +108,7 @@ public sealed class RequestProtectionTests(NotesAppFactory app) : IntegrationTes
         HttpResponseMessage response = await Client.SendAsync(Users.Admin, new HttpMethod(method), "/docs/a.md", new StringContent("x"));
 
         // The page has no handler for them, so it is made without one: nothing of the entry is in it
-        Assert.DoesNotContain("const canWrite", await BodyOf(response));
+        Assert.DoesNotContain("file-editor-options", await BodyOf(response));
         Assert.Equal(before, Tree.Snapshot());
     }
 

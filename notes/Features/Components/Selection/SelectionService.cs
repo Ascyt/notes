@@ -149,8 +149,8 @@ public sealed class SelectionService(IMemoryCache cache, TimeProvider time) : IS
         }
 
         // Back into the cache (with a fresh lifetime) before it is let go of here, so that it is found in one of the two all the time
-        cache.Set(CacheKey(userId), state, new MemoryCacheEntryOptions { SlidingExpiration = Lifetime });
-        _transferring.TryRemove(userId, out _);
+        _ = cache.Set(CacheKey(userId), state, new MemoryCacheEntryOptions { SlidingExpiration = Lifetime });
+        _ = _transferring.TryRemove(userId, out _);
     }
 
     private static string CacheKey(string userId) => "selection:" + userId;

@@ -24,7 +24,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
     {
         string id = Guid.NewGuid().ToString("N");
         NotesDir = Path.Combine(Path.GetTempPath(), "notes-tests", id);
-        Directory.CreateDirectory(NotesDir);
+        _ = Directory.CreateDirectory(NotesDir);
         KillSwitchMarker = Path.Combine(Path.GetTempPath(), "notes-tests", id + ".killed");
     }
 
@@ -85,7 +85,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
 
             // Hangfire's server would run the stale-uploads job by the real clock, whenever the hour is full
             foreach (ServiceDescriptor hangfireServer in services.Where(IsHangfireServer).ToList())
-                services.Remove(hangfireServer);
+                _ = services.Remove(hangfireServer);
         });
     }
 

@@ -5,7 +5,7 @@ using notes.Features.Components.Selection;
 using notes.Features.Helpers;
 using notes.Features.Permissions;
 
-namespace notes.Features.View.Browse;
+namespace notes.Pages.Browse;
 
 /// <summary>An entry of the listing.</summary>
 /// <param name="Path">Its physical path.</param>

@@ -57,7 +57,7 @@ public sealed class PathServiceTests : IDisposable
     [Fact]
     public void Finds_existing_entries_case_insensitively_and_returns_their_real_spelling()
     {
-        _notes.Files.File("Dir/File.md");
+        _ = _notes.Files.File("Dir/File.md");
 
         Assert.Equal(_notes.P("Dir/File.md"), Find("dir/file.MD"));
         Assert.Equal(_notes.P("Dir/File.md"), Find("/Dir//File.md/"));
@@ -88,9 +88,9 @@ public sealed class PathServiceTests : IDisposable
     [InlineData("dir/ file.md")]
     public void Paths_that_lead_out_or_to_reserved_entries_have_no_path(string virtualPath)
     {
-        _notes.Files.File("dir/file.md");
+        _ = _notes.Files.File("dir/file.md");
         _notes.Files.Config("dir", "{}");
-        _notes.Files.File("_/temp/x");
+        _ = _notes.Files.File("_/temp/x");
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(_notes.Root)!, "outside.txt"), "outside");
 
         Assert.Null(Find(virtualPath));
@@ -111,13 +111,13 @@ public sealed class PathServiceTests : IDisposable
     public void Links_are_not_followed()
     {
         string outside = Path.Combine(Path.GetTempPath(), "notes-unit-outside-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(outside);
+        _ = Directory.CreateDirectory(outside);
         File.WriteAllText(Path.Combine(outside, "secret.txt"), "outside");
         try
         {
             try
             {
-                Directory.CreateSymbolicLink(_notes.P("link"), outside);
+                _ = Directory.CreateSymbolicLink(_notes.P("link"), outside);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -136,11 +136,11 @@ public sealed class PathServiceTests : IDisposable
     [Fact]
     public void Many_paths_are_found_together_each_as_on_its_own()
     {
-        _notes.Files.File("Dir/File.md");
-        _notes.Files.File("dir2/x[1].md");
-        _notes.Files.File("Dir/Sub/deep.md");
+        _ = _notes.Files.File("Dir/File.md");
+        _ = _notes.Files.File("dir2/x[1].md");
+        _ = _notes.Files.File("Dir/Sub/deep.md");
         for (int i = 0; i < 20; i++)
-            _notes.Files.File($"Dir/img{i}.png");
+            _ = _notes.Files.File($"Dir/img{i}.png");
 
         string[] paths = ["dir/file.MD", "missing.md", "Dir/img3.png", "", "Dir/../dir2/x[1].md", "dir2/x[1].md", "DIR/sub/DEEP.md",
             "Dir/File.md/nothing", "dir/img19.png", "_/temp", "Dir/img3.png"];
@@ -158,8 +158,8 @@ public sealed class PathServiceTests : IDisposable
         if (OperatingSystem.IsWindows())
             Assert.Skip("* and ? can't be in names on Windows.");
 
-        _notes.Files.File("a*.md");
-        _notes.Files.File("ab.md");
+        _ = _notes.Files.File("a*.md");
+        _ = _notes.Files.File("ab.md");
 
         Assert.Equal(_notes.P("a*.md"), Find("a*.md"));
         Assert.Null(Find("a?.md"));
@@ -168,10 +168,10 @@ public sealed class PathServiceTests : IDisposable
     [Fact]
     public void Where_names_only_differ_in_case_the_exact_spelling_wins()
     {
-        _notes.Files.File("a.md", "lower");
+        _ = _notes.Files.File("a.md", "lower");
         if (File.Exists(_notes.P("A.md")))
             Assert.Skip("The filesystem here doesn't tell names apart by case.");
-        _notes.Files.File("A.md", "upper");
+        _ = _notes.Files.File("A.md", "upper");
 
         Assert.Equal(_notes.P("A.md"), Find("A.md"));
         Assert.Equal(_notes.P("a.md"), Find("a.md"));

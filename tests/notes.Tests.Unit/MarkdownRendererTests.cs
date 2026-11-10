@@ -1,4 +1,4 @@
-using notes.Features.View.Editor;
+using notes.Pages.Editor.Markdown;
 
 namespace notes.Tests.Unit;
 
@@ -16,7 +16,7 @@ public sealed class MarkdownRendererTests
 
         Assert.Contains("<em>text</em>", html);
         Assert.Contains("<code>code</code>", html);
-        Assert.Contains("<li>one</li>", html);
+        Assert.Matches("<li[^>]*>one</li>", html);
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public sealed class MarkdownRendererTests
     {
         string html = Render("| a | b |\n|---|---|\n| 1 | 2 |\n\n~~gone~~\n\n- [x] done\n- [ ] todo\n\nNote[^1]\n\n[^1]: The note.\n\n:smile:");
 
-        Assert.Contains("<table>", html);
+        Assert.Matches("<table[^>]*>", html);
         Assert.Contains("<del>gone</del>", html);
         Assert.Contains("class=\"contains-task-list\"", html);
         Assert.Contains("class=\"task-list-item\"", html);
@@ -167,8 +167,8 @@ public sealed class MarkdownRendererTests
     {
         string html = Render("^^^\n![pic](a.png)\n^^^ The caption\n\n^^ A footer\n\n\"\"A citation\"\"");
 
-        Assert.Contains("<figcaption>The caption</figcaption>", html);
-        Assert.Contains("<footer>A footer</footer>", html);
+        Assert.Matches("<figcaption[^>]*>The caption</figcaption>", html);
+        Assert.Matches("<footer[^>]*>A footer</footer>", html);
         Assert.Contains("<cite>A citation</cite>", html);
     }
 
@@ -218,6 +218,38 @@ public sealed class MarkdownRendererTests
     [InlineData("![x](https://example.com/pic.png)")]
     public void Links_to_the_notes_stay_in_the_tab(string markdown)
         => Assert.DoesNotContain("target=", Render(markdown));
+
+    [Fact]
+    public void Blocks_say_where_they_start_in_the_text()
+    {
+        string html = Render("# Title\r\n\r\nSome text\r\nmore\n\n- one\n  - nested\n\n> quote");
+
+        Assert.Matches("<h1[^>]* data-source-line=\"1\" data-source-column=\"1\">Title", html);
+        Assert.Matches("<p data-source-line=\"3\" data-source-column=\"1\">Some text", html);
+        Assert.Matches("<li data-source-line=\"7\" data-source-column=\"3\">nested", html);
+        Assert.Matches("<p data-source-line=\"9\" data-source-column=\"3\">quote", html);
+    }
+
+    [Theory]
+    [InlineData("Text\n\n```csharp\nint x;\n```")] // highlighted
+    [InlineData("Text\n\n```unknown-language\nx\n```")]
+    [InlineData("Text\n\n```mermaid\ngraph TD\n```")]
+    [InlineData("Text\n\n    indented code")]
+    public void Code_blocks_say_where_they_start_around_them(string markdown)
+        => Assert.Matches("<div data-source-line=\"3\" data-source-column=\"1\">\\s*<(pre|div)", Render(markdown));
+
+    [Fact]
+    public void A_note_can_not_set_where_it_starts_itself()
+    {
+        string html = Render("# Title {data-source-line=99}");
+
+        Assert.DoesNotContain("99", html);
+        Assert.Contains("data-source-line=\"1\"", html);
+    }
+
+    [Fact]
+    public void What_the_parser_adds_by_itself_has_no_place_in_the_text()
+        => Assert.Matches("<div class=\"footnotes\">", Render("Note[^1]\n\n[^1]: The note."));
 
     [Fact]
     public void A_link_can_not_set_its_own_target()

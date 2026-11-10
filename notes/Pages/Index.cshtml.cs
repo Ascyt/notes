@@ -10,9 +10,9 @@ using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Helpers;
 using notes.Features.Permissions;
-using notes.Features.View.Browse;
-using notes.Features.View.ConfigEditor;
-using notes.Features.View.Editor;
+using notes.Pages.Browse;
+using notes.Pages.ConfigEditor;
+using notes.Pages.Editor;
 
 namespace notes.Pages;
 

@@ -1,5 +1,5 @@
-﻿@page
-@model notes.Pages._.ErrorModel
+﻿@page "/_/Error"
+@model notes.Pages.App.ErrorModel
 @{
     ViewData["Title"] = $"{Model.StatusCode} {Model.Reason}";
 }
@@ -17,7 +17,7 @@
                 <p class="mb-2">
                     Not logged in. Some files can only be seen after logging in.
                 </p>
-                <a class="btn btn-sm btn-primary" asp-page="/_/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
+                <a class="btn btn-sm btn-primary" asp-page="/App/Login" asp-route-returnUrl="@Model.RequestedPath"><i class="fa-solid fa-right-to-bracket"></i> Log in</a>
             </div>
         </div>
     }

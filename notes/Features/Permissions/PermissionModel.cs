@@ -97,7 +97,7 @@ public sealed class PrincipalSet
                 _ => null
             };
             if (prefix is not null && Principal.Normalize(prefix + claim.Value, out _) is { } principal)
-                values.Add(principal);
+                _ = values.Add(principal);
         }
 
         return new PrincipalSet(values);

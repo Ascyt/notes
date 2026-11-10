@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Helpers;
 using notes.Features.Permissions.Migrations;
-using notes.Features.View.ConfigEditor;
+using notes.Pages.ConfigEditor;
 
 namespace notes.Features.Permissions;
 

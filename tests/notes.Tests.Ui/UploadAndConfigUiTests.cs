@@ -113,7 +113,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
     public async Task Toasts_go_away_when_clicked()
     {
         await OpenAsync("/docs");
-        await Page.EvaluateAsync("() => notify('Hello <b>there</b>', 'info')");
+        _ = await Page.EvaluateAsync("() => notify('Hello <b>there</b>', 'info')");
 
         await Expect(Toast).ToHaveTextAsync("Hello <b>there</b>");
         await Toast.ClickAsync();
@@ -128,22 +128,22 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
     {
         IBrowserContext admin = await NewContextAsync(Users.Admin);
         IPage page = await admin.NewPageAsync();
-        await page.GotoAsync("/docs?config");
-        await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        _ = await page.GotoAsync("/docs?config");
+        _ = await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
 
-        await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": true, \"rwAllow\": [\"a\"] }, \"files\": [] }')");
+        _ = await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": true, \"rwAllow\": [\"a\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
         await Assertions.Expect(page.Locator("#config-errors")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".toast-card[data-kind='danger']")).ToBeVisibleAsync();
         Assert.Null(Tree.ReadConfig("docs"));
 
-        await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": false, \"rwAllow\": [\"u:carol\"] }, \"files\": [] }')");
+        _ = await page.EvaluateAsync("() => window.editor.setValue('{ \"version\": \"1.0.0\", \"perms\": { \"inherit\": false, \"rwAllow\": [\"u:carol\"] }, \"files\": [] }')");
         await page.Locator("#save-button").ClickAsync();
         await Assertions.Expect(page.Locator("#config-errors")).ToBeHiddenAsync();
         await Eventually(() => Tree.ReadConfig("docs")?.Contains("u:carol") == true, "the permissions are saved");
         await ExpectDisabledWithReason(page.Locator("#save-button"));
         // What was saved has the entry for the file, and the editor shows it
-        await page.WaitForFunctionAsync("() => window.editor.getValue().includes('a.md')");
+        _ = await page.WaitForFunctionAsync("() => window.editor.getValue().includes('a.md')");
 
         await page.Locator("#reset-button").ClickAsync();
         Assert.Contains("\"inherit\": true", await page.EvaluateAsync<string>("() => window.editor.getValue()"));
@@ -157,16 +157,16 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         const string MonacoFontSize = "() => window.editor.getOption(monaco.editor.EditorOption.fontSize)";
         IBrowserContext admin = await NewContextAsync(Users.Admin);
         IPage page = await admin.NewPageAsync();
-        await page.GotoAsync("/docs?config");
-        await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        _ = await page.GotoAsync("/docs?config");
+        _ = await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
         double usualSize = await page.EvaluateAsync<double>(MonacoFontSize);
 
         await page.Locator("#zoom-out-button").ClickAsync();
         Assert.True(await page.EvaluateAsync<double>(MonacoFontSize) < usualSize);
 
         // The same zoom in the editor of a file
-        await page.GotoAsync("/docs/a.md?edit");
-        await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        _ = await page.GotoAsync("/docs/a.md?edit");
+        _ = await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
         Assert.True(await page.EvaluateAsync<double>(MonacoFontSize) < usualSize);
         await admin.DisposeAsync();
     }

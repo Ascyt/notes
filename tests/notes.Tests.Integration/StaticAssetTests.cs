@@ -6,7 +6,7 @@ public sealed class StaticAssetTests(NotesAppFactory app) : IntegrationTest(app)
 {
     [Theory]
     [InlineData("/js/site.js")]
-    [InlineData("/js/editor.js")]
+    [InlineData("/js/editor/editor.js")]
     [InlineData("/shortcuts/shortcuts.js")]
     [InlineData("/css/site.css")]
     public async Task The_scripts_and_styles_of_the_pages_are_served(string path)

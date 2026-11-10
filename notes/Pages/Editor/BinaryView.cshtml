@@ -1,6 +1,6 @@
 @using notes.Features.Components.Delete
-@using notes.Features.View.Editor
-@model notes.Features.View.Editor.FileView
+@using notes.Pages.Editor
+@model notes.Pages.Editor.FileView
 @{
     string message = $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the download button above.";
     string name = System.IO.Path.GetFileName(Model.VirtualPath);

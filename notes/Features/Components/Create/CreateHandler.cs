@@ -40,7 +40,7 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
                 configs.FileAdded(physicalDirectory, name);
             }
             else
-                Directory.CreateDirectory(newPhysicalPath);
+                _ = Directory.CreateDirectory(newPhysicalPath);
 
             // A new file is there to be written: it opens in the editor, not as the (empty) preview of a markdown file
             return new RedirectResult("/" + path.ToVirtualPath(config.Dir, newPhysicalPath) + (isFile ? "?edit" : ""));

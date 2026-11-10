@@ -81,11 +81,11 @@ public sealed class StaleUploadTimingTests : TimingTest
     public async Task An_upload_that_is_slow_but_going_on_is_kept()
     {
         string id = await StartUploadAsync(Users.Alice, "docs");
-        await ChunkAsync(Users.Alice, "docs", id, "slow.md", 0, false, "a");
+        _ = await ChunkAsync(Users.Alice, "docs", id, "slow.md", 0, false, "a");
 
         App.Time.Advance(TimeSpan.FromMinutes(45));
         RunStaleUploadsJob();
-        await ChunkAsync(Users.Alice, "docs", id, "slow.md", 1, false, "b");
+        _ = await ChunkAsync(Users.Alice, "docs", id, "slow.md", 1, false, "b");
 
         App.Time.Advance(TimeSpan.FromMinutes(45));
         RunStaleUploadsJob();
@@ -174,7 +174,7 @@ public sealed class SelectionTimingTests : TimingTest
     [Fact]
     public async Task A_selection_left_alone_for_half_an_hour_is_forgotten()
     {
-        await SelectAsync(Users.Alice, "docs/a.md");
+        _ = await SelectAsync(Users.Alice, "docs/a.md");
 
         App.Time.Advance(TimeSpan.FromMinutes(31));
 
@@ -184,7 +184,7 @@ public sealed class SelectionTimingTests : TimingTest
     [Fact]
     public async Task Looking_at_the_selection_keeps_it()
     {
-        await SelectAsync(Users.Alice, "docs/a.md");
+        _ = await SelectAsync(Users.Alice, "docs/a.md");
 
         for (int i = 0; i < 3; i++)
         {
@@ -212,7 +212,7 @@ public sealed class SelectionTimingTests : TimingTest
     [Fact]
     public async Task A_forgotten_selection_is_a_fresh_one_that_works_as_usual()
     {
-        await SelectAsync(Users.Alice, "docs/a.md");
+        _ = await SelectAsync(Users.Alice, "docs/a.md");
         App.Time.Advance(TimeSpan.FromHours(5));
 
         SelectionSnapshotDto fresh = await SelectAsync(Users.Alice, "docs/nested/b.md");
@@ -259,7 +259,7 @@ public sealed class DownloadTimingTests : TimingTest
         App.BeforeAccessCheck = (user, asked) =>
         {
             if (user.FindFirst("sub")?.Value == Users.Alice.Sub && string.Equals(asked, physical, StringComparison.OrdinalIgnoreCase) && reached.TrySetResult())
-                release.Wait(Timeout);
+                _ = release.Wait(Timeout);
         };
         return (reached.Task, release.Set);
     }
@@ -282,7 +282,7 @@ public sealed class DownloadTimingTests : TimingTest
     [Fact]
     public async Task Read_taken_away_while_a_zip_is_made_applies_to_what_is_not_in_it_yet()
     {
-        Tree.File("docs/z-last.md", "after the pause");
+        _ = Tree.File("docs/z-last.md", "after the pause");
         (Task reached, Action release) = PauseZipAt("docs/nested");
         Task<HttpResponseMessage> download = Client.GetAsync(Users.Alice, "/docs?download");
         await reached.WaitAsync(Timeout, Cancellation);
@@ -319,7 +319,7 @@ public sealed class DownloadTimingTests : TimingTest
     public async Task Stale_uploads_cleared_while_a_zip_of_the_root_is_made_are_not_part_of_it()
     {
         string id = await StartUploadAsync(Users.Alice, "docs");
-        await ChunkAsync(Users.Alice, "docs", id, "half.md", 0, false, "half");
+        _ = await ChunkAsync(Users.Alice, "docs", id, "half.md", 0, false, "half");
         (Task reached, Action release) = PauseZipAt("docs");
         Task<HttpResponseMessage> download = Client.GetAsync(Users.Alice, "/?download");
         await reached.WaitAsync(Timeout, Cancellation);

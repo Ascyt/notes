@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.StaticFiles;
 
-namespace notes.Features.View.Editor;
+namespace notes.Pages.Editor;
 
 public enum MediaKind { None, Image, Video, Audio, Pdf }
 

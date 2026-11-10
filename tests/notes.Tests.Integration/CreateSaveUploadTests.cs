@@ -28,7 +28,7 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     [Fact]
     public async Task A_new_file_gets_an_entry_in_the_configuration_of_its_folder()
     {
-        await Client.PostAsync(Users.Alice, "/mixed?create=file");
+        _ = await Client.PostAsync(Users.Alice, "/mixed?create=file");
 
         Assert.Contains(NextName(), Tree.ReadConfig("mixed"));
     }
@@ -205,7 +205,7 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     {
         string id = await StartUploadAsync(Users.Alice, "docs");
 
-        await ChunkAsync(Users.Alice, "docs", id, name, 0, true, """{ "perms": { "inherit": false, "rwAllow": ["u:alice"], "cdAllow": ["u:alice"] }, "files": [] }""");
+        _ = await ChunkAsync(Users.Alice, "docs", id, name, 0, true, """{ "perms": { "inherit": false, "rwAllow": ["u:alice"], "cdAllow": ["u:alice"] }, "files": [] }""");
 
         Assert.Null(Tree.ReadConfig("docs"));
         // ...and so nothing about who may do what in docs changed
@@ -216,10 +216,10 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     public async Task The_upload_of_another_user_can_not_be_continued_or_aborted()
     {
         string id = await StartUploadAsync(Users.Alice, "docs");
-        await ChunkAsync(Users.Alice, "docs", id, "mine.md", 0, false, "alice's ");
+        _ = await ChunkAsync(Users.Alice, "docs", id, "mine.md", 0, false, "alice's ");
 
         await AssertStatus(HttpStatusCode.Conflict, await ChunkAsync(Users.Carol, "docs", id, "mine.md", 8, true, "evil"));
-        await Client.PostAsync(Users.Carol, $"/docs?upload={id}&abort");
+        _ = await Client.PostAsync(Users.Carol, $"/docs?upload={id}&abort");
 
         HttpResponseMessage last = await ChunkAsync(Users.Alice, "docs", id, "mine.md", 8, true, "upload");
         await AssertStatus(HttpStatusCode.OK, last);
@@ -244,7 +244,7 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     public async Task A_chunk_that_leaves_a_gap_is_refused()
     {
         string id = await StartUploadAsync(Users.Alice, "docs");
-        await ChunkAsync(Users.Alice, "docs", id, "x.md", 0, false, "abc");
+        _ = await ChunkAsync(Users.Alice, "docs", id, "x.md", 0, false, "abc");
 
         await AssertStatus(HttpStatusCode.Conflict, await ChunkAsync(Users.Alice, "docs", id, "x.md", 100, true, "x"));
     }
@@ -257,7 +257,7 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     public async Task An_uploaded_file_gets_an_entry_in_the_configuration_of_its_folder()
     {
         string id = await StartUploadAsync(Users.Alice, "mixed");
-        await ChunkAsync(Users.Alice, "mixed", id, "new.md", 0, true, "x");
+        _ = await ChunkAsync(Users.Alice, "mixed", id, "new.md", 0, true, "x");
 
         Assert.Contains("new.md", Tree.ReadConfig("mixed"));
     }

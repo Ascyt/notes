@@ -60,7 +60,7 @@ public sealed class TimingUiTests(TimingUiTests.Fixture fixture) : UiTest(fixtur
             await Eventually(() => App.Services.GetRequiredService<ISelectionService>().Get(Users.Alice.Sub!).Busy, "the transfer has started");
 
             // The other tab sees that the selection is busy: no actions, a spinner, the boxes disabled
-            await other.GotoAsync("/docs");
+            _ = await other.GotoAsync("/docs");
             await Assertions.Expect(other.Locator("#selection-spinner")).ToBeVisibleAsync();
             await Assertions.Expect(other.Locator("#selection-actions")).ToBeHiddenAsync();
             await Assertions.Expect(other.Locator("tr.entry-row[data-path='docs/a.md'] .entry-select")).ToBeDisabledAsync();

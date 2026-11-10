@@ -42,36 +42,36 @@ public static class BaseTree
     public static void Create(NotesTree tree)
     {
         tree.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["g:guests", "a", "u:carol"], cdAllow: ["g:team"])));
-        tree.File("readme.md", "# Readme");
-        tree.File("docs/a.md", "a");
-        tree.File("docs/nested/b.md", "b");
+        _ = tree.File("readme.md", "# Readme");
+        _ = tree.File("docs/a.md", "a");
+        _ = tree.File("docs/nested/b.md", "b");
 
         tree.Config("team", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], cdAllow: ["g:team"])));
-        tree.File("team/plan.md", "plan");
-        tree.File("team/sub/c.md", "c");
+        _ = tree.File("team/plan.md", "plan");
+        _ = tree.File("team/sub/c.md", "c");
 
         tree.Config("vault", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["u:carol"], cdAllow: ["u:carol"])));
-        tree.File("vault/secret.md", "the secret");
-        tree.File("vault/inner/deep.md", "deep secret");
+        _ = tree.File("vault/secret.md", "the secret");
+        _ = tree.File("vault/inner/deep.md", "deep secret");
 
         tree.Config("mixed", Cfg.Folder(Cfg.Perms(),
             ("locked.md", Cfg.Perms(inherit: false)),
             ("keep.md", Cfg.Perms(cdDeny: ["g:team"])),
             ("view.md", Cfg.Perms(rwReadOnly: ["g:team"]))));
-        tree.File("mixed/open.md", "open");
-        tree.File("mixed/locked.md", "locked contents");
-        tree.File("mixed/keep.md", "keep");
-        tree.File("mixed/view.md", "view");
+        _ = tree.File("mixed/open.md", "open");
+        _ = tree.File("mixed/locked.md", "locked contents");
+        _ = tree.File("mixed/keep.md", "keep");
+        _ = tree.File("mixed/view.md", "view");
         tree.Config("mixed/closed", Cfg.Folder(Cfg.Perms(inherit: false)));
-        tree.File("mixed/closed/hidden.md", "hidden contents");
+        _ = tree.File("mixed/closed/hidden.md", "hidden contents");
 
         tree.Config("drop", Cfg.Folder(Cfg.Perms(cdCreateOnly: ["g:team"])));
-        tree.File("drop/existing.md", "existing");
+        _ = tree.File("drop/existing.md", "existing");
 
         tree.Config("shelf", Cfg.Folder(Cfg.Perms(cdDeny: ["g:team"])));
-        tree.File("shelf/item.md", "item");
+        _ = tree.File("shelf/item.md", "item");
 
         tree.Config("broken", "{ this is not json");
-        tree.File("broken/x.md", "x");
+        _ = tree.File("broken/x.md", "x");
     }
 }

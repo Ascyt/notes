@@ -13,7 +13,7 @@ public sealed class TempNotes : IDisposable
     public TempNotes()
     {
         Root = Path.Combine(Path.GetTempPath(), "notes-unit", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Root);
+        _ = Directory.CreateDirectory(Root);
         Config = new Config { Dir = Root, Version = "1.0.0", Auth = new AuthConfig { Authority = "https://auth.invalid", ClientId = "c", ClientSecret = "s" } };
         Migrator = new ConfigMigrator(ConfigVersions.Parse(Config.Version), ConfigMigrations.All, NullLogger<ConfigMigrator>.Instance);
         Store = new FolderConfigStore(Config, Migrator, NullLogger<FolderConfigStore>.Instance);

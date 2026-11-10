@@ -55,7 +55,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await WaitForEditorAsync();
         await Expect(Page.Locator("#simple-editor")).ToBeHiddenAsync();
         await Expect(Page.Locator("#simple-view-button")).ToHaveAttributeAsync("data-leads-to", "simple");
-        await Page.WaitForFunctionAsync("() => window.editor.getValue() === 'changed'");
+        _ = await Page.WaitForFunctionAsync("() => window.editor.getValue() === 'changed'");
         await Expect(SaveButton).ToHaveAttributeAsync("aria-disabled", "false");
     }
 
@@ -84,7 +84,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         Assert.Equal(usualSimpleSize, await Page.EvaluateAsync<double>(SimpleFontSize));
 
         // Zooming out as far as it goes disables the button, with the reason
-        await Page.EvaluateAsync("() => { while (editorZoom.canZoomOut) editorZoom.zoomOut(); }");
+        _ = await Page.EvaluateAsync("() => { while (editorZoom.canZoomOut) editorZoom.zoomOut(); }");
         await ExpectDisabledWithReason(Page.Locator("#zoom-out-button"));
         await Expect(Page.Locator("#zoom-in-button")).ToHaveAttributeAsync("aria-disabled", "false");
     }
@@ -94,7 +94,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     {
         // (Markdown that can't be changed is only shown rendered)
         Tree.Config("readonly", Cfg.Folder(Cfg.Perms(rwReadOnly: ["g:team"])));
-        Tree.File("readonly/view.txt", "view");
+        _ = Tree.File("readonly/view.txt", "view");
         await OpenAsync("/readonly/view.txt");
         await WaitForEditorAsync();
 
@@ -112,7 +112,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     {
         IBrowserContext bob = await NewContextAsync(Users.Bob);
         IPage page = await bob.NewPageAsync();
-        await page.GotoAsync("/docs/a.md");
+        _ = await page.GotoAsync("/docs/a.md");
 
         await Assertions.Expect(page.Locator("#download-button")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#save-button")).ToHaveCountAsync(0);
@@ -125,7 +125,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     public async Task Html_in_a_note_is_text_in_the_editor_and_never_runs()
     {
         const string evil = "</script><script>window.pwned = 1</script><img src=x onerror=\"window.pwned = 2\">";
-        Tree.File("docs/evil.md", evil);
+        _ = Tree.File("docs/evil.md", evil);
 
         await OpenAsync("/docs/evil.md?edit");
         await WaitForEditorAsync();
@@ -139,7 +139,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Html_in_a_note_is_text_in_the_preview_and_never_runs()
     {
-        Tree.File("docs/evil.md", "<script>window.pwned = 1</script>\n\n<img src=x onerror=\"window.pwned = 2\">\n\n[go](javascript:window.pwned=3)");
+        _ = Tree.File("docs/evil.md", "<script>window.pwned = 1</script>\n\n<img src=x onerror=\"window.pwned = 2\">\n\n[go](javascript:window.pwned=3)");
 
         await OpenAsync("/docs/evil.md");
         await Expect(Page.Locator("#markdown-preview")).ToContainTextAsync("<script>window.pwned = 1</script>");
@@ -149,10 +149,85 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         Assert.True(await Page.EvaluateAsync<bool>("() => window.pwned === undefined"));
     }
 
+    private const string EditHereNote = "# Title\n\nFirst paragraph.\n\n- one\n- two\n\n```csharp\nint x;\n```\n";
+
+    [Fact]
+    public async Task Pointing_at_a_part_of_the_text_offers_to_edit_it_where_it_is_written()
+    {
+        _ = Tree.File("docs/edit-here.md", EditHereNote);
+        ILocator button = Page.Locator("#edit-here-button");
+
+        await OpenAsync("/docs/edit-here.md");
+        await Expect(button).ToBeHiddenAsync();
+        await Page.Locator("#markdown-preview li").Nth(1).HoverAsync();
+        await Expect(button).ToBeVisibleAsync();
+        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=6&column=1");
+
+        // Left of the text, at the height of the item
+        LocatorBoundingBoxResult buttonBox = (await button.BoundingBoxAsync())!;
+        LocatorBoundingBoxResult itemBox = (await Page.Locator("#markdown-preview li").Nth(1).BoundingBoxAsync())!;
+        LocatorBoundingBoxResult textBox = (await Page.Locator("#markdown-preview").BoundingBoxAsync())!;
+        Assert.True(buttonBox.X >= 0 && buttonBox.X + buttonBox.Width <= textBox.X + 1, "the button is in the gutter, on the page");
+        Assert.InRange(buttonBox.Y, itemBox.Y - 1, itemBox.Y + itemBox.Height);
+
+        await Page.Locator("#markdown-preview pre").HoverAsync();
+        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=8&column=1");
+
+        // Anywhere on the line counts, also far right of the text, and off the lines of the text it goes away at once
+        int pageWidth = Page.ViewportSize!.Width;
+        await Page.Mouse.MoveAsync(pageWidth - 5, itemBox.Y + itemBox.Height / 2);
+        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=6&column=1");
+        await Page.Mouse.MoveAsync(pageWidth - 5, 700);
+        await Expect(button).ToBeHiddenAsync(new LocatorAssertionsToBeHiddenOptions { Timeout = 200 });
+
+        await Page.Locator("#markdown-preview li").Nth(1).HoverAsync();
+        await button.ClickAsync();
+        await WaitForEditorAsync();
+        _ = await Page.WaitForFunctionAsync("() => { const p = window.editor.getPosition(); return p.lineNumber === 6 && p.column === 1; }");
+        Assert.DoesNotContain("#", Page.Url);
+    }
+
+    [Fact]
+    public async Task On_a_phone_tapping_a_part_of_the_text_offers_to_edit_it_in_the_simple_editor()
+    {
+        _ = Tree.File("docs/edit-here.md", EditHereNote);
+        await Page.SetViewportSizeAsync(390, 844);
+        ILocator button = Page.Locator("#edit-here-button");
+
+        await OpenAsync("/docs/edit-here.md");
+        _ = await Page.EvaluateAsync("() => localStorage.setItem('notes.simpleEditor', 'true')");
+        await Page.Locator("#markdown-preview p").First.ClickAsync();
+        await Expect(button).ToBeVisibleAsync();
+        LocatorBoundingBoxResult buttonBox = (await button.BoundingBoxAsync())!;
+        LocatorBoundingBoxResult textBox = (await Page.Locator("#markdown-preview p").First.BoundingBoxAsync())!;
+        Assert.True(buttonBox.X >= 0 && buttonBox.X + buttonBox.Width <= textBox.X, "the button is left of the text, on the screen");
+
+        // Tapping elsewhere takes it away
+        await Page.Locator("footer").ClickAsync();
+        await Expect(button).ToBeHiddenAsync();
+
+        await Page.Locator("#markdown-preview p").First.ClickAsync();
+        await button.ClickAsync();
+        await Expect(Page.Locator("#simple-editor")).ToBeVisibleAsync();
+        _ = await Page.WaitForFunctionAsync("() => document.getElementById('simple-editor').selectionStart === '# Title\\n\\n'.length");
+    }
+
+    [Fact]
+    public async Task Whoever_may_not_change_a_note_is_not_offered_to_edit_parts_of_it()
+    {
+        IBrowserContext bob = await NewContextAsync(Users.Bob);
+        IPage page = await bob.NewPageAsync();
+        _ = await page.GotoAsync("/docs/a.md");
+
+        await Assertions.Expect(page.Locator("#markdown-preview")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#edit-here-button")).ToHaveCountAsync(0);
+        await bob.DisposeAsync();
+    }
+
     [Fact]
     public async Task Math_and_diagrams_are_rendered()
     {
-        Tree.File("docs/math.md", "Inline $a^2$.\n\n$$\n\\frac{1}{2}\n$$\n\n```mermaid\ngraph TD; A-->B\n```");
+        _ = Tree.File("docs/math.md", "Inline $a^2$.\n\n$$\n\\frac{1}{2}\n$$\n\n```mermaid\ngraph TD; A-->B\n```");
 
         await OpenAsync("/docs/math.md");
 
@@ -164,7 +239,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Tapping_an_abbreviation_shows_what_it_stands_for_and_tapping_elsewhere_hides_it()
     {
-        Tree.File("docs/abbreviations.md", "The W3C makes standards.\n\n*[W3C]: World Wide Web Consortium");
+        _ = Tree.File("docs/abbreviations.md", "The W3C makes standards.\n\n*[W3C]: World Wide Web Consortium");
         await Page.SetViewportSizeAsync(390, 844);
 
         await OpenAsync("/docs/abbreviations.md");
@@ -178,7 +253,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task A_diagram_that_can_not_be_drawn_shows_its_text_and_why()
     {
-        Tree.File("docs/broken.md", "```mermaid\nthis is no diagram\n```");
+        _ = Tree.File("docs/broken.md", "```mermaid\nthis is no diagram\n```");
 
         await OpenAsync("/docs/broken.md");
 
@@ -189,7 +264,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task A_diagram_can_not_run_scripts()
     {
-        Tree.File("docs/evil-diagram.md", "```mermaid\ngraph TD; A[\"<img src=x onerror='window.pwned = 1'>\"]-->B\nclick A call alert()\n```");
+        _ = Tree.File("docs/evil-diagram.md", "```mermaid\ngraph TD; A[\"<img src=x onerror='window.pwned = 1'>\"]-->B\nclick A call alert()\n```");
 
         await OpenAsync("/docs/evil-diagram.md");
         await Expect(Page.Locator("#markdown-preview .markdown-diagram")).ToHaveCountAsync(1);
@@ -201,7 +276,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task The_scripts_for_math_and_diagrams_are_only_loaded_where_they_are_used()
     {
-        Tree.File("docs/plain.md", "No math, only 5 dollars and `code`.");
+        _ = Tree.File("docs/plain.md", "No math, only 5 dollars and `code`.");
 
         await OpenAsync("/docs/plain.md");
         await Expect(Page.Locator("#markdown-preview")).ToBeVisibleAsync();
@@ -212,7 +287,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Links_to_other_sites_open_in_a_new_tab_and_links_to_the_notes_do_not()
     {
-        Tree.File("docs/links.md", "[out](https://example.com) [in](/docs/a.md)");
+        _ = Tree.File("docs/links.md", "[out](https://example.com) [in](/docs/a.md)");
 
         await OpenAsync("/docs/links.md");
 
@@ -273,7 +348,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Other_text_files_only_have_the_editor()
     {
-        Tree.File("docs/plain.txt", "text");
+        _ = Tree.File("docs/plain.txt", "text");
 
         await OpenAsync("/docs/plain.txt");
         await WaitForEditorAsync();
@@ -354,7 +429,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task An_empty_file_is_deleted_without_asking()
     {
-        Tree.File("docs/empty.md");
+        _ = Tree.File("docs/empty.md");
         await OpenAsync("/docs/empty.md");
 
         await Page.Locator("#delete-button").ClickAsync();
@@ -417,13 +492,13 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     {
         IBrowserContext admin = await NewContextAsync(Users.Admin);
         IPage page = await admin.NewPageAsync();
-        await page.GotoAsync("/");
+        _ = await page.GotoAsync("/");
 
         // Not pulled here: that would shut down the app the other tests use (see KillSwitchTests of the integration tests)
         await page.Keyboard.PressAsync("Control+Alt+Shift+Delete");
         await Assertions.Expect(page.Locator("#kill-switch-modal")).ToBeVisibleAsync();
         // Bootstrap takes the focus into the modal once it has faded in, and ignores closing it before that
-        await page.WaitForFunctionAsync("() => document.getElementById('kill-switch-modal').contains(document.activeElement)");
+        _ = await page.WaitForFunctionAsync("() => document.getElementById('kill-switch-modal').contains(document.activeElement)");
         await page.Keyboard.PressAsync("Escape");
         await Assertions.Expect(page.Locator("#kill-switch-modal")).ToBeHiddenAsync();
     }

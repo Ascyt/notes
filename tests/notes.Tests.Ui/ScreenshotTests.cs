@@ -81,7 +81,7 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
     [Fact]
     public Task Markdown_preview()
     {
-        Tree.File("docs/meeting.md", Guide);
+        _ = Tree.File("docs/meeting.md", Guide);
         return CaptureAsync("markdown-preview", Users.Alice, "/docs/meeting.md", async page =>
         {
             await Assertions.Expect(page.Locator("#markdown-preview .katex-display")).ToHaveCountAsync(1);
@@ -92,14 +92,14 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
     [Fact]
     public Task Code_editor()
     {
-        Tree.File("docs/meeting.md", Guide);
+        _ = Tree.File("docs/meeting.md", Guide);
         return CaptureAsync("editor", Users.Alice, "/docs/meeting.md?edit", WaitForMonacoAsync);
     }
 
     [Fact]
     public Task Simple_editor()
     {
-        Tree.File("docs/meeting.md", Guide);
+        _ = Tree.File("docs/meeting.md", Guide);
         return CaptureAsync("simple-editor", Users.Alice, "/docs/meeting.md?edit", page => Assertions.Expect(page.Locator("#simple-editor")).ToBeVisibleAsync(),
             beforeLoad: "localStorage.setItem('notes.simpleEditor', 'true')");
     }
@@ -107,7 +107,7 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
     [Fact]
     public Task Image()
     {
-        Tree.File("docs/picture.png", GradientPng(640, 400));
+        _ = Tree.File("docs/picture.png", GradientPng(640, 400));
         return CaptureAsync("image", Users.Alice, "/docs/picture.png", page => page.WaitForFunctionAsync("() => document.querySelector('img').complete"));
     }
 
@@ -154,7 +154,7 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
             if (prepare is not null)
                 await prepare(page);
 
-            await page.ScreenshotAsync(new PageScreenshotOptions
+            _ = await page.ScreenshotAsync(new PageScreenshotOptions
             {
                 Path = Path.Combine(ScreenshotDirectory, $"{name}-{variant.Name}.png"),
                 Animations = ScreenshotAnimations.Disabled,
@@ -174,7 +174,7 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
                 directory = directory.Parent;
             Assert.NotNull(directory);
             string screenshots = Path.Combine(directory.FullName, "docs", "screenshots");
-            System.IO.Directory.CreateDirectory(screenshots);
+            _ = System.IO.Directory.CreateDirectory(screenshots);
             return screenshots;
         }
     }

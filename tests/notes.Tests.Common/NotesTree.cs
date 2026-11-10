@@ -14,7 +14,7 @@ public sealed class NotesTree(string root)
     public string File(string virtualPath, string contents = "")
     {
         string physical = Physical(virtualPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(physical)!);
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(physical)!);
         System.IO.File.WriteAllText(physical, contents);
         return physical;
     }
@@ -22,7 +22,7 @@ public sealed class NotesTree(string root)
     public string File(string virtualPath, byte[] contents)
     {
         string physical = Physical(virtualPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(physical)!);
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(physical)!);
         System.IO.File.WriteAllBytes(physical, contents);
         return physical;
     }

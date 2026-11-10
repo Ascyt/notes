@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Features.View.ConfigEditor;
+namespace notes.Pages.ConfigEditor;
 
 /// <summary>The page that edits the permissions of a folder or a file (<c>?config</c>), for those who may manage permissions.</summary>
 public class ConfigEditorView : PageModel

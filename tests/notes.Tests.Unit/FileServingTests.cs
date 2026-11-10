@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using notes.Features.Components.Download;
-using notes.Features.View.Editor;
+using notes.Pages.Editor;
 
 namespace notes.Tests.Unit;
 
@@ -24,10 +24,10 @@ public sealed class FileServingTests : IDisposable
     [Fact]
     public async Task A_zip_has_the_tree_with_empty_directories_but_not_the_reserved_folder()
     {
-        _notes.Files.File("a.md", "a");
-        _notes.Files.File("sub/b.md", "b");
-        _notes.Files.Dir("empty");
-        _notes.Files.File("_/temp/x", "temp");
+        _ = _notes.Files.File("a.md", "a");
+        _ = _notes.Files.File("sub/b.md", "b");
+        _ = _notes.Files.Dir("empty");
+        _ = _notes.Files.File("_/temp/x", "temp");
 
         Assert.Equal(["a.md", "empty/", "sub/b.md"], await ZipEntriesAsync("", _ => true));
     }
@@ -35,8 +35,8 @@ public sealed class FileServingTests : IDisposable
     [Fact]
     public async Task A_zip_leaves_out_what_is_not_included_and_does_not_look_inside_it()
     {
-        _notes.Files.File("open/a.md");
-        _notes.Files.File("closed/secret.md");
+        _ = _notes.Files.File("open/a.md");
+        _ = _notes.Files.File("closed/secret.md");
         List<string> asked = [];
 
         List<string> entries = await ZipEntriesAsync("", entry =>
@@ -53,14 +53,14 @@ public sealed class FileServingTests : IDisposable
     public async Task A_zip_does_not_follow_links()
     {
         string outside = Path.Combine(Path.GetTempPath(), "notes-unit-outside-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(outside);
+        _ = Directory.CreateDirectory(outside);
         File.WriteAllText(Path.Combine(outside, "secret.txt"), "outside");
         try
         {
             try
             {
-                Directory.CreateSymbolicLink(_notes.P("link"), outside);
-                File.CreateSymbolicLink(_notes.P("file-link.txt"), Path.Combine(outside, "secret.txt"));
+                _ = Directory.CreateSymbolicLink(_notes.P("link"), outside);
+                _ = File.CreateSymbolicLink(_notes.P("file-link.txt"), Path.Combine(outside, "secret.txt"));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {

@@ -9,16 +9,19 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
     [Fact]
     public async Task A_markdown_file_opens_as_the_rendered_preview_with_a_way_to_edit()
     {
-        Tree.File("docs/note.md", "# Title\n\nSome **bold** text.");
+        _ = Tree.File("docs/note.md", "# Title\n\nSome **bold** text.");
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/note.md"));
 
-        Assert.Contains("<h1 id=\"user-content-title\">Title</h1>", body);
+        Assert.Matches("<h1 id=\"user-content-title\"[^>]*>Title</h1>", body);
         Assert.Contains("<strong>bold</strong>", body);
         Assert.DoesNotContain("id=\"editor\"", body);
         Assert.DoesNotContain("id=\"save-button\"", body);
         Assert.DoesNotContain("id=\"preview-button\"", body);
         Assert.Matches(@"<a id=""edit-button"" href=""\?edit""[^>]* key=""e""", body);
+        // ...and one that edits where a part of the text is written
+        Assert.Contains("id=\"edit-here-button\"", body);
+        Assert.Matches("<h1 [^>]*data-source-line=\"1\"", body);
     }
 
     [Fact]
@@ -45,7 +48,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
 
         Assert.Contains("id=\"editor\"", body);
         Assert.Contains("id=\"save-button\"", body);
-        Assert.Contains("const canWrite = true;", body);
+        Assert.Contains("\"canWrite\":true", body);
         Assert.Matches(@"<a id=""preview-button"" href=""\?""[^>]* key=""p""", body);
         Assert.DoesNotContain("id=\"edit-button\"", body);
         Assert.DoesNotContain("id=\"markdown-preview\"", body);
@@ -65,6 +68,8 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
                 Assert.DoesNotContain("id=\"editor\"", body);
                 Assert.DoesNotContain("id=\"save-button\"", body);
                 Assert.DoesNotContain("id=\"edit-button\"", body);
+                Assert.DoesNotContain("id=\"edit-here-button\"", body);
+                Assert.DoesNotMatch("<script src=\"[^\"]*markdown-edit-here", body);
                 Assert.DoesNotContain("id=\"preview-button\"", body);
                 Assert.DoesNotContain("createEditor(", body);
             }
@@ -74,8 +79,8 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
     [Fact]
     public async Task Other_text_files_only_have_the_editor()
     {
-        Tree.File("docs/data.json", "{ \"a\": 1 }");
-        Tree.File("docs/plain.txt", "# not markdown");
+        _ = Tree.File("docs/data.json", "{ \"a\": 1 }");
+        _ = Tree.File("docs/plain.txt", "# not markdown");
 
         foreach (string path in new[] { "/docs/data.json", "/docs/plain.txt" })
         {
@@ -86,6 +91,8 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
                 Assert.Contains("id=\"editor\"", body);
                 Assert.DoesNotContain("markdown-body", body);
                 Assert.DoesNotContain("id=\"edit-button\"", body);
+                Assert.DoesNotContain("id=\"edit-here-button\"", body);
+                Assert.DoesNotMatch("<script src=\"[^\"]*markdown-edit-here", body);
                 Assert.DoesNotContain("id=\"preview-button\"", body);
             }
         }
@@ -94,7 +101,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
     [Fact]
     public async Task Html_in_markdown_is_shown_as_text_and_links_that_run_code_lead_nowhere()
     {
-        Tree.File("docs/evil.md", string.Join("\n\n",
+        _ = Tree.File("docs/evil.md", string.Join("\n\n",
             "<script>window.pwned = 1</script>",
             "<img src=x onerror=alert(1)>",
             "[click](javascript:alert(1)) and [tab](java\tscript:alert(1)) and [data](data:text/html,<script>alert(1)</script>)",
@@ -117,7 +124,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
     [Fact]
     public async Task An_empty_markdown_file_says_so()
     {
-        Tree.File("docs/empty.md", "");
+        _ = Tree.File("docs/empty.md", "");
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/empty.md"));
 
