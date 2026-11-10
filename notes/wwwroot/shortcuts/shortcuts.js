@@ -26,6 +26,8 @@
 // alternative shortcuts under each other. By default it is centered on the element; to place it over another
 // one, add `key-anchor` with a CSS selector, searched within the element's parent first, then the document:
 //   <td><i class="icon"></i> <a href=".." key="^1" key-anchor=".icon">Notes</a></td>   shows over the icon
+// Hovering a tooltip shows it larger, with the keys written out ("Alt+ArrowUp"). An element with `key-held-text`
+// shows that text in place of its own while the tooltips are shown. 
 (function () {
     const HINT_KEYS = ['ControlRight']; // KeyboardEvent.code values
     const heldHintKeys = new Set();
@@ -154,17 +156,47 @@
                 continue; // not rendered (e.g. display: none), nothing to anchor the tooltip to
             const rect = anchor.getBoundingClientRect();
 
-            // Alternative shortcuts are listed under each other
+            // Alternative shortcuts are listed under each other. Hovering one shows it larger, with the keys written out.
+            const combos = parseAll(el.getAttribute('key'));
+            const compactText = combos.map(symbols).join('\n');
+            const fullText = combos.map(describe).join('\n');
             const hint = document.createElement('div');
             hint.className = 'key-hint';
-            hint.textContent = parseAll(el.getAttribute('key')).map(symbols).join('\n');
+            hint.textContent = compactText;
             document.body.appendChild(hint);
-
-            // Centered on the element, kept inside the viewport
-            const left = rect.left + rect.width / 2 - hint.offsetWidth / 2;
-            hint.style.left = Math.max(4, Math.min(left, document.documentElement.clientWidth - hint.offsetWidth - 4)) + 'px';
-            hint.style.top = (rect.top + rect.height / 2 - hint.offsetHeight / 2) + 'px';
+            place(hint, rect);
+            hint.addEventListener('mouseenter', function () {
+                hint.classList.add('key-hint-expanded');
+                hint.textContent = fullText;
+                place(hint, rect);
+            });
+            hint.addEventListener('mouseleave', function () {
+                hint.classList.remove('key-hint-expanded');
+                hint.textContent = compactText;
+                place(hint, rect);
+            });
             hints.push(hint);
+        }
+        swapHeldTexts(true);
+    }
+
+    // Centered on the element, kept inside the viewport
+    function place(hint, rect) {
+        const left = rect.left + rect.width / 2 - hint.offsetWidth / 2;
+        hint.style.left = Math.max(4, Math.min(left, document.documentElement.clientWidth - hint.offsetWidth - 4)) + 'px';
+        hint.style.top = (rect.top + rect.height / 2 - hint.offsetHeight / 2) + 'px';
+    }
+
+    // An element with `key-held-text` shows that text instead of its own while the hints are shown
+    function swapHeldTexts(held) {
+        for (const el of document.querySelectorAll('[key-held-text]')) {
+            if (held && el.dataset.keyRestingText === undefined) {
+                el.dataset.keyRestingText = el.textContent;
+                el.textContent = el.getAttribute('key-held-text');
+            } else if (!held && el.dataset.keyRestingText !== undefined) {
+                el.textContent = el.dataset.keyRestingText;
+                delete el.dataset.keyRestingText;
+            }
         }
     }
 
@@ -172,6 +204,7 @@
         for (const hint of hints)
             hint.remove();
         hints = [];
+        swapHeldTexts(false);
     }
 
     document.addEventListener('keydown', function (e) {

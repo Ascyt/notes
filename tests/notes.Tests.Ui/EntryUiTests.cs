@@ -120,6 +120,77 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task Math_and_diagrams_are_rendered()
+    {
+        Tree.File("docs/math.md", "Inline $a^2$.\n\n$$\n\\frac{1}{2}\n$$\n\n```mermaid\ngraph TD; A-->B\n```");
+
+        await OpenAsync("/docs/math.md");
+
+        await Expect(Page.Locator("#markdown-preview span.math .katex")).ToHaveCountAsync(1);
+        await Expect(Page.Locator("#markdown-preview div.math .katex-display")).ToHaveCountAsync(1);
+        await Expect(Page.Locator("#markdown-preview .markdown-diagram svg")).ToHaveCountAsync(1);
+    }
+
+    [Fact]
+    public async Task Tapping_an_abbreviation_shows_what_it_stands_for_and_tapping_elsewhere_hides_it()
+    {
+        Tree.File("docs/abbreviations.md", "The W3C makes standards.\n\n*[W3C]: World Wide Web Consortium");
+        await Page.SetViewportSizeAsync(390, 844);
+
+        await OpenAsync("/docs/abbreviations.md");
+        await Page.Locator("#markdown-preview abbr").ClickAsync();
+        await Expect(Page.Locator(".tooltip")).ToContainTextAsync("World Wide Web Consortium");
+
+        await Page.Mouse.ClickAsync(5, 400);
+        await Expect(Page.Locator(".tooltip")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task A_diagram_that_can_not_be_drawn_shows_its_text_and_why()
+    {
+        Tree.File("docs/broken.md", "```mermaid\nthis is no diagram\n```");
+
+        await OpenAsync("/docs/broken.md");
+
+        await Expect(Page.Locator("#markdown-preview [data-diagram-error]")).ToHaveCountAsync(1);
+        await Expect(Page.Locator("#markdown-preview code.language-mermaid")).ToContainTextAsync("this is no diagram");
+    }
+
+    [Fact]
+    public async Task A_diagram_can_not_run_scripts()
+    {
+        Tree.File("docs/evil-diagram.md", "```mermaid\ngraph TD; A[\"<img src=x onerror='window.pwned = 1'>\"]-->B\nclick A call alert()\n```");
+
+        await OpenAsync("/docs/evil-diagram.md");
+        await Expect(Page.Locator("#markdown-preview .markdown-diagram")).ToHaveCountAsync(1);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        Assert.True(await Page.EvaluateAsync<bool>("() => window.pwned === undefined"));
+    }
+
+    [Fact]
+    public async Task The_scripts_for_math_and_diagrams_are_only_loaded_where_they_are_used()
+    {
+        Tree.File("docs/plain.md", "No math, only 5 dollars and `code`.");
+
+        await OpenAsync("/docs/plain.md");
+        await Expect(Page.Locator("#markdown-preview")).ToBeVisibleAsync();
+
+        Assert.True(await Page.EvaluateAsync<bool>("() => window.katex === undefined && window.mermaid === undefined"));
+    }
+
+    [Fact]
+    public async Task Links_to_other_sites_open_in_a_new_tab_and_links_to_the_notes_do_not()
+    {
+        Tree.File("docs/links.md", "[out](https://example.com) [in](/docs/a.md)");
+
+        await OpenAsync("/docs/links.md");
+
+        await Expect(Page.Locator("#markdown-preview a[href='https://example.com']")).ToHaveAttributeAsync("target", "_blank");
+        await Expect(Page.Locator("#markdown-preview a[href='/docs/a.md']")).Not.ToHaveAttributeAsync("target", new Regex(".*"));
+    }
+
+    [Fact]
     public async Task Markdown_opens_rendered_and_e_and_p_go_between_it_and_the_editor()
     {
         await OpenAsync("/docs/a.md");
@@ -360,6 +431,22 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await Page.Keyboard.UpAsync("ControlRight");
 
         await Expect(Page.Locator(".key-hint")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Hovering_a_shortcut_shows_it_in_full_and_the_footer_says_so()
+    {
+        await OpenAsync("/docs");
+        ILocator footerHint = Page.Locator("[key-held-text]");
+
+        await Page.Keyboard.DownAsync("ControlRight");
+        ILocator hint = Page.Locator(".key-hint").First;
+        await hint.HoverAsync();
+        await Expect(hint).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("key-hint-expanded"));
+        await Expect(footerHint).ToHaveAttributeAsync("data-key-resting-text", new System.Text.RegularExpressions.Regex("."));
+        await Page.Keyboard.UpAsync("ControlRight");
+
+        await Expect(footerHint).Not.ToHaveAttributeAsync("data-key-resting-text", new System.Text.RegularExpressions.Regex(".*"));
     }
 
     [Fact]

@@ -23,6 +23,24 @@
         "webfonts/fa-regular-400.woff2",
         "webfonts/fa-brands-400.woff2"
       ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "katex@0.16.22",
+      "destination": "wwwroot/lib/katex",
+      "files": [
+        "dist/katex.min.css",
+        "dist/katex.min.js",
+        "dist/fonts/*.woff2"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "mermaid@11.4.1",
+      "destination": "wwwroot/lib/mermaid",
+      "files": [
+        "dist/mermaid.min.js"
+      ]
     }
   ]
 }

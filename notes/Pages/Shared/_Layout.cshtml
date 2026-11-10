@@ -21,7 +21,7 @@
 <body>
 <header>
     <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body border-bottom box-shadow mb-3">
-        <div class="container">
+        <div class="container-fluid">
             <a class="navbar-brand" href="/" key="Home">@Config.Title</a>
             @* Top right: next to the menu button when the menu is collapsed, after the menu otherwise *@
             <button id="theme-toggle" type="button" class="btn btn-sm btn-outline-secondary ms-auto ms-sm-2 me-2 me-sm-0 order-sm-last" key="!+A">
@@ -57,14 +57,14 @@
 {
     <partial name="/Features/Auth/_SessionNotice.cshtml" model='new _SessionNotice { Message = sessionNotice, ReturnUrl = Context.OriginalPathAndQuery }'/>
 }
-<div class="container">
+<div class="container-fluid">
     <main role="main" class="pb-3">
         @RenderBody()
     </main>
 </div>
 
-<footer class="container pb-3 small text-secondary">
-    <div>Holding Right Ctrl shows the keyboard shortcuts.</div>
+<footer class="container-fluid pb-3 small text-secondary">
+    <div key-held-text="Hovering over a shortcut shows it in full.">Holding Right Ctrl shows the keyboard shortcuts.</div>
     @* Rarely used: one shortcut focuses the links, and Tab goes through them *@
     <div id="footer-links" tabindex="-1" key="!+F">
         Licensed under <a class="text-secondary" href="https://github.com/Ascyt/notes/blob/main/LICENSE" target="_blank">AGPL-3.0</a>

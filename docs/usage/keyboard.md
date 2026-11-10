@@ -1,6 +1,6 @@
 # Keyboard
 
-Everything in the app can be done with the keyboard. **Holding the right Ctrl key shows the shortcut of everything on the page**, next to it; this is the most reliable list, as it always matches the page.
+Everything in the app can be done with the keyboard. **Holding the right Ctrl key shows the shortcut of everything on the page**, next to it; this is the most reliable list, as it always matches the page. The shortcuts are shown with symbols (⎇ for Alt, ⇧ for Shift, …); hovering one shows it larger and written out, such as `Alt+ArrowUp`.
 
 How the shortcuts are made:
 

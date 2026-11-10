@@ -4,9 +4,27 @@ What a file shows depends on its kind.
 
 ## Markdown
 
-A Markdown file (`.md`) opens rendered: headings, lists, tables, task lists, code blocks, quotes, links, images and footnotes. HTML written into a note is shown as text, never run.
+A Markdown file (`.md`) opens rendered: headings, lists, tables, task lists, code blocks, quotes, links, images and footnotes. HTML written into a note is shown as text, never run. A line break in the text is a line break in the rendered view.
 
-![A rendered Markdown file](../screenshots/markdown-preview-desktop.png)
+Besides what Markdown always has:
+
+| Written as | Shows |
+|---|---|
+| ` ```csharp ` … ` ``` ` | Code, highlighted for its language (most common languages; others stay plain) |
+| `$a^2$`, and `$$` on the lines before and after a formula | Math in LaTeX, inline or as a block of its own |
+| ` ```mermaid ` … ` ``` ` | A [mermaid](https://mermaid.js.org) diagram |
+| `> [!NOTE]` (also `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) at the start of a quote | An alert, colored by its kind |
+| `:::warning` … `:::` | A box around what is in it; `note`, `info`, `tip`, `important`, `warning`, `caution` and `danger` are colored |
+| `^^^` before an image, `^^^ Caption` after it | The image with a caption |
+| `^^ Text` | A footer, in small print |
+| `""Title""` | A citation |
+| `*[W3C]: World Wide Web Consortium` on a line of its own | Every "W3C" in the note marked as an abbreviation; hovering, tapping or focusing it shows what it stands for |
+
+A link to another site opens in a new tab; a link to the notes stays in the same one.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![A rendered Markdown file](../screenshots/markdown-preview-desktop.png) | ![A rendered Markdown file on a phone](../screenshots/markdown-preview-phone.png) |
 
 The pencil icon (or `e`) opens the editor, the book icon (or `p`) goes back to the rendered view. Without permission to change the file, there is only the rendered view.
 

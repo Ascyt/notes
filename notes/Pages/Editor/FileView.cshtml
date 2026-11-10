@@ -46,16 +46,35 @@
 {
     @* What the markdown looks like. The HTML is made by MarkdownRenderer, which leaves nothing in it that could run a script. *@
     <link rel="stylesheet" href="~/css/markdown.css" asp-append-version="true"/>
-    <article id="markdown-preview" class="markdown-body">
-        @if (Model.Contents.Length == 0)
-        {
-            <p id="empty-file" class="text-muted">This file is empty.</p>
-        }
-        else
-        {
-            @Html.Raw(Model.PreviewHtml)
-        }
-    </article>
+    @* Unlike the rest of the page, the text is kept to Bootstrap's container widths: long lines over the whole screen are hard to read.
+       No padding of its own, as the page's container already has it. *@
+    <div class="container px-0">
+        <article id="markdown-preview" class="markdown-body">
+            @if (Model.Contents.Length == 0)
+            {
+                <p id="empty-file" class="text-muted">This file is empty.</p>
+            }
+            else
+            {
+                @Html.Raw(Model.Preview.Html)
+            }
+        </article>
+    </div>
+    @* The scripts that render math and diagrams are large, so they are only loaded for a file that has some (and markdown.js only
+       for a file that has anything for it to do) *@
+    @if (Model.Preview.HasMath)
+    {
+        <link rel="stylesheet" href="~/lib/katex/dist/katex.min.css"/>
+        <script src="~/lib/katex/dist/katex.min.js"></script>
+    }
+    @if (Model.Preview.HasDiagrams)
+    {
+        <script src="~/lib/mermaid/dist/mermaid.min.js"></script>
+    }
+    @if (Model.Preview.HasMath || Model.Preview.HasDiagrams || Model.Preview.HasAbbreviations)
+    {
+        <script src="~/js/markdown.js" asp-append-version="true"></script>
+    }
     @if (!Model.IsReadOnly)
     {
         <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Contents.Length != 0, Kind = "file" }'/>

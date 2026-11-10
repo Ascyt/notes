@@ -45,8 +45,11 @@ public class FileView : PageModel
     /// </summary>
     public bool ShowsPreview => IsMarkdown && !(EditRequested && CanWrite);
 
-    /// <summary>The HTML of the rendered markdown. Only made when <see cref="ShowsPreview"/>.</summary>
-    public string PreviewHtml { get; private set; } = "";
+    /// <summary>The host the page is served from, which links in the rendered markdown lead to without opening a new tab.</summary>
+    public string SiteHost { get; init; } = "";
+
+    /// <summary>The rendered markdown. Only made when <see cref="ShowsPreview"/>.</summary>
+    public RenderedMarkdown Preview { get; private set; } = new("", HasMath: false, HasDiagrams: false, HasAbbreviations: false);
     public long Size { get; private set; }
     /// <summary>What a binary file is shown as. <see cref="MediaKind.None"/> if the browser has nothing to show it with.</summary>
     public MediaKind Media { get; private set; }
@@ -88,7 +91,7 @@ public class FileView : PageModel
 
         Contents = await System.IO.File.ReadAllTextAsync(PhysicalPath);
         if (ShowsPreview)
-            PreviewHtml = MarkdownRenderer.ToHtml(Contents);
+            Preview = MarkdownRenderer.Render(Contents, SiteHost);
     }
 
     /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>

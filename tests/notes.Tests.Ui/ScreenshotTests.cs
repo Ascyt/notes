@@ -43,6 +43,19 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
         Console.WriteLine("Code blocks keep their formatting.");
         ```
 
+        Math such as $e^{i\pi} + 1 = 0$ is written in LaTeX:
+
+        $$
+        \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+        $$
+
+        ```mermaid
+        graph LR; Plan-->Review-->Done
+        ```
+
+        > [!TIP]
+        > Alerts stand out from the text.
+
         > Quotes, [links](https://example.com) and footnotes[^1] work as well.
 
         [^1]: Like this one.
@@ -69,7 +82,11 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
     public Task Markdown_preview()
     {
         Tree.File("docs/meeting.md", Guide);
-        return CaptureAsync("markdown-preview", Users.Alice, "/docs/meeting.md");
+        return CaptureAsync("markdown-preview", Users.Alice, "/docs/meeting.md", async page =>
+        {
+            await Assertions.Expect(page.Locator("#markdown-preview .katex-display")).ToHaveCountAsync(1);
+            await Assertions.Expect(page.Locator("#markdown-preview .markdown-diagram svg")).ToHaveCountAsync(1);
+        });
     }
 
     [Fact]

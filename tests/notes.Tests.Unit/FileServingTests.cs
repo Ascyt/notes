@@ -140,12 +140,12 @@ public sealed class FileServingTests : IDisposable
         }
 
         Assert.True((await Open("a.md", canWrite: true, edit: false)).ShowsPreview);
-        Assert.Contains("<h1", (await Open("b.MD", canWrite: true, edit: false)).PreviewHtml);
+        Assert.Contains("<h1", (await Open("b.MD", canWrite: true, edit: false)).Preview.Html);
         Assert.False((await Open("c.md", canWrite: true, edit: true)).ShowsPreview);
         Assert.True((await Open("d.md", canWrite: false, edit: true)).ShowsPreview);
         Assert.False((await Open("e.txt", canWrite: true, edit: false)).ShowsPreview);
         Assert.False((await Open("f.json", canWrite: false, edit: false)).ShowsPreview);
-        Assert.Equal("", (await Open("g.txt", canWrite: true, edit: false)).PreviewHtml);
+        Assert.Equal("", (await Open("g.txt", canWrite: true, edit: false)).Preview.Html);
     }
 
     [Fact]

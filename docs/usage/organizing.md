@@ -4,7 +4,7 @@ Everything here needs to be logged in, and permission for it (see [Permissions](
 
 ## Creating
 
-Below the subdirectories and below the files of a directory are *Create subdirectory* (`n`) and *Create file* (Shift+N). A new entry is named after the current date and time, for example `2026-11-09_14-30` or `2026-11-09_14-30.md`; a new file opens in the editor right away. It can be renamed whenever.
+The plus below the subdirectories creates a subdirectory (`n`), the one below the files a file (Shift+N). A new entry is named after the current date and time, for example `2026-11-09_14-30` or `2026-11-09_14-30.md`; a new file opens in the editor right away. It can be renamed whenever.
 
 ## Uploading
 
@@ -26,7 +26,7 @@ The boxes in front of the entries select them, also several at once:
 
 - clicking a row anywhere but on its link, or dragging over several rows,
 - Ctrl and the number of an entry (Ctrl+Shift for files),
-- the box above the directories (`a`) or above the files (Shift+A) for all of them.
+- the box above the directories (`a`) or above the files (Shift+A) for all of them. If some of them are selected already (the box shows a dash), it unselects them instead.
 
 A card at the bottom says how many entries are selected. The selection is kept while going to other directories (for half an hour). In another directory, the card offers to copy (`v`) or move (Shift+V) the selected entries there; in their own directory, it offers to delete them. Escape clears the selection.
 

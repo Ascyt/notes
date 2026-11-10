@@ -97,6 +97,21 @@ public sealed class SelectionUiTests(UiFixture fixture) : UiTest(fixture), IClas
     }
 
     [Fact]
+    public async Task The_box_above_a_partly_selected_group_selects_none_of_it()
+    {
+        await OpenAsync("/mixed");
+        ILocator all = Page.Locator(".entry-select-all[data-group='files']");
+
+        await Page.Locator("tr.entry-row[data-group='files'] .entry-select").First.CheckAsync();
+        await Eventually(() => ServerSelection.Count == 1, "the server has the one");
+
+        await all.ClickAsync();
+        await Expect(Bar).ToBeHiddenAsync();
+        await Eventually(() => ServerSelection.Count == 0, "the server has none");
+        await Expect(all).Not.ToBeCheckedAsync();
+    }
+
+    [Fact]
     public async Task Dragging_over_rows_selects_them()
     {
         await OpenAsync("/mixed");

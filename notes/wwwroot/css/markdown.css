@@ -55,3 +55,125 @@
   font-size: 0.875rem;
   color: var(--bs-secondary-color);
 }
+
+/* Figures (an image with a caption) and footers (^^ text) */
+.markdown-body figure {
+  margin: 0 0 1rem;
+}
+
+.markdown-body figure p {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-body figcaption, .markdown-body footer {
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+}
+
+.markdown-body footer {
+  margin-bottom: 1rem;
+}
+
+/* Display math starts where the text does, like everything else, instead of in the middle */
+.markdown-body .katex-display, .markdown-body .katex-display > .katex {
+  text-align: left;
+}
+
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Diagrams (mermaid), at most as wide as the text */
+.markdown-body .markdown-diagram {
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+/* Alerts (> [!NOTE]) and custom containers (:::name): a colored bar at the left, the color by kind. Containers of other names are gray. */
+.markdown-body .markdown-alert, .markdown-body .markdown-container {
+  --markdown-accent: var(--bs-border-color);
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  border-left: 0.25rem solid var(--markdown-accent);
+}
+
+.markdown-body .markdown-container {
+  border-radius: 0 0.25rem 0.25rem 0;
+  background: var(--bs-tertiary-bg);
+}
+
+.markdown-body .markdown-alert > :last-child, .markdown-body .markdown-container > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+  color: var(--markdown-accent);
+}
+
+.markdown-body .markdown-alert-title svg {
+  fill: currentColor;
+}
+
+.markdown-body .markdown-alert-note, .markdown-body .markdown-container-note, .markdown-body .markdown-container-info {
+  --markdown-accent: var(--bs-primary);
+}
+
+.markdown-body .markdown-alert-tip, .markdown-body .markdown-container-tip {
+  --markdown-accent: var(--bs-success);
+}
+
+.markdown-body .markdown-alert-important, .markdown-body .markdown-container-important {
+  --markdown-accent: var(--bs-purple);
+}
+
+.markdown-body .markdown-alert-warning, .markdown-body .markdown-container-warning {
+  --markdown-accent: var(--bs-warning);
+}
+
+.markdown-body .markdown-alert-caution, .markdown-body .markdown-container-caution, .markdown-body .markdown-container-danger {
+  --markdown-accent: var(--bs-danger);
+}
+
+/* Highlighted code (ColorCode's classes, see MarkdownRenderer): the colors of Visual Studio's light and dark themes */
+.markdown-body pre .comment, .markdown-body pre .xmlDocComment, .markdown-body pre .htmlComment, .markdown-body pre .xmlComment { color: #008000; }
+.markdown-body pre .xmlDocTag, .markdown-body pre .stringEscape, .markdown-body pre .xmlCDataSection { color: #808080; }
+.markdown-body pre .string, .markdown-body pre .stringCSharpVerbatim, .markdown-body pre .htmlElementName, .markdown-body pre .xmlName, .markdown-body pre .cssSelector { color: #a31515; }
+.markdown-body pre .keyword, .markdown-body pre .controlKeyword, .markdown-body pre .preprocessorKeyword, .markdown-body pre .htmlTagDelimiter,
+.markdown-body pre .xmlDelimiter, .markdown-body pre .htmlAttributeValue, .markdown-body pre .xmlAttributeValue, .markdown-body pre .cssPropertyValue,
+.markdown-body pre .markdownHeader { color: #0000ff; }
+.markdown-body pre .htmlAttributeName, .markdown-body pre .xmlAttribute, .markdown-body pre .cssPropertyName, .markdown-body pre .htmlEntity { color: #e50000; }
+.markdown-body pre .type, .markdown-body pre .typeVariable, .markdown-body pre .className, .markdown-body pre .powershellType, .markdown-body pre .markdownCode { color: #267f99; }
+.markdown-body pre .number, .markdown-body pre .jsonNumber { color: #098658; }
+.markdown-body pre .jsonKey, .markdown-body pre .powershellVariable { color: #b35900; }
+.markdown-body pre .jsonString { color: #008b8b; }
+.markdown-body pre .builtinFunction, .markdown-body pre .sqlSystemFunction { color: #795e26; }
+.markdown-body pre .typeVariable, .markdown-body pre .attribute, .markdown-body pre .italic { font-style: italic; }
+.markdown-body pre .markdownHeader, .markdown-body pre .markdownListItem, .markdown-body pre .bold { font-weight: bold; }
+
+[data-bs-theme="dark"] .markdown-body pre .comment, [data-bs-theme="dark"] .markdown-body pre .xmlDocComment,
+[data-bs-theme="dark"] .markdown-body pre .htmlComment, [data-bs-theme="dark"] .markdown-body pre .xmlComment { color: #57a64a; }
+[data-bs-theme="dark"] .markdown-body pre .xmlDocTag, [data-bs-theme="dark"] .markdown-body pre .stringEscape,
+[data-bs-theme="dark"] .markdown-body pre .xmlCDataSection { color: #9b9b9b; }
+[data-bs-theme="dark"] .markdown-body pre .string, [data-bs-theme="dark"] .markdown-body pre .stringCSharpVerbatim,
+[data-bs-theme="dark"] .markdown-body pre .markdownCode { color: #d69d85; }
+[data-bs-theme="dark"] .markdown-body pre .htmlElementName, [data-bs-theme="dark"] .markdown-body pre .xmlName,
+[data-bs-theme="dark"] .markdown-body pre .cssSelector { color: #d7ba7d; }
+[data-bs-theme="dark"] .markdown-body pre .keyword, [data-bs-theme="dark"] .markdown-body pre .controlKeyword,
+[data-bs-theme="dark"] .markdown-body pre .preprocessorKeyword, [data-bs-theme="dark"] .markdown-body pre .htmlTagDelimiter,
+[data-bs-theme="dark"] .markdown-body pre .xmlDelimiter, [data-bs-theme="dark"] .markdown-body pre .htmlAttributeValue,
+[data-bs-theme="dark"] .markdown-body pre .xmlAttributeValue, [data-bs-theme="dark"] .markdown-body pre .cssPropertyValue,
+[data-bs-theme="dark"] .markdown-body pre .markdownHeader { color: #569cd6; }
+[data-bs-theme="dark"] .markdown-body pre .htmlAttributeName, [data-bs-theme="dark"] .markdown-body pre .xmlAttribute,
+[data-bs-theme="dark"] .markdown-body pre .cssPropertyName, [data-bs-theme="dark"] .markdown-body pre .htmlEntity { color: #9cdcfe; }
+[data-bs-theme="dark"] .markdown-body pre .type, [data-bs-theme="dark"] .markdown-body pre .typeVariable,
+[data-bs-theme="dark"] .markdown-body pre .className, [data-bs-theme="dark"] .markdown-body pre .powershellType { color: #4ec9b0; }
+[data-bs-theme="dark"] .markdown-body pre .number, [data-bs-theme="dark"] .markdown-body pre .jsonNumber { color: #b5cea8; }
+[data-bs-theme="dark"] .markdown-body pre .jsonKey, [data-bs-theme="dark"] .markdown-body pre .powershellVariable { color: #ff8700; }
+[data-bs-theme="dark"] .markdown-body pre .jsonString { color: #4ec9b0; }
+[data-bs-theme="dark"] .markdown-body pre .builtinFunction, [data-bs-theme="dark"] .markdown-body pre .sqlSystemFunction { color: #dcdcaa; }

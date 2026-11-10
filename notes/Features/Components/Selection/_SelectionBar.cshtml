@@ -146,8 +146,8 @@
                 const count = group.filter(row => isChecked(row)).length;
                 header.checked = count > 0 && count === group.length;
                 header.indeterminate = count > 0 && count < group.length;
-                header.disabled = isBusy();
-                header.closest('th').title = isBusy() ? BUSY_REASON : '';
+                header.disabled = isBusy() || group.length === 0;
+                header.closest('th').title = isBusy() ? BUSY_REASON : group.length === 0 ? 'There is nothing to select.' : '';
             }
         }
 
@@ -282,11 +282,11 @@
                 change([row.dataset.path], checked);
             });
 
-        // The box above a group selects all of it, or, if all of it is selected already, none of it
+        // The box above a group selects all of it, or, if any of it is selected already (a tick or a dash), none of it
         for (const header of headers) {
             const group = rows.filter(row => row.dataset.group === header.dataset.group);
             header.addEventListener('change', function () {
-                const select = !group.every(isChecked);
+                const select = !group.some(isChecked);
                 const affected = group.filter(row => isChecked(row) !== select);
                 for (const row of affected) {
                     checkboxOf(row).checked = select;

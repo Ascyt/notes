@@ -47,20 +47,21 @@
 
 <div>
     <table class="table">
-        @if (Model.Directories.Length > 0)
-        {
-            <thead>
-            <tr>
-                <th class="fw-normal small text-secondary">
-                    @if (Model.CanSelect)
-                    {
-                        <input type="checkbox" class="form-check-input entry-select-all" data-group="directories" key="a" aria-label="Select all directories"/>
-                    }Directories
-                </th>
-            </tr>
-            </thead>
-        }
+        <thead>
+        <tr>
+            <th class="fw-normal small text-secondary">
+                @if (Model.CanSelect)
+                {
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="directories" key="a" aria-label="Select all directories"/>
+                }Directories
+            </th>
+        </tr>
+        </thead>
         <tbody>
+        @if (Model.Directories.Length == 0)
+        {
+            <tr data-empty-group="directories"><td class="small text-secondary">No subdirectories</td></tr>
+        }
         @for (int i = 0; i < Model.Directories.Length; i++)
         {
             @* The row can be selected by clicking anywhere on it but the link; Ctrl plus the shortcut of its link selects it as well *@
@@ -87,20 +88,21 @@
     </table>
     @* No margin below the last table: the page's own padding is all there should be between it and the footer *@
     <table class="table mb-0">
-        @if (Model.Files.Length > 0)
-        {
-            <thead>
-            <tr>
-                <th class="fw-normal small text-secondary">
-                    @if (Model.CanSelect)
-                    {
-                        <input type="checkbox" class="form-check-input entry-select-all" data-group="files" key="+a" aria-label="Select all files"/>
-                    }Files
-                </th>
-            </tr>
-            </thead>
-        }
+        <thead>
+        <tr>
+            <th class="fw-normal small text-secondary">
+                @if (Model.CanSelect)
+                {
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="files" key="+a" aria-label="Select all files"/>
+                }Files
+            </th>
+        </tr>
+        </thead>
         <tbody>
+        @if (Model.Files.Length == 0)
+        {
+            <tr data-empty-group="files"><td class="small text-secondary">No files</td></tr>
+        }
         @for (int i = 0; i < Model.Files.Length; i++)
         {
             string path = Model.Files[i].Path;
