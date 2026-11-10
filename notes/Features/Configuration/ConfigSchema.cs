@@ -1,10 +1,10 @@
 using System.Text.Json;
 
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>
 /// The schema of the configuration as JSON Schema, which the editor uses to complete, explain and check what an admin types. The server
-/// doesn't depend on it: <see cref="PermissionParser"/> is what decides (and what it accepts is what this describes).
+/// doesn't depend on it: <see cref="ConfigParser"/> is what decides (and what it accepts is what this describes).
 /// </summary>
 public static class ConfigSchema
 {
@@ -36,11 +36,16 @@ public static class ConfigSchema
                 ["type"] = "string",
                 ["pattern"] = @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
                 ["description"] = "The version of the format of this file (major.minor.patch). The app keeps it up to date and brings older files up to the current version when it reads them: don't change it.",
-                ["examples"] = new[] { "1.0.0" }
+                ["examples"] = new[] { "1.1.0" }
+            };
+            properties["gitignore"] = new Dictionary<string, object>
+            {
+                ["type"] = "boolean",
+                ["description"] = "Whether the history of the notes leaves out the files of this folder and of its subfolders (a subfolder with its own configuration decides for itself). Configuration files are always kept."
             };
             properties["files"] = new Dictionary<string, object>
             {
-                ["description"] = "The files of this folder, which the app keeps up to date. A file without an entry has the permissions of the folder.",
+                ["description"] = "The files of this folder, which the app keeps up to date. A file without an entry has the settings of the folder.",
                 ["type"] = "array",
                 ["items"] = new Dictionary<string, object>
                 {
@@ -61,7 +66,7 @@ public static class ConfigSchema
             ["$schema"] = "http://json-schema.org/draft-07/schema#",
             ["type"] = "object",
             ["additionalProperties"] = false,
-            ["required"] = forFile ? new[] { "perms" } : new[] { "version", "perms", "files" },
+            ["required"] = forFile ? new[] { "perms" } : new[] { "version", "perms", "gitignore", "files" },
             ["properties"] = properties,
             ["definitions"] = new Dictionary<string, object>
             {

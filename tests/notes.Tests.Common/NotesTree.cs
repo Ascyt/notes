@@ -69,11 +69,11 @@ public sealed class NotesTree(string root)
         => string.Join('\n', List().Select(path => System.IO.File.Exists(Physical(path)) ? path + "=" + Read(path) : path + "/"));
 }
 
-/// <summary>Writes configuration files (docs/administration/permissions.md) for the tests.</summary>
+/// <summary>Writes configuration files (docs/administration/configuration.md) for the tests.</summary>
 public static class Cfg
 {
     /// <summary>The version the configurations are written with (Config:Version of the app's appsettings).</summary>
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
     /// <summary>A <c>perms</c> block.</summary>
     public static JsonObject Perms(bool inherit = true, string[]? rwAllow = null, string[]? rwReadOnly = null, string[]? rwDeny = null,
@@ -95,12 +95,17 @@ public static class Cfg
         return perms;
     }
 
-    /// <summary>The configuration of a folder, with its own permissions and those of some of its files.</summary>
+    /// <summary>The configuration of a folder, with its own permissions and those of some of its files. The folder is kept in the history.</summary>
     public static string Folder(JsonObject perms, params (string Name, JsonObject Perms)[] files)
+        => Folder(gitignore: false, perms, files);
+
+    /// <summary>The configuration of a folder, which <paramref name="gitignore"/> may leave out of the history.</summary>
+    public static string Folder(bool gitignore, JsonObject perms, params (string Name, JsonObject Perms)[] files)
         => new JsonObject
         {
             ["version"] = Version,
             ["perms"] = perms,
+            ["gitignore"] = gitignore,
             ["files"] = new JsonArray([..files.Select(file => (JsonNode)new JsonObject { ["name"] = file.Name, ["perms"] = file.Perms })])
         }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 }

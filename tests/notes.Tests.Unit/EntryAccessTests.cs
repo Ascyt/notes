@@ -32,8 +32,8 @@ public sealed class EntryAccessTests : IDisposable
 
         Assert.Equal(Everything, _notes.Get(Users.Admin, ""));
         Assert.Equal(Everything, _notes.Get(Users.Admin, "broken/x.md"));
-        Assert.True(_notes.Access.CanManagePermissions(Users.Admin.ToPrincipal()));
-        Assert.False(_notes.Access.CanManagePermissions(Users.Alice.ToPrincipal()));
+        Assert.True(_notes.Access.CanManageConfiguration(Users.Admin.ToPrincipal()));
+        Assert.False(_notes.Access.CanManageConfiguration(Users.Alice.ToPrincipal()));
     }
 
     [Fact]

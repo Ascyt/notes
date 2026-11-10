@@ -1,12 +1,12 @@
 using System.Text.Json.Nodes;
 using Semver;
 
-namespace notes.Features.Permissions.Migrations;
+namespace notes.Features.Configuration.Migrations;
 
 /// <summary>
 /// One step in changing what a <c>.config.json</c> looks like, e.g. a new required property or a property that moves into an object. It brings
 /// a configuration written for the version before it up to <see cref="Version"/>. Steps are listed in <see cref="ConfigMigrations.All"/> and
-/// described in docs/administration/permissions.md (Versions and migrations): read it before adding one.
+/// described in docs/administration/configuration.md (Versions and migrations): read it before adding one.
 /// </summary>
 /// <remarks>
 /// A migration is applied to every configuration that is older than <see cref="Version"/>, and to nothing else, so it may assume the structure
@@ -31,5 +31,5 @@ public interface IConfigMigration
 /// <summary>All migrations there are, oldest first. A new one is a class that implements <see cref="IConfigMigration"/> and goes into this list.</summary>
 public static class ConfigMigrations
 {
-    public static IReadOnlyList<IConfigMigration> All { get; } = [];
+    public static IReadOnlyList<IConfigMigration> All { get; } = [new AddGitignore()];
 }

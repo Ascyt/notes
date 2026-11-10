@@ -2,7 +2,7 @@ using Microsoft.Playwright;
 
 namespace notes.Tests.Ui;
 
-/// <summary>The upload dialog (_Upload.cshtml), the toasts (_Toasts.cshtml) and the permissions editor (ConfigEditorView.cshtml).</summary>
+/// <summary>The upload dialog (_Upload.cshtml), the toasts (_Toasts.cshtml) and the configuration editor (ConfigEditorView.cshtml).</summary>
 public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     private ILocator Input => Page.Locator("#upload-input");
@@ -121,7 +121,7 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await Expect(Page.Locator(".toast-card")).ToHaveCountAsync(0);
     }
 
-    // ---- Permissions editor (admins)
+    // ---- Configuration editor (admins)
 
     [Fact]
     public async Task The_permissions_editor_says_what_is_wrong_and_saves_what_is_right()

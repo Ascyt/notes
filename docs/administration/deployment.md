@@ -35,5 +35,5 @@ The realm file (`keycloak/notes-realm.json`) is only imported when the realm doe
 ## Running it
 
 - Notes live in `NOTES_DIR` (default `./data/notes`). On Linux the folder must be writable by uid 1654.
-- A backup consists of `NOTES_DIR` and the `keycloak-db-data` volume (`docker compose exec keycloak-db pg_dump -U keycloak keycloak`). The notes folder holds everything of the app besides the logins: the notes, their permissions, and the app's own data in `_`.
+- A backup consists of `NOTES_DIR` and the `keycloak-db-data` volume (`docker compose exec keycloak-db pg_dump -U keycloak keycloak`). The notes folder holds everything of the app besides the logins: the notes, their configuration, and the app's own data in `_`, their [history](history.md) among it.
 - Anything but the notes realm on `AUTH_HOST` answers 404 in Caddy. Cloudflare rules (WAF, rate limiting) add to that and are not part of this repository.

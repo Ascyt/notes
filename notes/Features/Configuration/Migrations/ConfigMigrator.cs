@@ -4,13 +4,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Semver;
 
-namespace notes.Features.Permissions.Migrations;
+namespace notes.Features.Configuration.Migrations;
 
 /// <summary>What <see cref="ConfigMigrator.Migrate"/> made of a configuration's text.</summary>
 /// <param name="Text">The text up to date, or as it was if there was nothing to do or something went wrong.</param>
 /// <param name="From">
 /// The version the text had; <see cref="ConfigVersions.Zero"/> if it has none (a file from before there were versions), null if that can't be told
-/// (it is not valid JSON, not an object, or the version isn't spelled right), which is for <see cref="PermissionParser"/> to report.
+/// (it is not valid JSON, not an object, or the version isn't spelled right), which is for <see cref="ConfigParser"/> to report.
 /// </param>
 /// <param name="Changed">Whether <paramref name="Text"/> differs from what was given.</param>
 /// <param name="Error">Why the text can't be used, if it can't: it is from a newer version of the app, or a migration failed.</param>
@@ -20,7 +20,7 @@ public sealed record MigrationResult(string Text, SemVersion? From, bool Changed
 /// Brings the text of a <c>.config.json</c> up to the current version of the app (<c>Config:Version</c> in appsettings): every migration newer
 /// than the version the text has, up to the current one, is applied in order, and the text gets the current version. Not every version has a
 /// migration: if none lies between, only the version is set, in the text as it is (comments and layout stay). Migrations are the steps of
-/// <see cref="ConfigMigrations.All"/>; what writing one involves is described in docs/administration/permissions.md.
+/// <see cref="ConfigMigrations.All"/>; what writing one involves is described in docs/development/config-migrations.md.
 /// </summary>
 public sealed class ConfigMigrator
 {
@@ -125,8 +125,8 @@ public sealed class ConfigMigrator
     /// <summary>Sets <c>version</c>, which stays (or becomes) the first property.</summary>
     private static void SetVersion(JsonObject root, SemVersion version)
     {
-        _ = root.Remove(PermissionParser.VersionKey);
-        root.Insert(0, PermissionParser.VersionKey, version.ToString());
+        _ = root.Remove(ConfigParser.VersionKey);
+        root.Insert(0, ConfigParser.VersionKey, version.ToString());
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public sealed class ConfigMigrator
     private static bool TryReadVersion(string text, out SemVersion? version)
     {
         version = null;
-        if (string.IsNullOrWhiteSpace(text) || text.Length > PermissionParser.MaxLength)
+        if (string.IsNullOrWhiteSpace(text) || text.Length > ConfigParser.MaxLength)
             return false;
 
         try
@@ -146,7 +146,7 @@ public sealed class ConfigMigrator
                 return false;
 
             JsonElement found = default;
-            foreach (JsonProperty property in parsed.RootElement.EnumerateObject().Where(property => property.Name == PermissionParser.VersionKey))
+            foreach (JsonProperty property in parsed.RootElement.EnumerateObject().Where(property => property.Name == ConfigParser.VersionKey))
                 found = property.Value;
 
             if (found.ValueKind == JsonValueKind.Undefined)

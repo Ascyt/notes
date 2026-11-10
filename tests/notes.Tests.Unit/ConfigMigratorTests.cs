@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
-using notes.Features.Permissions;
-using notes.Features.Permissions.Migrations;
 using Semver;
+using notes.Features.Configuration;
+using notes.Features.Configuration.Migrations;
 
 namespace notes.Tests.Unit;
 
@@ -60,14 +60,14 @@ public sealed class ConfigMigratorTests
     [Fact]
     public void Text_without_a_version_gets_the_current_one_and_keeps_its_comments_if_no_step_applies()
     {
-        string text = "{\n    // kept\n    \"perms\": { \"inherit\": true },\n    \"files\": []\n}";
+        string text = "{\n    // kept\n    \"perms\": { \"inherit\": true },\n    \"gitignore\": false,\n    \"files\": []\n}";
 
         MigrationResult result = Migrator("1.0.0").Migrate(text);
 
         Assert.True(result.Changed);
         Assert.Equal(ConfigVersions.Zero, result.From);
-        Assert.Equal("{\n    \"version\": \"1.0.0\",\n    // kept\n    \"perms\": { \"inherit\": true },\n    \"files\": []\n}", result.Text);
-        Assert.True(PermissionParser.ParseFolder(result.Text, existingFiles: null).IsValid);
+        Assert.Equal("{\n    \"version\": \"1.0.0\",\n    // kept\n    \"perms\": { \"inherit\": true },\n    \"gitignore\": false,\n    \"files\": []\n}", result.Text);
+        Assert.True(ConfigParser.ParseFolder(result.Text, existingFiles: null).IsValid);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class ConfigMigratorTests
         Assert.False(result.Changed);
 
         // (And the parser does report it)
-        Assert.False(PermissionParser.ParseFolder(text, existingFiles: null).IsValid);
+        Assert.False(ConfigParser.ParseFolder(text, existingFiles: null).IsValid);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.Permissions;
 
@@ -74,10 +75,10 @@ public interface IEntryAccess
         => GetAccess(user, physicalPath);
 
     /// <summary>
-    /// Whether the user may see and change the permissions themselves (the configuration of each folder and file) rather than just
-    /// live by them. Answered once for the whole notes: it is not up to the entry.
+    /// Whether the user may see and change the configuration of each folder and file (the permissions among it) rather than just
+    /// live by it. Answered once for the whole notes: it is not up to the entry.
     /// </summary>
-    bool CanManagePermissions(ClaimsPrincipal user);
+    bool CanManageConfiguration(ClaimsPrincipal user);
 }
 
 /// <summary>
@@ -90,7 +91,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
 {
     private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete);
 
-    public bool CanManagePermissions(ClaimsPrincipal user)
+    public bool CanManageConfiguration(ClaimsPrincipal user)
         => user.IsInRole(NotesAccess.AdminRole);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
@@ -102,7 +103,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
     /// <param name="isDirectory">Whether the path is a directory, if the caller knows; null to look at the disk.</param>
     private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, bool? isDirectory)
     {
-        if (CanManagePermissions(user))
+        if (CanManageConfiguration(user))
             return Everything;
 
         string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));

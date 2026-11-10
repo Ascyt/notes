@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Helpers;
+using notes.Features.History;
 
 namespace notes.Features.Components.Upload;
 
@@ -10,7 +11,7 @@ namespace notes.Features.Components.Upload;
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
 /// or proxies cap the file size. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
-public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree)
+public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, HistoryService history)
 {
     public async Task<IActionResult> HandleAsync(HttpRequest request, ClaimsPrincipal user, string physicalPath, string upload)
     {
@@ -60,9 +61,14 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
             return Forbidden(e.Message);
         }
 
-        return result is null
-            ? new ConflictObjectResult("No such upload, or the chunk does not continue it.")
-            : new ContentResult { Content = result };
+        if (result is null)
+            return new ConflictObjectResult("No such upload, or the chunk does not continue it.");
+
+        // The last chunk gave the file its place (the path of it), and an entry in the configuration of the directory
+        if (result != "")
+            history.AfterChange(user, [Path.Combine(physicalPath, result.Split('/')[^1]), Path.Combine(physicalPath, PathService.ConfigFileName)], HistoryChangeKind.Change);
+
+        return new ContentResult { Content = result };
     }
 
     private static ObjectResult Forbidden(string message)

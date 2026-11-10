@@ -1,9 +1,9 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Logging.Abstractions;
 using notes.Features.Auth;
+using notes.Features.Configuration;
+using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
-using notes.Features.Permissions.Migrations;
 
 namespace notes.Tests.Unit;
 
@@ -14,7 +14,7 @@ public sealed class TempNotes : IDisposable
     {
         Root = Path.Combine(Path.GetTempPath(), "notes-unit", Guid.NewGuid().ToString("N"));
         _ = Directory.CreateDirectory(Root);
-        Config = new Config { Dir = Root, Version = "1.0.0", Auth = new AuthConfig { Authority = "https://auth.invalid", ClientId = "c", ClientSecret = "s" } };
+        Config = new Config { Dir = Root, Version = Cfg.Version, Auth = new AuthConfig { Authority = "https://auth.invalid", ClientId = "c", ClientSecret = "s" } };
         Migrator = new ConfigMigrator(ConfigVersions.Parse(Config.Version), ConfigMigrations.All, NullLogger<ConfigMigrator>.Instance);
         Store = new FolderConfigStore(Config, Migrator, NullLogger<FolderConfigStore>.Instance);
         Access = new EntryAccess(Config, Store);
@@ -38,7 +38,7 @@ public sealed class TempNotes : IDisposable
     {
         try
         {
-            Directory.Delete(Root, recursive: true);
+            TestDirectories.Delete(Root);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

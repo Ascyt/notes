@@ -38,6 +38,6 @@ Before anything is copied, moved or deleted, everything is checked; if something
 
 ## Permissions
 
-Admins have a gear icon (or `c`) in the toolbar, which opens the permissions of the file or directory in an editor. How they are written is in [Permissions](../administration/permissions.md).
+Admins have a gear icon (or `c`) in the toolbar, which opens the configuration of the file or directory (its permissions, and whether the history keeps it) in an editor. How it is written is in [Configuration](../administration/configuration.md).
 
-![The permissions of a directory](../screenshots/permissions-desktop.png)
+![The configuration of a directory](../screenshots/configuration-desktop.png)

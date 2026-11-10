@@ -1,6 +1,6 @@
 using System.Security.Claims;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
 
 namespace notes.Features.Auth;
 
@@ -34,8 +34,8 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
         => access.GetAccess(user, physicalPath, isDirectory);
 
     /// <summary>Whether the user may see and change the permissions themselves (the configuration of each folder and file).</summary>
-    public bool CanManagePermissions(ClaimsPrincipal user)
-        => access.CanManagePermissions(user);
+    public bool CanManageConfiguration(ClaimsPrincipal user)
+        => access.CanManageConfiguration(user);
 
     /// <summary>
     /// Whether the user is shown the names of entries they may not read (with a lock). Logged-in users are: they could find out that such
@@ -121,7 +121,7 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// </summary>
     public IEnumerable<WalkedEntry> Walk(ClaimsPrincipal user, DirectoryInfo directory)
     {
-        bool seesConfigs = access.CanManagePermissions(user);
+        bool seesConfigs = access.CanManageConfiguration(user);
         bool seesUnreadable = SeesUnreadableNames(user);
         foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", WalkOptions))
         {

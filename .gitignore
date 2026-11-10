@@ -27,5 +27,8 @@ Thumbs.db
 # Notes and other runtime data of the compose stack
 data/
 
+# The app's own data in the notes used in development (temporary files, the history)
+notes/notes-test/_/
+
 # Marker of the kill switch when running locally (in production it is in the keys volume)
 notes/killed

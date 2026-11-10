@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Semver;
 
-namespace notes.Features.Permissions.Migrations;
+namespace notes.Features.Configuration.Migrations;
 
 /// <summary>
 /// How the version of the configuration format is written, in appsettings and in every <c>.config.json</c>: <c>major.minor.patch</c> as

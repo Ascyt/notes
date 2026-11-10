@@ -1,5 +1,5 @@
-using notes.Features.Permissions.Migrations;
 using Semver;
+using notes.Features.Configuration.Migrations;
 
 namespace notes.Tests.Unit;
 

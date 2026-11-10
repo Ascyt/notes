@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text;
+using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
-using notes.Features.Permissions.Migrations;
 
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>
 /// Reads and writes the configuration file of each folder (<see cref="PathService.ConfigFileName"/>), and keeps its file entries in step with
@@ -78,7 +78,7 @@ public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, IL
             return new FolderConfigState(null, [migrated.Error]);
         }
 
-        ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(migrated.Text, existingFiles: null);
+        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(migrated.Text, existingFiles: null);
         if (!parsed.IsValid)
             logger.LogWarning("The configuration of {directory} is invalid, so only admins have access there:\n{errors}", physicalDirectory, parsed.ErrorText);
 

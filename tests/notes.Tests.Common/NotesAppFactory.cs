@@ -57,7 +57,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
             return inner.GetAccess(user, physicalPath, isDirectory);
         }
 
-        public bool CanManagePermissions(ClaimsPrincipal user) => inner.CanManagePermissions(user);
+        public bool CanManageConfiguration(ClaimsPrincipal user) => inner.CanManageConfiguration(user);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -98,7 +98,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
     public void ResetNotes()
     {
         foreach (string directory in Directory.EnumerateDirectories(NotesDir))
-            Directory.Delete(directory, recursive: true);
+            TestDirectories.Delete(directory);
         foreach (string file in Directory.EnumerateFiles(NotesDir))
             File.Delete(file);
     }
@@ -121,7 +121,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         try
         {
-            Directory.Delete(NotesDir, recursive: true);
+            TestDirectories.Delete(NotesDir);
             File.Delete(KillSwitchMarker);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

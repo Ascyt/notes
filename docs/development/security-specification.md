@@ -17,7 +17,7 @@ The rest of this document is about the second layer.
 ## The configuration files
 
 - `.config.json` (`PathService.ConfigFileName`) exists in the eyes of admins only. For everyone else `GetAccess` answers `None` for it, it is not in listings, `AccessTree.Walk` doesn't return it (so copies, moves, deletes and zips of a directory never see it), and no path leads to it (it is not a valid name, so it can't be created, uploaded, renamed to or opened). For admins it is part of walks, so it travels with a directory they copy, move or download.
-- Seeing and changing permissions is a permission of its own: `IEntryAccess.CanManagePermissions` (admins). `GET ?config` answers 404 to everyone else, whatever the entry, and so does `POST ?config`.
+- Seeing and changing the configuration (the permissions, and what the history keeps) is a permission of its own: `IEntryAccess.CanManageConfiguration` (admins). `GET ?config` answers 404 to everyone else, whatever the entry, and so does `POST ?config`.
 - The file entries (`files`) of a folder's configuration are kept in step with its files by whoever adds, renames or removes a file, under the `StructureLock` (`FolderConfigStore.FileAdded/FileRenamed/FileRemoved`). A failure there never fails the operation.
 - A path's permissions come from its folder's file entry (found by name, whether or not the file exists), then the folder's permissions, then those of the folders above, stopping after the first of these with `inherit: false`. A directory is its own folder. Which of these applies to a path therefore depends on whether it is an existing directory, which anyone who may read the directory it is in sees anyway.
 
@@ -121,7 +121,7 @@ Notes on the table:
 
 ### Pages outside the notes
 
-Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a reserved name (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers) and is never part of the notes. These pages are not covered by the permissions of the notes.
+Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a reserved name (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers, the history) and is never part of the notes. These pages are not covered by the permissions of the notes.
 
 | Page | Request | Required |
 |---|---|---|
@@ -130,6 +130,12 @@ Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a
 | Error page | shown for an error status | Nothing. It names only the requested path, a request id and the time. |
 | Background jobs (Hangfire dashboard) | `/_/Hangfire` | Admin (`NotesAccess.AdminPolicyName`, otherwise 404) |
 | Shut the site down ([kill switch](../administration/kill-switch.md)) | `POST /_/Shutdown` | Admin (otherwise 404) and the antiforgery token. Afterwards every request, by anyone, gets the same page that only says the site is shut down (503). |
+
+### The history
+
+The [history](../administration/history.md) (`HistoryService`, a git repository in `_/history`) keeps every version of every file it keeps, also what a user may not read, and the names (and emails or Keycloak ids) of the users who changed them. Nothing serves it: there is no page or endpoint for it, and as part of `_` no path of the notes leads to it, so every request for it answers 404, to admins too. A page that shows the history later has to decide for every path with `IEntryAccess`, as for the notes themselves, and is added here.
+
+What the history does never decides whether an operation is allowed, and never fails it: it runs after the operation's checks, and errors only go to the log.
 
 ## Concurrency
 
@@ -144,7 +150,7 @@ Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a
    - `Walk` for everything inside a directory;
    - `Inspect` for what a page shows about a tree.
 
-   Within the notes, only `EntryAccess` looks at roles and groups (for admin-only features, ask `CanManagePermissions`). Pages outside the notes that are for admins use the admin policy (`NotesAccess.AdminPolicyName`).
+   Within the notes, only `EntryAccess` looks at roles and groups (for admin-only features, ask `CanManageConfiguration`). Pages outside the notes that are for admins use the admin policy (`NotesAccess.AdminPolicyName`).
 2. **Pick the permissions from the definitions above.** Seeing contents needs `Read`, changing contents needs `Write`, bringing something into existence at a path needs `Create`, and taking it away needs `Delete`. Doing any of this inside a directory needs `Read` on that directory. If none of them fits, extend `EntryAccessInfo` and this document. Don't stretch an existing permission.
 3. **Answer hidden like missing.** Return the same 404 and the same message. Return 403 only for known entries.
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
@@ -160,8 +166,10 @@ Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a
 | Permission levels, `IEntryAccess`, resolving the configuration for a user | `notes/Features/Auth/EntryAccess.cs` |
 | Known and openable entries, walking trees, page hints | `notes/Features/Auth/AccessTree.cs` |
 | Admin policy, claim names | `notes/Features/Auth/NotesAccess.cs` |
-| The configuration: model, parser (schema), text editing, store, `?config` handler | `notes/Features/Permissions/*` |
-| The permissions page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
+| Principals and `perms` blocks | `notes/Features/Permissions/PermissionModel.cs` |
+| The configuration: model, parser (schema), text editing, store, migrations, `?config` handler | `notes/Features/Configuration/*` |
+| The history | `notes/Features/History/*` |
+| The configuration page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
 | Keeping groups and roles current, notice after a forced logout | `notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
 | Resolving every request to a known entry | `notes/Pages/Index.cshtml.cs` |
 | Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_LockedEntry.cshtml` |

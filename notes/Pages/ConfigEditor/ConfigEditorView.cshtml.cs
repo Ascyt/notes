@@ -2,12 +2,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace notes.Pages.ConfigEditor;
 
-/// <summary>The page that edits the permissions of a folder or a file (<c>?config</c>), for those who may manage permissions.</summary>
+/// <summary>The page that edits the configuration of a folder or a file (<c>?config</c>), for those who may manage it.</summary>
 public class ConfigEditorView : PageModel
 {
     public string VirtualPath { get; init; } = "";
 
-    /// <summary>Whether it is the permissions of a file (otherwise of a folder).</summary>
+    /// <summary>Whether it is the configuration of a file (otherwise of a folder).</summary>
     public bool IsFile { get; init; }
 
     /// <summary>What the editor starts with: the configuration as it is saved, or the default if there is none.</summary>

@@ -4,5 +4,7 @@ Setting up and running a site of the app, and what admins can do in it. Admins a
 
 - [Deployment](administration/deployment.md): what the stack is made of, setting it up on a server, backups.
 - [Sessions](administration/sessions.md): logging in, how long a session lasts, "Remember me".
+- [Configuration](administration/configuration.md): the `.config.json` of each directory, its editor, and how its format is kept up to date.
 - [Permissions](administration/permissions.md): who may see and change what, and how it is written down.
+- [History](administration/history.md): the git repository that keeps every change to the notes, and when it commits.
 - [Kill switch](administration/kill-switch.md): shutting the whole site down at once, and bringing it back.

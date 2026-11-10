@@ -11,7 +11,7 @@ public static class NotesAccess
     public const string AdminRole = "admin";
 }
 
-/// <summary>The claims of a session that the permissions are made of. Keycloak sends them under these names (see keycloak/notes-realm.json).</summary>
+/// <summary>The claims of a session that the app uses. Keycloak sends them under these names (see keycloak/notes-realm.json).</summary>
 public static class NotesClaims
 {
     /// <summary>The name the user logs in with.</summary>
@@ -19,6 +19,9 @@ public static class NotesClaims
 
     /// <summary>The id Keycloak gives the user, which never changes.</summary>
     public const string UserId = "sub";
+
+    /// <summary>The user's email address. Not every user has one.</summary>
+    public const string Email = "email";
 
     /// <summary>The names of the groups the user is in.</summary>
     public const string Groups = "groups";

@@ -112,8 +112,8 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
     }
 
     [Fact]
-    public Task Permissions_editor()
-        => CaptureAsync("permissions", Users.Admin, "/docs?config", WaitForMonacoAsync);
+    public Task Configuration_editor()
+        => CaptureAsync("configuration", Users.Admin, "/docs?config", WaitForMonacoAsync);
 
     [Fact]
     public Task Not_logged_in()

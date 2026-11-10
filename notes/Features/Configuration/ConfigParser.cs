@@ -1,8 +1,9 @@
 using System.Text.Json;
-using notes.Features.Helpers; 
-using notes.Features.Permissions.Migrations;
+using notes.Features.Configuration.Migrations;
+using notes.Features.Helpers;
+using notes.Features.Permissions;
 
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>The outcome of reading a configuration: the value if the text is valid, otherwise what is wrong with it.</summary>
 public sealed record ParseResult<T>(T? Value, IReadOnlyList<string> Errors) where T : class
@@ -18,11 +19,11 @@ public sealed record ParseResult<T>(T? Value, IReadOnlyList<string> Errors) wher
 }
 
 /// <summary>
-/// Reads and validates the text of a configuration: JSON in which comments are allowed, and nothing else the schema (docs/administration/permissions.md)
+/// Reads and validates the text of a configuration: JSON in which comments are allowed, and nothing else the schema (docs/administration/configuration.md)
 /// doesn't say. It is strict: unknown or repeated properties, a value of the wrong type or a principal that is spelled wrong are errors, so
 /// is a principal that is in two of the lists that exclude each other. A problem is never guessed away, as that could grant what nobody meant to.
 /// </summary>
-public static class PermissionParser
+public static class ConfigParser
 {
     /// <summary>The longest text that is read, in characters. Far more than a folder with thousands of files needs.</summary>
     public const int MaxLength = 1024 * 1024;
@@ -30,6 +31,7 @@ public static class PermissionParser
     public const string VersionKey = "version";
     public const string InheritKey = "inherit";
     public const string PermsKey = "perms";
+    public const string GitignoreKey = "gitignore";
     public const string FilesKey = "files";
     public const string NameKey = "name";
 
@@ -47,7 +49,7 @@ public static class PermissionParser
     };
 
     /// <summary>
-    /// Reads the configuration of a folder: <c>{ "version": "...", "perms": {...}, "files": [ { "name": "...", "perms": {...} } ] }</c>.
+    /// Reads the configuration of a folder: <c>{ "version": "...", "perms": {...}, "gitignore": false, "files": [ { "name": "...", "perms": {...} } ] }</c>.
     /// The version only has to be spelled right here: that it is the current one is for <see cref="Migrations.ConfigMigrator"/> to see to,
     /// before the text is read.
     /// </summary>
@@ -62,12 +64,16 @@ public static class PermissionParser
         if (document is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [VersionKey, PermsKey, FilesKey], required: [PermsKey, FilesKey], errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [VersionKey, PermsKey, GitignoreKey, FilesKey], required: [PermsKey, GitignoreKey, FilesKey], errors);
         if (root is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
         if (root.TryGetValue(VersionKey, out JsonElement version) && (version.ValueKind != JsonValueKind.String || !ConfigVersions.TryParse(version.GetString(), out _)))
             errors.Add($"{VersionKey}: must be a version like \"1.0.0\" (major.minor.patch).");
+
+        bool gitignore = root[GitignoreKey].ValueKind == JsonValueKind.True;
+        if (root[GitignoreKey].ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            errors.Add($"{GitignoreKey}: must be true or false.");
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
         List<FileEntry> files = [];
@@ -94,7 +100,7 @@ public static class PermissionParser
 
         return errors.Count > 0 || perms is null
             ? ParseResult<FolderConfig>.Failed(errors)
-            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, files));
+            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files));
     }
 
     /// <summary>

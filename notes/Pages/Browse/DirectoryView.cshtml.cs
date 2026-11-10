@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
 using notes.Features.Components.Selection;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
 
 namespace notes.Pages.Browse;
 
@@ -87,7 +87,7 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
             .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)
             .Select(ToListed(isDirectory: true))
             .Where(entry => entry.CanOpen || seesUnreadable)];
-        // The file with the permissions is not a note: it is changed through the permissions page, and never listed
+        // The configuration file is not a note: it is changed through the configuration page, and never listed
         Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
             .Where(file => !string.Equals(Path.GetFileName(file), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase)

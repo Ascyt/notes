@@ -37,9 +37,9 @@
         toolbarButtons.Add(ToolbarButton.Upload(Model.CreateDeniedReason));
         toolbarButtons.Add(ToolbarButton.Delete("directory", Model.DeleteDeniedReason));
     }
-    // The leftmost of them, but only there for those who manage permissions
+    // The leftmost of them, but only there for those who manage the configuration
     if (Model.CanConfigure)
-        toolbarButtons.Insert(0, ToolbarButton.Permissions("directory"));
+        toolbarButtons.Insert(0, ToolbarButton.Config("directory"));
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>

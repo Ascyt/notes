@@ -1,58 +1,26 @@
 # Permissions
 
-Who may see and change what is written down in a file called `.config.json` in each directory of the notes. Only admins (users with the `admin` realm role) can see or change these files. Everything else about what the permissions *mean* is in the [security specification](../development/security-specification.md); this document is about how they are written.
+Who may see and change what is written down in the `perms` blocks of the [configuration](configuration.md) of each directory (`.config.json`): one for the directory, and one in the entry of each of its files. Only admins (users with the `admin` realm role) can see or change them, with the gear button (see [Editing](configuration.md#editing)). Everything else about what the permissions *mean* is in the [security specification](../development/security-specification.md); this document is about how they are written.
 
-## Editing
-
-Admins have a gear button below the breadcrumb of every directory and file (leftmost in a directory, right of Save in a file; shortcut `c`). It opens the permissions of that entry at `?config`, in an editor. Save checks the text completely and says what is wrong, and saves it exactly as written (nothing is reformatted). Reset puts the default into the editor (nothing changes until Save). The magnifying glass icons zoom the editor, as in the [editor of a file](../usage/viewing-and-editing.md#the-editors), with which it shares the zoom.
-
-- For a **directory** the editor shows its whole `.config.json`.
-- For a **file** it shows only that file's entry in the `.config.json` of the directory it is in, without the `name`.
-
-`.config.json` is never listed, can't be opened or created by any other means, and is left out of downloads and copies by everyone but admins. For admins it is part of a zip download of a directory, and of a copy or move of it. When a non-admin copies or moves a directory, the copy has no permissions of its own and has those of where it went.
-
-## The file
-
-JSON, in which comments are allowed (`//` and `/* */`). Everything is checked strictly: an unknown or repeated property, a value of the wrong type or a misspelled principal is an error.
+## Writing them
 
 ```jsonc
-{
-    "version": "1.0.0",                       // the version of this format, see "Versions and migrations"
-    "perms": {
-        "inherit": true,                      // required
-        "rwAllow":      ["g:team-a"],         // may read and write
-        "rwReadOnly":   ["g:team-b", "r:viewer", "u:alice"],   // may read
-        "rwDeny":       [],                   // may not read
-        "cdAllow":      ["g:team-a"],         // may create and delete
-        "cdCreateOnly": ["u:alice"],          // may create
-        "cdDeny":       []                    // may neither
-    },
-    "files": [                                // required: one entry per file, kept up to date by the app
-        { "name": "plan.md", "perms": { "inherit": true } },
-        { "name": "secret.md", "perms": { "inherit": false, "rwAllow": ["u:alice"] } }
-    ]
+"perms": {
+    "inherit": true,                      // required
+    "rwAllow":      ["g:team-a"],         // may read and write
+    "rwReadOnly":   ["g:team-b", "r:viewer", "u:alice"],   // may read
+    "rwDeny":       [],                   // may not read
+    "cdAllow":      ["g:team-a"],         // may create and delete
+    "cdCreateOnly": ["u:alice"],          // may create
+    "cdDeny":       []                    // may neither
 }
 ```
 
-- **`version`** is the version of the format of the file, `major.minor.patch` (see [Versions and migrations](#versions-and-migrations)). The app keeps it up to date; it is not changed by hand. Saving a directory's permissions needs it, and refuses one that is newer than the app's.
 - **Principals** are `u:<user name>`, `g:<group>` and `r:<role>`. User names are not case sensitive, group and role names are. A user also matches `u:<id>` with their Keycloak id.
 - **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
 - **`l`** stands for **all users who are logged in**, so that no group with everyone in it has to be made in Keycloak. It is allowed in every list, e.g. `"rwAllow": ["l"]` lets every logged-in user write, while `"rwReadOnly": ["a"]` lets the public read.
 - **Only `inherit` is required** in a `perms` block; a list that is missing is empty.
 - **A principal can be in only one of the `rw` lists, and in only one of the `cd` lists** (it may be in one of each). Anything else is an error when saving.
-- **`files`** has an entry for every file of the directory. The app adds one when a file is created, uploaded, copied or moved in, renames it when the file is renamed, and removes it when the file is deleted or moved away; saving the directory's permissions adds the ones that are missing. Entries are for files only: a directory has its own `.config.json`. The permissions of a file do not travel when it is copied or moved. A file without an entry has the permissions of its directory.
-
-## Versions and migrations
-
-The format of `.config.json` will change over time (a new required property, a property that moves into an object, ...). So that files that were written for an older format keep working, every file says which version of the app wrote it (`version`), and the app brings older files up to date.
-
-- The version of the app is **`Config:Version`** in `appsettings.json` (`major.minor.patch`, e.g. `1.0.0`). The app doesn't start if it isn't a version.
-- A file **without** a `version` is from before there were versions: it counts as `0.0.0`.
-- Not every version needs a migration. When a file is read, and its version is lower than `Config:Version`, every migration after its version up to the current one is applied, oldest first (there may be none), and the file gets the current version. A file with the current version is not touched. A file with a **higher** version (written by a newer app, then rolled back) is never guessed at: it counts as invalid, so only admins have access where it applies, and the editor says why.
-- The migrated text is what the app uses and what the editor shows. It is **written to disk** when the app starts (every `.config.json` under the notes is looked at once), and by anything that writes the file anyway (saving it, or adding, renaming and removing a file's entry). A file that can't be migrated (a migration fails) is left as it is, logged, and counts as invalid.
-- **Comments:** a file that goes through a real migration is written again in the standard layout, without its comments (a migration changes the structure, which text can't follow). A file for which only the version has to be set (no migration lies between, which is the case for most versions) keeps everything, comments included.
-
-How a migration is added is in [Migrations of the permissions files](../development/config-migrations.md).
 
 ## What they mean
 

@@ -8,8 +8,8 @@ using notes.Features.Components.Rename;
 using notes.Features.Components.Selection;
 using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
 using notes.Pages.Browse;
 using notes.Pages.ConfigEditor;
 using notes.Pages.Editor;
@@ -46,7 +46,7 @@ public sealed class IndexModel(Config config,
     public DirectoryView? Directory { get; private set; }
     public new FileView? File { get; private set; }
 
-    /// <summary>The editor of the permissions of the entry (<c>?config</c>), instead of the entry itself.</summary>
+    /// <summary>The editor of the configuration of the entry (<c>?config</c>), instead of the entry itself.</summary>
     public ConfigEditorView? ConfigEditor { get; private set; }
 
     public async Task<IActionResult> OnGetAsync()
@@ -65,10 +65,10 @@ public sealed class IndexModel(Config config,
         if (!tree.IsKnown(User, PhysicalPath))
             return NotFound();
 
-        // The permissions are for those who manage them. For everyone else there is no such thing, which is answered like a missing one.
+        // The configuration is for those who manage it. For everyone else there is no such thing, which is answered like a missing one.
         if (Request.Query.ContainsKey("config"))
         {
-            if (!tree.CanManagePermissions(User))
+            if (!tree.CanManageConfiguration(User))
                 return NotFound();
 
             ConfigEditor = configHandler.CreateView(VirtualPath, PhysicalPath);
@@ -100,7 +100,7 @@ public sealed class IndexModel(Config config,
                 PhysicalPath = PhysicalPath,
                 Viewer = User,
                 CanBrowse = canOpen,
-                CanConfigure = tree.CanManagePermissions(User),
+                CanConfigure = tree.CanManageConfiguration(User),
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
             };
             Directory.Init();
@@ -113,7 +113,7 @@ public sealed class IndexModel(Config config,
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
                 CanWrite = tree.GetAccess(User, PhysicalPath).CanWrite,
-                CanConfigure = tree.CanManagePermissions(User),
+                CanConfigure = tree.CanManageConfiguration(User),
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
                 DeleteDeniedReason = inspected.DeleteDeniedReason,
@@ -132,7 +132,7 @@ public sealed class IndexModel(Config config,
             return notFound;
 
         if (Request.Query.ContainsKey("config"))
-            return tree.CanManagePermissions(User) ? await configHandler.SaveAsync(Request, PhysicalPath) : NotFound("Path not found.");
+            return tree.CanManageConfiguration(User) ? await configHandler.SaveAsync(Request, PhysicalPath) : NotFound("Path not found.");
 
         string? selection = Request.Query["selection"];
         if (selection is not null)

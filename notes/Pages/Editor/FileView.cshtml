@@ -25,7 +25,7 @@
         toolbarButtons.Add(ToolbarButton.ZoomIn());
     }
     if (Model.CanConfigure)
-        toolbarButtons.Add(ToolbarButton.Permissions("file"));
+        toolbarButtons.Add(ToolbarButton.Config("file"));
     // Only what the browser can show has raw bytes to look at (see RawHandler)
     if (Model.IsBinary && Model.Media != MediaKind.None)
         toolbarButtons.Add(ToolbarButton.Raw());

@@ -10,6 +10,7 @@ public sealed class ClearStaleUploadsJob(IUploadService uploadService, ILogger<C
     public void Run()
     {
         int deleted = uploadService.DeleteStaleUploads(MaxAge);
-        logger.LogInformation("Deleted {count} stale upload temp file(s)", deleted);
+        if (deleted > 0)
+            logger.LogInformation("Deleted {count} stale upload temp file(s)", deleted);
     }
 }

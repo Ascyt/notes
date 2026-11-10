@@ -3,7 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Semver;
 
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>
 /// Edits the text of a folder's configuration file (JSON with comments) without reading it into an object and writing it out again, which
@@ -24,7 +24,10 @@ public static class ConfigText
 
     // ---- What the configuration of a folder starts as
 
-    /// <summary>The text of a configuration that was never written: it permits nothing beyond what the folder above does, and has an entry for every file.</summary>
+    /// <summary>
+    /// The text of a configuration that was never written: it permits nothing beyond what the folder above does, keeps the folder in the
+    /// history, and has an entry for every file.
+    /// </summary>
     public static string Default(IEnumerable<string> fileNames, SemVersion version)
     {
         StringBuilder text = new();
@@ -40,6 +43,9 @@ public static class ConfigText
                         "perms": {
                             "inherit": true
                         },
+                        // true leaves the files of this folder and its subfolders out of the history (configuration files are always kept).
+                        // A subfolder with a configuration of its own decides for itself.
+                        "gitignore": false,
                         // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions of the folder.
                         "files": [
                     """);
@@ -85,7 +91,7 @@ public static class ConfigText
                 if (firstProperty < 0)
                     firstProperty = (int)reader.TokenStartIndex;
 
-                bool isVersion = reader.ValueTextEquals(PermissionParser.VersionKey);
+                bool isVersion = reader.ValueTextEquals(ConfigParser.VersionKey);
                 _ = reader.Read();
                 if (isVersion && reader.TokenType == JsonTokenType.String)
                     return Encoding.UTF8.GetString(Replace(bytes, (int)reader.TokenStartIndex, (int)reader.BytesConsumed, value));
@@ -97,7 +103,7 @@ public static class ConfigText
                 return null;
 
             // Added first, laid out like the properties are: on a line of its own if they are, otherwise next to them
-            string property = $"\"{PermissionParser.VersionKey}\": {value}";
+            string property = $"\"{ConfigParser.VersionKey}\": {value}";
             string inserted = firstProperty < 0 ? "\n" + IndentOfLine(bytes, open) + "    " + property + "\n" + IndentOfLine(bytes, open)
                 : StartsLine(bytes, firstProperty) ? "\n" + IndentOfLine(bytes, firstProperty) + property + ","
                 : " " + property + ",";
@@ -244,7 +250,7 @@ public static class ConfigText
                 if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1)
                     continue;
 
-                bool isFiles = reader.ValueTextEquals(PermissionParser.FilesKey);
+                bool isFiles = reader.ValueTextEquals(ConfigParser.FilesKey);
                 _ = reader.Read();
                 if (!isFiles)
                 {
@@ -277,7 +283,7 @@ public static class ConfigText
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
                 int propertyStart = (int)reader.TokenStartIndex;
-                bool isName = reader.ValueTextEquals(PermissionParser.NameKey);
+                bool isName = reader.ValueTextEquals(ConfigParser.NameKey);
                 _ = reader.Read();
                 int valueStart = (int)reader.TokenStartIndex;
                 if (isName && reader.TokenType == JsonTokenType.String)

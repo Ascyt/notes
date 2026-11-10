@@ -1,8 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Components.Transfer;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
+using notes.Features.History;
 
 namespace notes.Features.Components.Rename;
 
@@ -10,7 +11,7 @@ namespace notes.Features.Components.Rename;
 /// Answers <c>?rename=&lt;name&gt;</c>: renames the file or directory and returns where it is now. Renaming is moving within the same
 /// directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
-public sealed class RenameHandler(Config config, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs)
+public sealed class RenameHandler(Config config, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath, string newName)
     {
@@ -39,6 +40,10 @@ public sealed class RenameHandler(Config config, IPathService path, TransferPlan
                 return new ObjectResult(e.Message) { StatusCode = e.StatusCode };
             }
 
+            string[] changed = isDirectory
+                ? [physicalPath, newPhysicalPath]
+                : [physicalPath, newPhysicalPath, Path.Combine(Path.GetDirectoryName(physicalPath)!, PathService.ConfigFileName)];
+            history.BeforeChange(user, changed);
             if (isDirectory)
                 Directory.Move(physicalPath, newPhysicalPath);
             else
@@ -47,6 +52,7 @@ public sealed class RenameHandler(Config config, IPathService path, TransferPlan
                 // The entry of the file goes with it (for a directory, its own configuration file is in it, and goes along)
                 configs.FileRenamed(Path.GetDirectoryName(physicalPath)!, Path.GetFileName(physicalPath), newName);
             }
+            history.AfterChange(user, changed, HistoryChangeKind.Change);
 
             return new ContentResult { Content = "/" + path.ToVirtualPath(config.Dir, newPhysicalPath) };
         }

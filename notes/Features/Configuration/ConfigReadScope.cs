@@ -1,4 +1,4 @@
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>
 /// For the length of one synchronous operation that asks about many paths (walking a directory, planning a transfer), the configuration of each

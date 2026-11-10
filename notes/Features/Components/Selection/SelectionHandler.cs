@@ -2,8 +2,8 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
 
 namespace notes.Features.Components.Selection;
 

@@ -1,5 +1,5 @@
-using notes.Features.Permissions;
 using Semver;
+using notes.Features.Configuration;
 
 namespace notes.Tests.Unit;
 
@@ -12,6 +12,7 @@ public sealed class ConfigTextTests
             "perms": {
                 "inherit": true // keep
             },
+            "gitignore": false,
             "files": [
                 // the plan
                 { "name": "plan.md", "perms": { "inherit": true } },
@@ -23,7 +24,7 @@ public sealed class ConfigTextTests
     private static void AssertValid(string? text)
     {
         Assert.NotNull(text);
-        ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(text, existingFiles: null);
+        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(text, existingFiles: null);
         Assert.True(parsed.IsValid, parsed.ErrorText + "\n" + text);
     }
 
@@ -36,7 +37,7 @@ public sealed class ConfigTextTests
         Assert.Contains("\"version\": \"1.2.3\"", text);
         Assert.Equal(["A.md", "b.md", "it's ü & co.md"], ConfigText.FileNames(text));
         AssertValid(ConfigText.Default([], new SemVersion(1, 0, 0)));
-        Assert.True(PermissionParser.ParseFileBody(ConfigText.DefaultFileBody()).IsValid);
+        Assert.True(ConfigParser.ParseFileBody(ConfigText.DefaultFileBody()).IsValid);
     }
 
     [Fact]
@@ -58,7 +59,7 @@ public sealed class ConfigTextTests
     [Fact]
     public void Adding_to_an_empty_list()
     {
-        string? text = ConfigText.AddFile("""{ "perms": { "inherit": true }, "files": [] }""", "a.md");
+        string? text = ConfigText.AddFile("""{ "perms": { "inherit": true }, "gitignore": false, "files": [] }""", "a.md");
         AssertValid(text);
         Assert.Equal(["a.md"], ConfigText.FileNames(text!));
     }
@@ -70,7 +71,7 @@ public sealed class ConfigTextTests
     [Fact]
     public void Adding_to_an_empty_list_with_a_comment_keeps_it_valid()
     {
-        string? withComment = ConfigText.AddFile("""{ "perms": { "inherit": true }, "files": [ /* none yet */ ] }""", "a.md");
+        string? withComment = ConfigText.AddFile("""{ "perms": { "inherit": true }, "gitignore": false, "files": [ /* none yet */ ] }""", "a.md");
         AssertValid(withComment);
         Assert.Equal(["a.md"], ConfigText.FileNames(withComment!));
     }
@@ -108,7 +109,7 @@ public sealed class ConfigTextTests
         AssertValid(text);
         Assert.Equal(["plan.md", "renamed 'x'.md"], ConfigText.FileNames(text!));
         Assert.Contains("// carol's", text);
-        Assert.False(PermissionParser.ParseFolder(text!, null).Value!.FindFile("renamed 'x'.md")!.Perms.Inherit);
+        Assert.False(ConfigParser.ParseFolder(text!, null).Value!.FindFile("renamed 'x'.md")!.Perms.Inherit);
     }
 
     /// <summary>
@@ -123,7 +124,7 @@ public sealed class ConfigTextTests
 
         AssertValid(text);
         Assert.Equal(["secret.md"], ConfigText.FileNames(text!));
-        Assert.True(PermissionParser.ParseFolder(text!, null).Value!.FindFile("secret.md")!.Perms.Inherit);
+        Assert.True(ConfigParser.ParseFolder(text!, null).Value!.FindFile("secret.md")!.Perms.Inherit);
         Assert.Contains("// the plan", text);
     }
 
@@ -142,7 +143,7 @@ public sealed class ConfigTextTests
         string? text = ConfigText.RenameFile(Commented, "secret.md", "SECRET.md");
 
         Assert.Equal(["plan.md", "SECRET.md"], ConfigText.FileNames(text!));
-        Assert.False(PermissionParser.ParseFolder(text!, null).Value!.FindFile("secret.md")!.Perms.Inherit);
+        Assert.False(ConfigParser.ParseFolder(text!, null).Value!.FindFile("secret.md")!.Perms.Inherit);
     }
 
     [Fact]
@@ -152,7 +153,7 @@ public sealed class ConfigTextTests
 
         Assert.NotNull(body);
         Assert.DoesNotContain("\"name\"", body);
-        Assert.True(PermissionParser.ParseFileBody(body).IsValid, body);
+        Assert.True(ConfigParser.ParseFileBody(body).IsValid, body);
 
         string? updated = ConfigText.SetFileBody(Commented, "secret.md", """
             {
@@ -162,7 +163,7 @@ public sealed class ConfigTextTests
             """);
         AssertValid(updated);
         Assert.Contains("still carol's", updated);
-        Assert.Contains("u:alice", PermissionParser.ParseFolder(updated!, null).Value!.FindFile("secret.md")!.Perms.RwReadOnly);
+        Assert.Contains("u:alice", ConfigParser.ParseFolder(updated!, null).Value!.FindFile("secret.md")!.Perms.RwReadOnly);
         Assert.Equal(["plan.md", "secret.md"], ConfigText.FileNames(updated!));
     }
 
@@ -199,15 +200,15 @@ public sealed class ConfigTextTests
         string? updated = ConfigText.SetFileBody(Commented, "plan.md", """{ "name": "secret.md", "perms": { "inherit": true, "rwAllow": ["u:mallory"] } }""");
 
         if (updated is not null)
-            Assert.False(PermissionParser.ParseFolder(updated, null).IsValid);
+            Assert.False(ConfigParser.ParseFolder(updated, null).IsValid);
     }
 
     [Theory]
     [InlineData("{")]
     [InlineData("[]")]
     [InlineData("""{ "perms": { "inherit": true } }""")]
-    [InlineData("""{ "perms": { "inherit": true }, "files": {} }""")]
-    [InlineData("""{ "perms": { "inherit": true }, "files": [ 1 ] }""")]
+    [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": {} }""")]
+    [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": [ 1 ] }""")]
     public void Text_that_can_not_be_edited_gives_null(string text)
     {
         Assert.Null(ConfigText.AddFile(text, "a.md"));
@@ -223,8 +224,8 @@ public sealed class ConfigTextTests
     [Fact]
     public void Only_the_files_array_of_the_root_object_is_edited()
     {
-        const string text = """{ "perms": { "inherit": true }, "files": [ { "name": "a.md", "perms": { "inherit": true } } ] }""";
-        const string nested = """{ "x": { "files": [] }, "perms": { "inherit": true }, "files": [] }""";
+        const string text = """{ "perms": { "inherit": true }, "gitignore": false, "files": [ { "name": "a.md", "perms": { "inherit": true } } ] }""";
+        const string nested = """{ "x": { "files": [] }, "perms": { "inherit": true }, "gitignore": false, "files": [] }""";
 
         Assert.Equal(["a.md"], ConfigText.FileNames(text));
         string? added = ConfigText.AddFile(nested, "a.md");
@@ -254,9 +255,9 @@ public sealed class ConfigTextTests
     [Fact]
     public void Setting_the_version_on_one_line_stays_on_it()
     {
-        string? text = ConfigText.SetVersion("""{ "perms": { "inherit": true }, "files": [] }""", new SemVersion(1, 0, 0));
+        string? text = ConfigText.SetVersion("""{ "perms": { "inherit": true }, "gitignore": false, "files": [] }""", new SemVersion(1, 0, 0));
 
-        Assert.Equal("""{ "version": "1.0.0", "perms": { "inherit": true }, "files": [] }""", text);
+        Assert.Equal("""{ "version": "1.0.0", "perms": { "inherit": true }, "gitignore": false, "files": [] }""", text);
         AssertValid(text);
     }
 
@@ -270,7 +271,7 @@ public sealed class ConfigTextTests
     [Fact]
     public void Non_ascii_names_and_comments_survive()
     {
-        string text = "{ \"perms\": { \"inherit\": true }, // ümlauts 🎉\n \"files\": [ { \"name\": \"日本.md\", \"perms\": { \"inherit\": true } } ] }";
+        string text = "{ \"perms\": { \"inherit\": true }, \"gitignore\": false, // ümlauts 🎉\n \"files\": [ { \"name\": \"日本.md\", \"perms\": { \"inherit\": true } } ] }";
 
         string? renamed = ConfigText.RenameFile(text, "日本.md", "ü.md");
         AssertValid(renamed);

@@ -12,10 +12,11 @@ using notes.Features.Components.Rename;
 using notes.Features.Components.Selection;
 using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
+using notes.Features.Configuration;
+using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
+using notes.Features.History;
 using notes.Features.KillSwitch;
-using notes.Features.Permissions;
-using notes.Features.Permissions.Migrations;
 using notes.Pages.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -71,11 +72,14 @@ builder.Services.AddSingleton<SaveHandler>();
 builder.Services.AddSingleton<DeleteHandler>();
 builder.Services.AddSingleton<ConfigHandler>();
 builder.Services.AddSingleton<KillSwitchService>();
+// The history of the notes: a git repository in _/history, see docs/administration/history.md
+builder.Services.AddSingleton<HistoryService>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());
 builder.Services.AddHangfireServer();
 builder.Services.AddScoped<ClearStaleUploadsJob>();
+builder.Services.AddScoped<CommitIdleChangesJob>();
 
 WebApplication app = builder.Build();
 string dir = Path.GetFullPath(config.Dir);
@@ -87,8 +91,13 @@ if (!Directory.Exists(dir))
 }
 app.Logger.LogInformation("In working dir: {dir}", dir);
 
+// What changed while the app didn't run goes into the history on its own, before the migrations change anything
+HistoryService history = app.Services.GetRequiredService<HistoryService>();
+history.CommitPending(CommitReason.Startup);
+
 // Writes what was migrated while reading back to the files, now that nothing else is using them
-_ = app.Services.GetRequiredService<FolderConfigStore>().MigrateAll();
+if (app.Services.GetRequiredService<FolderConfigStore>().MigrateAll() > 0)
+    history.CommitPending(CommitReason.Migration);
 
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();
@@ -124,8 +133,9 @@ app.MapRazorPages()
 app.MapHangfireDashboard("/_/Hangfire", new DashboardOptions { Authorization = [] })
     .RequireAuthorization(NotesAccess.AdminPolicyName);
 
-app.Services.GetRequiredService<IRecurringJobManager>()
-    .AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), Cron.Hourly);
+IRecurringJobManager recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+recurringJobs.AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), Cron.Hourly);
+recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), Cron.Minutely);
 
 app.Run();
 

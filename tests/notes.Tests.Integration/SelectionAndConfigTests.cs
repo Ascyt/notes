@@ -119,11 +119,12 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     [Fact]
     public async Task An_admin_saves_the_text_as_written_with_entries_for_the_files_that_lack_one()
     {
-        const string text = """
+        const string text = $$"""
             {
-                "version": "1.0.0",
+                "version": "{{Cfg.Version}}",
                 // only carol
                 "perms": { "inherit": false, "rwAllow": ["u:carol"], "cdAllow": ["u:carol"] },
+                "gitignore": false,
                 "files": [
                 ]
             }
@@ -143,10 +144,11 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     [Fact]
     public async Task Saving_a_list_of_files_with_only_a_comment_in_it_keeps_the_folder_open()
     {
-        const string text = """
+        const string text = $$"""
             {
-                "version": "1.0.0",
+                "version": "{{Cfg.Version}}",
                 "perms": { "inherit": true },
+                "gitignore": false,
                 "files": [ // filled in by the app
                 ]
             }
@@ -198,7 +200,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
         HttpResponseMessage response = await Client.PostAsync(Users.Admin, "/docs?config", """{ "version": "0.5.0", "perms": { "inherit": true }, "files": [] }""");
 
         await AssertStatus(HttpStatusCode.OK, response);
-        Assert.Contains("\"version\": \"1.0.0\"", Tree.ReadConfig("docs"));
+        Assert.Contains($"\"version\": \"{Cfg.Version}\"", Tree.ReadConfig("docs"));
     }
 
     [Fact]
@@ -211,7 +213,7 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
         Match contents = Regex.Match(page, @"value: (""(?:[^""\\]|\\.)*""),");
         Assert.True(contents.Success, page);
 
-        Assert.Contains("\"version\": \"1.0.0\"", JsonSerializer.Deserialize<string>(contents.Groups[1].Value));
+        Assert.Contains($"\"version\": \"{Cfg.Version}\"", JsonSerializer.Deserialize<string>(contents.Groups[1].Value));
     }
 
     [Fact]

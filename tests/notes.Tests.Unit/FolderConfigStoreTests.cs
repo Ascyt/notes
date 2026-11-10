@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
-using notes.Features.Permissions;
-using notes.Features.Permissions.Migrations;
 using Semver;
+using notes.Features.Configuration;
+using notes.Features.Configuration.Migrations;
 
 namespace notes.Tests.Unit;
 
@@ -139,7 +139,7 @@ public sealed class FolderConfigStoreTests : IDisposable
         }
     }
 
-    private const string OldFolder = """{ "version": "1.0.0", "perms": { "inheritance": false }, "files": [] }""";
+    private const string OldFolder = """{ "version": "1.0.0", "perms": { "inheritance": false }, "gitignore": false, "files": [] }""";
 
     private FolderConfigStore StoreOf(string version, params IConfigMigration[] steps)
         => new(_notes.Config, new ConfigMigrator(ConfigVersions.Parse(version), steps, NullLogger<ConfigMigrator>.Instance), NullLogger<FolderConfigStore>.Instance);
@@ -153,7 +153,7 @@ public sealed class FolderConfigStoreTests : IDisposable
 
         Assert.False(state.IsInvalid);
         Assert.False(state.Config!.Perms.Inherit);
-        Assert.Contains("\"version\": \"1.0.0\"", _notes.Store.ReadText(_notes.Root));
+        Assert.Contains($"\"version\": \"{Cfg.Version}\"", _notes.Store.ReadText(_notes.Root));
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class FolderConfigStoreTests : IDisposable
     [Fact]
     public void A_file_of_a_newer_version_is_invalid_so_only_admins_have_access()
     {
-        _notes.Files.Config("", """{ "version": "1.1.0", "perms": { "inherit": true }, "files": [] }""");
+        _notes.Files.Config("", """{ "version": "99.0.0", "perms": { "inherit": true }, "files": [] }""");
 
         FolderConfigState state = _notes.Store.Get(_notes.Root);
 

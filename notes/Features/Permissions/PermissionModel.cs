@@ -4,7 +4,7 @@ using notes.Features.Auth;
 
 namespace notes.Features.Permissions;
 
-// What the configuration means, and how it is resolved, is specified in docs/administration/permissions.md. Keep the two in step.
+// What the permissions mean, and how they are resolved, is specified in docs/administration/permissions.md. Keep the two in step.
 
 /// <summary>
 /// Who a permission is for. Written in the configuration as <c>u:name</c> (a user), <c>g:name</c> (a Keycloak group) or <c>r:name</c> (a
@@ -16,7 +16,7 @@ public static class Principal
 
     /// <summary>
     /// Written <c>a</c>: all users, logged in or not. So a user who is logged in never gets less than one who is not. It can't be given
-    /// anything that changes the notes, as those who are not logged in may not change anything, see <see cref="PermissionParser"/>.
+    /// anything that changes the notes, as those who are not logged in may not change anything, see <see cref="ConfigParser"/>.
     /// </summary>
     public const string Everyone = "a";
 
@@ -145,34 +145,4 @@ public sealed record PermsBlock(
             return CreateAccess.CreateAndDelete;
         return user.IsAnyOf(CdCreateOnly) ? CreateAccess.Create : null;
     }
-}
-
-/// <summary>The permissions of one file of a folder, which are there by the file's name only (so also for a name that is about to be created).</summary>
-public sealed record FileEntry(string Name, PermsBlock Perms);
-
-/// <summary>The valid content of the configuration file of one folder.</summary>
-/// <param name="Perms">The permissions of the folder, and what is in it unless it says otherwise.</param>
-public sealed class FolderConfig(PermsBlock perms, IReadOnlyList<FileEntry> files)
-{
-    private readonly Dictionary<string, FileEntry> _files = files.ToDictionary(file => file.Name, StringComparer.OrdinalIgnoreCase);
-
-    public PermsBlock Perms { get; } = perms;
-
-    public FileEntry? FindFile(string name)
-        => _files.GetValueOrDefault(name);
-}
-
-/// <summary>What the configuration of a folder is, as far as the permissions are concerned.</summary>
-/// <param name="Config">The configuration, if there is a valid one.</param>
-/// <param name="Errors">Why the file that is there can't be used; empty if it is valid or there is none.</param>
-public sealed record FolderConfigState(FolderConfig? Config, IReadOnlyList<string> Errors)
-{
-    /// <summary>There is no configuration file: the folder says nothing, and the one above it decides.</summary>
-    public static FolderConfigState Missing { get; } = new(null, []);
-
-    /// <summary>
-    /// There is a configuration file, but it is not valid. Nobody but admins gets anything wherever it applies: a folder is never left
-    /// open because someone broke its file.
-    /// </summary>
-    public bool IsInvalid => Errors.Count > 0;
 }

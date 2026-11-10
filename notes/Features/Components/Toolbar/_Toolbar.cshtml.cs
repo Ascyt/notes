@@ -85,18 +85,18 @@ public sealed record ToolbarButton(
         => new(Id: "delete-button", Icon: "fa-regular fa-trash-can", Label: $"Delete this {kind}", Key: "Delete", OnClick: "requestDelete()", Tone: ToolbarTone.Danger, DisabledReason: disabledReason);
 
     /// <summary>
-    /// The way to the permissions page. Only for those who manage permissions, and not there at all for anyone else (unlike the other
+    /// The way to the configuration page. Only for those who manage the configuration, and not there at all for anyone else (unlike the other
     /// buttons, which are disabled with a reason): nobody else is to know that such a page exists.
     /// </summary>
-    /// <param name="kind">What the permissions are of ("file" or "directory").</param>
-    public static ToolbarButton Permissions(string kind)
-        => new(Id: "config-button", Icon: "fa-solid fa-gear", Label: $"Edit the permissions of this {kind}", Key: "c", Href: "?config");
+    /// <param name="kind">What the configuration is of ("file" or "directory").</param>
+    public static ToolbarButton Config(string kind)
+        => new(Id: "config-button", Icon: "fa-solid fa-gear", Label: $"Edit the configuration of this {kind}", Key: "c", Href: "?config");
 
-    /// <summary>Puts the default permissions into the editor of the permissions page (they are only saved by Save).</summary>
-    public static ToolbarButton ResetPermissions()
-        => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: "Reset to the default permissions (Save keeps them)", Key: "^!r", OnClick: "resetConfig()");
+    /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
+    public static ToolbarButton ResetConfig()
+        => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: "Reset to the default configuration (Save keeps it)", Key: "^!r", OnClick: "resetConfig()");
 
-    /// <summary>From the permissions page back to the file or directory itself.</summary>
+    /// <summary>From the configuration page back to the file or directory itself.</summary>
     public static ToolbarButton BackToEntry(string kind, string href)
         => new(Id: "back-button", Icon: "fa-solid fa-arrow-left", Label: $"Back to this {kind}", Key: "Backspace", Href: href);
 }

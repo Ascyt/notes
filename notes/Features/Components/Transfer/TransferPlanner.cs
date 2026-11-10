@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using notes.Features.Auth;
+using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.Permissions;
 
 namespace notes.Features.Components.Transfer;
 

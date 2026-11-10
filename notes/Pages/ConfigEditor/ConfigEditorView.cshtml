@@ -2,7 +2,7 @@
 @using notes.Features.Components.Toolbar
 @model notes.Pages.ConfigEditor.ConfigEditorView
 
-@* The permissions of a directory or file (?config), edited as the JSON they are saved as. It is an editor like the one of a file, with
+@* The configuration of a directory or file (?config), edited as the JSON they are saved as. It is an editor like the one of a file, with
    Save, and a Reset that puts the default into it. What is wrong with the text is told by the server when saving, and by the schema
    while typing. *@
 
@@ -11,7 +11,7 @@
     List<ToolbarButton> toolbarButtons =
     [
         ToolbarButton.Save(),
-        ToolbarButton.ResetPermissions(),
+        ToolbarButton.ResetConfig(),
         ToolbarButton.ZoomOut(),
         ToolbarButton.ZoomIn(),
         ToolbarButton.BackToEntry(kind, "/" + Model.VirtualPath)
@@ -21,18 +21,18 @@
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = Model.IsFile, VirtualPath = Model.VirtualPath, RenameDisabledReason = RenameDisabledReason }"/>
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
 @functions {
-    private const string RenameDisabledReason = "Leave the permissions to rename it.";
+    private const string RenameDisabledReason = "Leave the configuration to rename it.";
 }
 
 <p class="small text-secondary mb-2">
-    <i class="fa-solid fa-gear"></i> Permissions of this @kind.
+    <i class="fa-solid fa-gear"></i> Configuration of this @kind.
     @if (Model.IsFile)
     {
-        <text>This file's entry in the permissions of its folder, without the name.</text>
+        <text>This file's entry in the configuration of its folder, without the name.</text>
     }
     else
     {
-        <text>Everything in this directory has them as well, unless it says otherwise.</text>
+        <text>Everything in this directory has it as well, unless it says otherwise.</text>
     }
     Principals are <code>u:user</code>, <code>g:group</code> and <code>r:role</code>; admins may always do everything.
 </p>
@@ -120,7 +120,7 @@
             if (!response.ok) {
                 errorBox.textContent = message || ('Failed to save (' + response.status + ').');
                 errorBox.classList.remove('d-none');
-                notify(response.status === 400 ? 'The permissions are not valid.' : (message.split('\n')[0] || 'Failed to save.'), 'danger');
+                notify(response.status === 400 ? 'The configuration is not valid.' : (message.split('\n')[0] || 'Failed to save.'), 'danger');
                 return;
             }
 
@@ -144,15 +144,15 @@
         basePath: '@Url.Content("~/lib/monaco-editor/min/vs")',
         value: @Json.Serialize(Model.Contents),
         language: 'json',
-        uri: 'inmemory://notes/permissions.json',
-        // Comments are allowed in the permissions, and the schema is what completes and checks them while typing
+        uri: 'inmemory://notes/config.json',
+        // Comments are allowed in the configuration, and the schema is what completes and checks them while typing
         onBeforeCreate: function (monaco) {
             monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
                 validate: true,
                 allowComments: true,
                 comments: 'ignore',
                 trailingCommas: 'error',
-                schemas: [{ uri: 'inmemory://notes/permissions-schema.json', fileMatch: ['inmemory://notes/permissions.json'], schema: JSON.parse(@Json.Serialize(Model.Schema)) }]
+                schemas: [{ uri: 'inmemory://notes/config-schema.json', fileMatch: ['inmemory://notes/config.json'], schema: JSON.parse(@Json.Serialize(Model.Schema)) }]
             });
         }
     }).then(function (editor) {

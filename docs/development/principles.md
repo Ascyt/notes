@@ -80,7 +80,7 @@ Different ways to look at the same thing share its address. They are told apart 
 
 ### 14. Data lives with the notes, not in a database
 
-Notes are files and folders on disk, and what the app keeps about them lives with them: the permissions of a folder in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
+Notes are files and folders on disk, and what the app keeps about them lives with them: the configuration of a folder (such as its permissions) in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads, or their history) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
 
 Later, some virtual directories may be stored in physical directories of their own. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root.
 
@@ -90,7 +90,7 @@ Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with Li
 
 ### 16. Existing installations keep working
 
-A change to a format that is stored raises its version and comes with a migration, as for `.config.json` (see [Permissions](../administration/permissions.md#versions-and-migrations)). Keycloak imports the realm file only once, so a change to `keycloak/notes-realm.json` comes with the steps to make it by hand on a realm imported before (see [Deployment](../administration/deployment.md#a-realm-that-was-imported-before)).
+A change to a format that is stored raises its version and comes with a migration, as for `.config.json` (see [Configuration](../administration/configuration.md#versions-and-migrations)). Keycloak imports the realm file only once, so a change to `keycloak/notes-realm.json` comes with the steps to make it by hand on a realm imported before (see [Deployment](../administration/deployment.md#a-realm-that-was-imported-before)).
 
 ## Code
 
@@ -100,6 +100,7 @@ A change to a format that is stored raises its version and comes with a migratio
 - Few comments, short and simple, that say why, not what.
 - Every view and partial gets its data through a typed viewmodel, not through loose variables or `ViewData`.
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
+- Files stay short. One that grows past around 250 lines is split up along what its parts do (deciding, storing, looking up, …), not into a first and a second half; tests are split by topic, with what they share in a base class. This is a guide, not a limit: a file that clearly reads better in one piece stays one.
 - Namespaces always follow the folders: what is in `notes/Pages/Editor/Markdown` is in `notes.Pages.Editor.Markdown`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 

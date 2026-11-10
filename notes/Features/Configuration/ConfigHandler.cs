@@ -1,18 +1,21 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
-using notes.Features.Permissions.Migrations;
+using notes.Features.History;
+using notes.Features.Permissions;
 using notes.Pages.ConfigEditor;
 
-namespace notes.Features.Permissions;
+namespace notes.Features.Configuration;
 
 /// <summary>
-/// Answers <c>?config</c>: the permissions of a folder (its configuration file, as text) or of a file (its entry in the configuration file of its
+/// Answers <c>?config</c>: the configuration of a folder (its configuration file, as text) or of a file (its entry in the configuration file of its
 /// folder, as text without its name). A GET is made into a page, a POST with the new text saves it. The caller has made sure the user may manage
-/// permissions. The text is checked completely before anything is written (<see cref="PermissionParser"/>), and what is saved is the text as
+/// the configuration. The text is checked completely before anything is written (<see cref="ConfigParser"/>), and what is saved is the text as
 /// it was sent, with its comments, plus the entries that the files of the folder need.
 /// </summary>
-public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, ILogger<ConfigHandler> logger)
+public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history, ILogger<ConfigHandler> logger)
 {
     public ConfigEditorView CreateView(string virtualPath, string physicalPath)
     {
@@ -68,9 +71,9 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             try
             {
                 if (Directory.Exists(physicalPath))
-                    return SaveFolder(physicalPath, text);
+                    return SaveFolder(request.HttpContext.User, physicalPath, text);
                 if (File.Exists(physicalPath))
-                    return SaveFile(physicalPath, text);
+                    return SaveFile(request.HttpContext.User, physicalPath, text);
 
                 return new NotFoundObjectResult("Path not found.");
             }
@@ -82,7 +85,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         }
     }
 
-    private IActionResult SaveFolder(string folder, string text)
+    private IActionResult SaveFolder(ClaimsPrincipal user, string folder, string text)
     {
         IReadOnlySet<string> files = FolderConfigStore.FileNamesOf(folder);
 
@@ -94,14 +97,14 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         // Without a version it can't be told which one it is written for, and guessing would apply migrations to what may be up to date already
         if (migrated.From == ConfigVersions.Zero)
         {
-            List<string> errors = [.. PermissionParser.ParseFolder(text, files).Errors];
+            List<string> errors = [.. ConfigParser.ParseFolder(text, files).Errors];
             if (errors.Count == 0)
-                errors.Add($"version: is required. Write \"{PermissionParser.VersionKey}\": \"{migrator.Current}\" (the version of this app's format) as the first property.");
+                errors.Add($"version: is required. Write \"{ConfigParser.VersionKey}\": \"{migrator.Current}\" (the version of this app's format) as the first property.");
             return Failed(StatusCodes.Status400BadRequest, ParseResult<FolderConfig>.Failed(errors).ErrorText);
         }
 
         text = migrated.Text;
-        ParseResult<FolderConfig> parsed = PermissionParser.ParseFolder(text, files);
+        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(text, files);
         if (!parsed.IsValid)
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
 
@@ -110,20 +113,20 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             text = ConfigText.AddFile(text, name) ?? text;
 
         // What was added must not have broken it: a configuration that doesn't hold up closes the folder to everyone but admins
-        ParseResult<FolderConfig> completed = PermissionParser.ParseFolder(text, files);
+        ParseResult<FolderConfig> completed = ConfigParser.ParseFolder(text, files);
         if (!completed.IsValid)
         {
             logger.LogError("Adding the missing file entries made the configuration of {folder} invalid:\n{errors}", folder, completed.ErrorText);
             return Failed(StatusCodes.Status500InternalServerError, "The entries for the files of this folder could not be added to what was sent, so nothing was saved.\n" + completed.ErrorText);
         }
 
-        store.WriteText(folder, text);
+        Write(user, folder, text);
         return Saved(text);
     }
 
-    private IActionResult SaveFile(string physicalPath, string text)
+    private IActionResult SaveFile(ClaimsPrincipal user, string physicalPath, string text)
     {
-        ParseResult<PermsBlock> parsed = PermissionParser.ParseFileBody(text);
+        ParseResult<PermsBlock> parsed = ConfigParser.ParseFileBody(text);
         if (!parsed.IsValid)
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
 
@@ -133,15 +136,24 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
         string? updated = ConfigText.SetFileBody(folderText, name, text);
         if (updated is null)
-            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in can't be edited, as it is not valid. The permissions of the folder have to be fixed first.");
+            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in can't be edited, as it is not valid. The configuration of the folder has to be fixed first.");
 
         // What it is now must hold up as a whole. (Not whether every entry has a file: that is the folder's to say when it is saved.)
-        ParseResult<FolderConfig> whole = PermissionParser.ParseFolder(updated, existingFiles: null);
+        ParseResult<FolderConfig> whole = ConfigParser.ParseFolder(updated, existingFiles: null);
         if (!whole.IsValid)
-            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in is not valid. The permissions of the folder have to be fixed first.\n" + whole.ErrorText);
+            return Failed(StatusCodes.Status409Conflict, "The configuration of the folder this file is in is not valid. The configuration of the folder has to be fixed first.\n" + whole.ErrorText);
 
-        store.WriteText(folder, updated);
+        Write(user, folder, updated);
         return Saved(ConfigText.GetFileBody(updated, name) ?? text);
+    }
+
+    /// <summary>Writes the folder's configuration file, which the history sees as a save of it.</summary>
+    private void Write(ClaimsPrincipal user, string folder, string text)
+    {
+        string path = Path.Combine(folder, PathService.ConfigFileName);
+        history.BeforeChange(user, [path], text);
+        store.WriteText(folder, text);
+        history.AfterChange(user, [path], HistoryChangeKind.Save);
     }
 
     private static ContentResult Saved(string text)
@@ -160,7 +172,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         while ((read = await reader.ReadAsync(buffer)) > 0)
         {
             _ = text.Append(buffer, 0, read);
-            if (text.Length > PermissionParser.MaxLength)
+            if (text.Length > ConfigParser.MaxLength)
                 return null;
         }
 
