@@ -76,6 +76,20 @@
   margin: 1.5rem 0;
 }
 
+/* A list belongs to the line right above it, so there is no gap between them; the gap is after the list instead. Also for sub-lists,
+   except one that ends an item of a tight list (no paragraphs in its items), whose items have no gaps between them either. */
+.markdown-body p:has(+ ul, + ol) {
+  margin-bottom: 0;
+}
+
+.markdown-body ul, .markdown-body ol {
+  margin-bottom: 1rem;
+}
+
+.markdown-body li:not(:has(> p)) > :is(ul, ol):last-child {
+  margin-bottom: 0;
+}
+
 .markdown-body ul.contains-task-list {
   padding-left: 1.25rem;
   list-style: none;

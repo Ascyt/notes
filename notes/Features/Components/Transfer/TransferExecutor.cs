@@ -14,7 +14,8 @@ namespace notes.Features.Components.Transfer;
 /// </summary>
 public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> logger)
 {
-    public void Execute(TransferKind kind, string physicalTarget, List<TransferItem> items)
+    /// <param name="reportProgress">Told how much is done (0 to 1) as it goes.</param>
+    public void Execute(TransferKind kind, string physicalTarget, List<TransferItem> items, Action<double> reportProgress)
     {
         string staging = Path.Combine(Path.GetFullPath(config.Dir), PathService.ReservedName, "temp", "transfer", Guid.NewGuid().ToString("N"));
         string stagedCopies = Path.Combine(staging, "copies");
@@ -27,9 +28,9 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
             _ = Directory.CreateDirectory(trash);
 
             if (kind == TransferKind.Delete)
-                TrashOriginals(items, trash, kind);
+                TrashOriginals(items, trash, kind, reportProgress);
             else
-                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trash);
+                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trash, reportProgress);
         }
         catch (TransferException e) when (e.KeepsStaging)
         {
@@ -44,10 +45,21 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
         }
     }
 
-    private void CopyAndCommit(TransferKind kind, string physicalTarget, List<TransferItem> items, string stagedCopies, string trash)
+    private void CopyAndCommit(TransferKind kind, string physicalTarget, List<TransferItem> items, string stagedCopies, string trash, Action<double> reportProgress)
     {
+        // Copying is what takes time (the rest is renames), so the progress is how much of it is done
+        long totalWork = items.Sum(item => item.IsDirectory
+            ? WorkOf(item.Source, isDirectory: true) + item.Contents.Sum(entry => WorkOf(entry.Path, entry.IsDirectory))
+            : WorkOf(item.Source, isDirectory: false));
+        long doneWork = 0;
+        void Copied(long work)
+        {
+            doneWork += work;
+            reportProgress((double)doneWork / totalWork);
+        }
+
         for (int i = 0; i < items.Count; i++)
-            CopyEntry(items[i], Path.Combine(stagedCopies, i.ToString()));
+            CopyEntry(items[i], Path.Combine(stagedCopies, i.ToString()), Copied);
 
         // Put the copies in place...
         List<string> placed = [];
@@ -62,7 +74,7 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
 
             // ...and, for a move, take the originals away
             if (kind == TransferKind.Move)
-                TrashOriginals(items, trash, kind);
+                TrashOriginals(items, trash, kind, _ => { });
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -77,7 +89,7 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
     }
 
     /// <summary>Renames the originals into the trash folder. If one can't be (e.g. it is open elsewhere), the ones already renamed are put back and the exception is rethrown.</summary>
-    private void TrashOriginals(List<TransferItem> items, string trash, TransferKind kind)
+    private void TrashOriginals(List<TransferItem> items, string trash, TransferKind kind, Action<double> reportProgress)
     {
         List<int> trashed = [];
         try
@@ -86,6 +98,7 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
             {
                 MoveEntry(items[i].Source, Path.Combine(trash, i.ToString()), items[i].IsDirectory);
                 trashed.Add(i);
+                reportProgress((double)trashed.Count / items.Count);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -127,15 +140,18 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
     }
 
     /// <summary>Copies the entry, and of a directory exactly the contents the planner checked (nothing hidden from the user, nothing that came later).</summary>
-    private static void CopyEntry(TransferItem item, string destination)
+    /// <param name="copied">Told the <see cref="WorkOf"/> each entry once it is copied.</param>
+    private static void CopyEntry(TransferItem item, string destination, Action<long> copied)
     {
         if (!item.IsDirectory)
         {
             File.Copy(item.Source, destination);
+            copied(WorkOf(item.Source, isDirectory: false));
             return;
         }
 
         _ = Directory.CreateDirectory(destination);
+        copied(WorkOf(item.Source, isDirectory: true));
         foreach (InsideEntry entry in item.Contents)
         {
             string entryDestination = Path.Combine(destination, Path.GetRelativePath(item.Source, entry.Path));
@@ -143,8 +159,13 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
                 _ = Directory.CreateDirectory(entryDestination);
             else
                 File.Copy(entry.Path, entryDestination);
+            copied(WorkOf(entry.Path, entry.IsDirectory));
         }
     }
+
+    /// <summary>How much copying the entry is, for the progress: the size of a file, plus one for every entry, so that empty files and directories count too.</summary>
+    private static long WorkOf(string physical, bool isDirectory)
+        => isDirectory ? 1 : new FileInfo(physical).Length + 1;
 
     private static void MoveEntry(string source, string destination, bool isDirectory)
     {

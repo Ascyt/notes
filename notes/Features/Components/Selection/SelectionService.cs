@@ -9,7 +9,8 @@ namespace notes.Features.Components.Selection;
 /// <param name="Paths">Virtual paths of the selected files and directories.</param>
 /// <param name="DirectoryCount">How many of the <paramref name="Paths"/> are directories (the rest are files).</param>
 /// <param name="CanDelete">Whether the user may delete (and so move away) every selected entry itself, as far as was known when it was selected. Not what is inside a directory: that is up to the transfer.</param>
-public sealed record SelectionSnapshot(long Version, bool Busy, IReadOnlyList<string> Paths, int DirectoryCount, bool CanDelete)
+/// <param name="Progress">While <paramref name="Busy"/>: how much of the transfer is done, from 0 to 1. Otherwise null.</param>
+public sealed record SelectionSnapshot(long Version, bool Busy, IReadOnlyList<string> Paths, int DirectoryCount, bool CanDelete, double? Progress = null)
 {
     public static SelectionSnapshot Empty { get; } = new(0, false, [], 0, true);
 }
@@ -55,6 +56,9 @@ public interface ISelectionService
     /// selection can't be changed. Must be followed by <see cref="EndTransfer"/>.
     /// </summary>
     TransferBegin TryBeginTransfer(string userId, long version);
+
+    /// <summary>How much of the running transfer is done (0 to 1), for the pages to show. Ignored when no transfer is running.</summary>
+    void ReportProgress(string userId, double progress);
 
     /// <summary>Ends what <see cref="TryBeginTransfer"/> started; the selection is cleared when it was transferred successfully.</summary>
     void EndTransfer(string userId, bool clear);
@@ -131,9 +135,20 @@ public sealed class SelectionService(IMemoryCache cache, TimeProvider time) : IS
                 return new TransferBegin(TransferBeginOutcome.Empty, []);
 
             state.Busy = true;
+            state.Progress = 0;
             state.Version++; // pages showing the selection as it was before are outdated now
             _transferring[userId] = state;
             return new TransferBegin(TransferBeginOutcome.Started, state.Snapshot().Paths);
+        }
+    }
+
+    public void ReportProgress(string userId, double progress)
+    {
+        State state = GetState(userId);
+        lock (state)
+        {
+            if (state.Busy)
+                state.Progress = Math.Clamp(progress, 0, 1);
         }
     }
 
@@ -143,6 +158,7 @@ public sealed class SelectionService(IMemoryCache cache, TimeProvider time) : IS
         lock (state)
         {
             state.Busy = false;
+            state.Progress = 0;
             if (clear)
                 state.Paths.Clear();
             state.Version++;
@@ -179,10 +195,12 @@ public sealed class SelectionService(IMemoryCache cache, TimeProvider time) : IS
         public Dictionary<string, SelectionEntry> Paths { get; } = new(StringComparer.OrdinalIgnoreCase);
         public long Version { get; set; } = version;
         public bool Busy { get; set; }
+        public double Progress { get; set; }
 
         public SelectionSnapshot Snapshot()
             => new(Version, Busy, [..Paths.Keys.Order(StringComparer.OrdinalIgnoreCase)],
                 Paths.Values.Count(entry => entry.IsDirectory),
-                Paths.Values.All(entry => entry.CanDelete));
+                Paths.Values.All(entry => entry.CanDelete),
+                Busy ? Progress : null);
     }
 }

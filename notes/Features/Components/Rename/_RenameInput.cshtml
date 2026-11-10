@@ -60,7 +60,8 @@
         }
 
         notifyAfterNavigation('Renamed to ' + newName + '.');
-        window.location.href = await response.text();
+        // The same view of it as before (another view is a query of the same address, e.g. ?edit)
+        window.location.href = (await response.text()) + window.location.search;
     }
 
     renameInput.addEventListener('input', updateRenameButtons);

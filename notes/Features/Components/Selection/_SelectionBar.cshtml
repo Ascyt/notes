@@ -18,6 +18,10 @@
             <button type="button" id="selection-delete" class="btn btn-sm btn-outline-secondary btn-danger-on-hover d-none" data-key="Delete" data-label="Delete"><i class="fa-regular fa-trash-can"></i> Delete</button>
         </div>
         <span id="selection-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-label="Working"></span>
+        @* While a copy, move or delete runs: how much of it is done (striped and moving, so it shows it is working even while it is at 0) *@
+        <div id="selection-progress" class="progress d-none" style="width: 8rem; height: 0.5rem;" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-secondary" style="width: 0%;"></div>
+        </div>
         <button type="button" id="selection-clear" class="btn-close" aria-label="Clear selection" title="Clear selection" data-key="Escape"></button>
     </div>
 </div>
@@ -55,6 +59,7 @@
         const directoryDeleteButton = document.getElementById('delete-button'); // deletes the directory itself (not part of this component)
         const directoryDeleteReason = directoryDeleteButton ? directoryDeleteButton.dataset.disabledReason || null : null; // why it can't be, apart from the selection
         const spinner = document.getElementById('selection-spinner');
+        const progress = document.getElementById('selection-progress');
         const clearButton = document.getElementById('selection-clear');
         const directory = bar.dataset.directory;
         const createDeniedReason = bar.dataset.createDenied || null; // nothing may be copied or moved into this directory
@@ -118,7 +123,8 @@
         function renderStatus() {
             const count = selected.size;
             const isWaiting = pending > 0;
-            bar.hidden = count === 0 && !isWaiting;
+            // Kept while this tab's transfer is running even once the server cleared the selection, until its answer is there
+            bar.hidden = count === 0 && !isWaiting && !isBusy();
             countText.classList.toggle('d-none', isWaiting); // only the spinner until the answer is there
             if (!isWaiting) {
                 countText.textContent = count + (count === 1 ? ' element selected' : ' elements selected');
@@ -127,7 +133,18 @@
             // What the buttons would act on is not known until the answer is there
             actions.classList.toggle('d-none', isBusy() || isWaiting);
             setAvailable(clearButton, !isBusy() && !isWaiting && count > 0); // and Escape clears the selection only while there is one
-            spinner.classList.toggle('d-none', !isBusy() && !isWaiting);
+            spinner.classList.toggle('d-none', isBusy() || !isWaiting);
+            renderProgress();
+        }
+
+        // What the server last said about the running transfer. Once it is over the bar stays as it was, as the page reloads anyway.
+        function renderProgress() {
+            progress.classList.toggle('d-none', !isBusy());
+            if (state.progress === null || state.progress === undefined)
+                return;
+            const percent = Math.round(state.progress * 100);
+            progress.firstElementChild.style.width = percent + '%';
+            progress.setAttribute('aria-valuenow', percent);
         }
 
         // Shows or hides one of the card's buttons. Its shortcut only exists while it is shown (a hidden button's would still work).
@@ -227,7 +244,10 @@
 
             const transferred = [...selected];
             isTransferring = true;
+            state.progress = 0;
             render();
+            // The answer only comes when it is done; meanwhile the selection says how far it is
+            const progressTimer = setInterval(sync, 500);
             let message = null;
             try {
                 const response = await fetch(window.location.pathname + '?transfer=' + kind, {
@@ -256,6 +276,8 @@
                 message = (await response.text()) || ('Failed (' + response.status + ').');
             } catch {
                 message = 'The connection was lost. The ' + kind + ' may still be running on the server or may have finished; the selection shows which.';
+            } finally {
+                clearInterval(progressTimer);
             }
 
             isTransferring = false;

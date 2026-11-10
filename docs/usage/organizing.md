@@ -14,7 +14,7 @@ If a name is taken, the uploaded file gets a number: `plan.md` becomes `plan (1)
 
 ## Renaming
 
-The name at the end of the breadcrumb is a text field (F2 goes there). A changed name is confirmed with Enter or the check mark, and reset with Escape. A file with unsaved changes has to be saved first.
+The name at the end of the breadcrumb is a text field (F2 goes there). A changed name is confirmed with Enter or the check mark, and reset with Escape; the view stays the same (a file being edited stays in the editor). A file with unsaved changes has to be saved first.
 
 ## Deleting
 
@@ -34,7 +34,7 @@ A card at the bottom says how many entries are selected. The selection is kept w
 |---|---|
 | ![Two selected entries](../screenshots/selection-desktop.png) | ![Two selected entries on a phone](../screenshots/selection-phone.png) |
 
-Before anything is copied, moved or deleted, everything is checked; if something isn't allowed, nothing happens and the message says what is in the way. Copying leaves out what may not be read.
+Before anything is copied, moved or deleted, everything is checked; if something isn't allowed, nothing happens and the message says what is in the way. Copying leaves out what may not be read. While it runs, the card shows how far it is, also in other tabs.
 
 ## Permissions
 

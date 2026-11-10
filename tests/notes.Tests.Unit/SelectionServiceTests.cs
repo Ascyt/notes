@@ -130,6 +130,26 @@ public sealed class SelectionServiceTests : IDisposable
     }
 
     [Fact]
+    public void The_progress_of_a_transfer_is_there_only_while_it_runs()
+    {
+        SelectionSnapshot selection = _selections.Add("u", [File("a.md")])!;
+        _selections.ReportProgress("u", 0.5);
+        Assert.Null(_selections.Get("u").Progress);
+
+        Assert.Equal(TransferBeginOutcome.Started, _selections.TryBeginTransfer("u", selection.Version).Outcome);
+        Assert.Equal(0, _selections.Get("u").Progress);
+        _selections.ReportProgress("u", 0.25);
+        Assert.Equal(0.25, _selections.Get("u").Progress);
+
+        _selections.EndTransfer("u", clear: false);
+        Assert.Null(_selections.Get("u").Progress);
+
+        // The next transfer starts again at 0
+        Assert.Equal(TransferBeginOutcome.Started, _selections.TryBeginTransfer("u", _selections.Get("u").Version).Outcome);
+        Assert.Equal(0, _selections.Get("u").Progress);
+    }
+
+    [Fact]
     [Trait("Category", "Timing")]
     public void A_transfer_of_a_selection_that_was_forgotten_does_not_start()
     {

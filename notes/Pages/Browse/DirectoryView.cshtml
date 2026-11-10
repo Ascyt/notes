@@ -18,6 +18,11 @@
         opacity: 0.5;
     }
 
+    /* The lines separate rows, so there is none below the last one (whether that is an entry or the + button) */
+    .entry-table > tbody > tr:last-child > td {
+        border-bottom-width: 0;
+    }
+
     /* Selection boxes, in the rows and above them */
     .entry-select, .entry-select-all {
         margin-top: 0; /* Bootstrap's own offset (for checkboxes next to a label) puts it below the text */
@@ -46,7 +51,7 @@
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
 
 <div>
-    <table class="table">
+    <table class="table entry-table">
         <thead>
         <tr>
             <th class="fw-normal small text-secondary">
@@ -60,7 +65,7 @@
         <tbody>
         @if (Model.Directories.Length == 0)
         {
-            <tr data-empty-group="directories"><td class="small text-secondary">No subdirectories</td></tr>
+            <tr data-empty-group="directories"><td class="small text-secondary fst-italic">None</td></tr>
         }
         @for (int i = 0; i < Model.Directories.Length; i++)
         {
@@ -79,7 +84,7 @@
         @if (!Model.IsReadOnly)
         {
             <tr>
-                <td class="border-bottom-0">
+                <td>
                     <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false, DisabledReason = Model.CreateDeniedReason }"/>
                 </td>
             </tr>
@@ -87,7 +92,7 @@
         </tbody>
     </table>
     @* No margin below the last table: the page's own padding is all there should be between it and the footer *@
-    <table class="table mb-0">
+    <table class="table entry-table mb-0">
         <thead>
         <tr>
             <th class="fw-normal small text-secondary">
@@ -101,7 +106,7 @@
         <tbody>
         @if (Model.Files.Length == 0)
         {
-            <tr data-empty-group="files"><td class="small text-secondary">No files</td></tr>
+            <tr data-empty-group="files"><td class="small text-secondary fst-italic">None</td></tr>
         }
         @for (int i = 0; i < Model.Files.Length; i++)
         {
@@ -119,7 +124,7 @@
         @if (!Model.IsReadOnly)
         {
             <tr>
-                <td class="border-bottom-0">
+                <td>
                     <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true, DisabledReason = Model.CreateDeniedReason }"/>
                 </td>
             </tr>

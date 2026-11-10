@@ -56,12 +56,17 @@ public sealed class TimingUiTests(TimingUiTests.Fixture fixture) : UiTest(fixtur
         using (await App.Services.GetRequiredService<StructureLock>().EnterAsync())
         {
             await Page.Locator("#selection-copy").ClickAsync();
-            await Expect(Page.Locator("#selection-spinner")).ToBeVisibleAsync();
+            await Expect(Page.Locator("#selection-progress")).ToBeVisibleAsync();
             await Eventually(() => App.Services.GetRequiredService<ISelectionService>().Get(Users.Alice.Sub!).Busy, "the transfer has started");
 
-            // The other tab sees that the selection is busy: no actions, a spinner, the boxes disabled
+            // Both tabs show how far it is
+            App.Services.GetRequiredService<ISelectionService>().ReportProgress(Users.Alice.Sub!, 0.5);
+            await Expect(Page.Locator("#selection-progress")).ToHaveAttributeAsync("aria-valuenow", "50");
+
+            // The other tab sees that the selection is busy: no actions, the progress, the boxes disabled
             _ = await other.GotoAsync("/docs");
-            await Assertions.Expect(other.Locator("#selection-spinner")).ToBeVisibleAsync();
+            await Assertions.Expect(other.Locator("#selection-progress")).ToHaveAttributeAsync("aria-valuenow", "50");
+            await Assertions.Expect(other.Locator("#selection-spinner")).ToBeHiddenAsync();
             await Assertions.Expect(other.Locator("#selection-actions")).ToBeHiddenAsync();
             await Assertions.Expect(other.Locator("tr.entry-row[data-path='docs/a.md'] .entry-select")).ToBeDisabledAsync();
             copied = Expect(ToastOf("success")).ToBeVisibleAsync();

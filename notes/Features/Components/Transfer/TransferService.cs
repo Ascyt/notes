@@ -11,8 +11,9 @@ public interface ITransferService
     /// <summary>
     /// Copies or moves the entries (virtual paths) into the directory, or deletes them (the directory is then only the one the user is
     /// looking at). All or nothing: everything is checked first, and if anything fails while doing it, what was done so far is undone.
+    /// <paramref name="reportProgress"/> is told how much of it is done (0 to 1) as it goes.
     /// </summary>
-    Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths);
+    Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths, Action<double>? reportProgress = null);
 }
 
 /// <summary>
@@ -22,21 +23,21 @@ public interface ITransferService
 /// </summary>
 public sealed class TransferService(TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, FolderConfigStore configs, HistoryService history, ILogger<TransferService> logger) : ITransferService
 {
-    public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
+    public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths, Action<double>? reportProgress = null)
     {
         // Once started, a transfer is never abandoned half way because the request that asked for it went away
         using (await structureLock.EnterAsync())
-            return await Task.Run(() => Run(user, kind, physicalTarget, virtualPaths));
+            return await Task.Run(() => Run(user, kind, physicalTarget, virtualPaths, reportProgress ?? (_ => { })));
     }
 
-    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
+    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths, Action<double> reportProgress)
     {
         try
         {
             TransferPlan plan = planner.Plan(user, kind, physicalTarget, virtualPaths);
             List<string> changed = ChangedPaths(kind, physicalTarget, plan.Items);
             history.BeforeChange(user, changed);
-            executor.Execute(kind, physicalTarget, plan.Items);
+            executor.Execute(kind, physicalTarget, plan.Items, reportProgress);
             KeepFileEntriesInStep(kind, physicalTarget, plan.Items);
             history.AfterChange(user, changed, kind == TransferKind.Delete ? HistoryChangeKind.Delete : HistoryChangeKind.Change);
             return TransferResult.Success with { LeftOutUnreadable = plan.LeftOutUnreadable };

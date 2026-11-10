@@ -74,7 +74,7 @@ public sealed class TransferHandler(ISelectionService selection, ITransferServic
         TransferResult result = new(StatusCodes.Status500InternalServerError, "The transfer failed unexpectedly.");
         try
         {
-            result = await transfer.RunAsync(user, kind, physicalDirectory, begin.Paths);
+            result = await transfer.RunAsync(user, kind, physicalDirectory, begin.Paths, progress => selection.ReportProgress(userId, progress));
         }
         finally
         {
