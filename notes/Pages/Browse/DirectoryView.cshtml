@@ -4,7 +4,7 @@
 @using notes.Features.Components.Selection
 @using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
-@using notes.Features.History
+@using notes.Features.HistoryViewing
 @using notes.Pages.Browse
 @model notes.Pages.Browse.DirectoryView
 
@@ -41,8 +41,8 @@
     List<ToolbarButton> toolbarButtons = [];
     if (Model.CanConfigure)
         toolbarButtons.Add(ToolbarButton.Config("directory"));
-    if (Model.History.IsOffered)
-        toolbarButtons.Add(ToolbarButton.History(Model.History.DisabledReason));
+    if (Model.HistoryButton.IsShown)
+        toolbarButtons.Add(ToolbarButton.History(Model.HistoryButton.DisabledReason));
     toolbarButtons.Add(ToolbarButton.Download(isFile: false));
     if (!Model.IsReadOnly)
     {
@@ -51,11 +51,11 @@
     }
 }
 
-<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason, ParentsWithoutHistory = Model.ParentsWithoutHistory }"/>
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
-@if (Model.History.IsUsable)
+@if (Model.HistoryButton.CanBeUsed)
 {
-    <partial name="/Features/History/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "directory" }'/>
+    <partial name="/Features/HistoryViewing/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "directory" }'/>
 }
 
 <div>
@@ -82,7 +82,7 @@
             string virtualPath = Model.ToVirtualPath(path);
             if (!Model.Directories[i].CanOpen)
             {
-                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = true, Number = i + 1 }"/>
+                <partial name="/Pages/Browse/_UnopenableEntry.cshtml" model="Model.UnopenableRow(Model.Directories[i], i, isDirectory: true)"/>
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
@@ -122,7 +122,7 @@
             string virtualPath = Model.ToVirtualPath(path);
             if (!Model.Files[i].CanOpen)
             {
-                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = false, Number = i + 1 }"/>
+                <partial name="/Pages/Browse/_UnopenableEntry.cshtml" model="Model.UnopenableRow(Model.Files[i], i, isDirectory: false)"/>
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">

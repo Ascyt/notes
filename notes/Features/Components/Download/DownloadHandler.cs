@@ -19,12 +19,17 @@ public sealed class DownloadHandler(Config config, IZipService zipService, Acces
                 EnableRangeProcessing = true
             };
 
-        // The root has no name of its own
-        string directoryName = virtualPath == "" ? config.Title : Path.GetFileName(physicalPath);
-        directoryName = Path.GetInvalidFileNameChars()
-            .Aggregate(directoryName,
-                (current, invalid) => current.Replace(invalid, '_'));
         // Inside a directory the user may open, they may open whatever they may read, and the zip doesn't go into anything else
-        return new ZipDirectoryResult(zipService, physicalPath, directoryName + ".zip", entry => tree.GetAccess(user, entry.FullName).CanRead);
+        ZipFolderEntry folder = ZipService.FolderOnDisk(physicalPath, entry => tree.GetAccess(user, entry.FullName).CanRead);
+        return ZipDownload(folder, virtualPath);
+    }
+
+    /// <summary>The folder as a zip download, named after the directory at <paramref name="virtualPath"/> (after the site for the root).</summary>
+    public IActionResult ZipDownload(ZipFolderEntry folder, string virtualPath)
+    {
+        // The root has no name of its own
+        string directoryName = virtualPath == "" ? config.Title : folder.Name;
+        directoryName = Path.GetInvalidFileNameChars().Aggregate(directoryName, (current, invalid) => current.Replace(invalid, '_'));
+        return new ZipDirectoryResult(zipService, folder, directoryName + ".zip");
     }
 }

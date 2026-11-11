@@ -15,7 +15,7 @@ public sealed class FileServingTests : IDisposable
     private async Task<List<string>> ZipEntriesAsync(string directory, Func<FileSystemInfo, bool> include)
     {
         using MemoryStream output = new();
-        await new ZipService().WriteZipAsync(_notes.P(directory), output, include, TestContext.Current.CancellationToken);
+        await new ZipService().WriteZipAsync(ZipService.FolderOnDisk(_notes.P(directory), include), output, TestContext.Current.CancellationToken);
         output.Position = 0;
         using ZipArchive zip = new(output, ZipArchiveMode.Read);
         return zip.Entries.Select(entry => entry.FullName).Order(StringComparer.Ordinal).ToList();

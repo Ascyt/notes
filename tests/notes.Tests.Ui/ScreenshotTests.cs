@@ -1,15 +1,24 @@
 using System.IO.Compression;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using notes.Features.History;
+using notes.Features.HistoryViewing;
 
 namespace notes.Tests.Ui;
+
+/// <summary>The app of the screenshots, whose clock starts at a fixed time, so that the times the pictures show are the same with every run.</summary>
+public sealed class ScreenshotFixture() : UiFixture(ScreenshotTests.ClockStart);
 
 /// <summary>
 /// Takes a screenshot of every main view, on a desktop in the light theme and on a phone in the dark one, into docs/screenshots (the
 /// documentation shows them). They are taken again with every run of the UI tests, so they always show the app as it is. A file whose
 /// picture didn't change stays the same, and so gives no change in git.
 /// </summary>
-public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
+public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture), IClassFixture<ScreenshotFixture>
 {
+    /// <summary>Where the app's clock starts. Only the history moves it, see <see cref="Earlier_state_and_the_history_dialog"/>.</summary>
+    public static readonly DateTimeOffset ClockStart = new(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
+
     private sealed record Variant(string Name, ViewportSize Viewport, ColorScheme Scheme);
 
     private static readonly Variant[] Variants =
@@ -124,11 +133,43 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
         // The request id and the time change with every request
         => CaptureAsync("error", Users.Alice, "/no-such-file.md", hiddenCss: "main dl dd { visibility: hidden; }", expectOk: false);
 
+    [Fact]
+    public async Task Earlier_state_and_the_history_dialog()
+    {
+        // A history of two states, two days apart: in the second, plan.md is gone and meeting.md came in. Alice may see the history of
+        // everything but draft.md. (The clock is moved from where it starts: no other screenshot moves it, so the times are always the same.)
+        Tree.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["g:guests", "a", "u:carol"], cdAllow: ["g:team"], historyAllow: ["g:team"])));
+        Tree.Config("docs", Cfg.Folder(Cfg.Perms(), ("draft.md", Cfg.Perms(historyDeny: ["u:alice"]))));
+        _ = Tree.File("docs/draft.md", "draft");
+        _ = Tree.File("docs/plan.md", "plan");
+        HistoryService history = App.Services.GetRequiredService<HistoryService>();
+        history.CommitPending(CommitReason.Idle);
+        DateTimeOffset betweenTheStates = App.Time.GetUtcNow().AddDays(1);
+        App.Time.Advance(TimeSpan.FromDays(2));
+        File.Delete(Tree.Physical("docs/plan.md"));
+        _ = Tree.File("docs/meeting.md", Guide);
+        history.CommitPending(CommitReason.Idle);
+        App.Time.Advance(TimeSpan.FromHours(3));
+
+        await CaptureAsync("history", Users.Alice, "/docs?before=" + EarlierStateTime.Format(betweenTheStates),
+            page => Assertions.Expect(page.Locator("#history-card")).ToBeVisibleAsync(), atAppTime: true);
+        await CaptureAsync("history-dialog", Users.Alice, "/docs", async page =>
+        {
+            await page.Locator("#history-button").ClickAsync();
+            await Assertions.Expect(page.Locator("#history-times li[data-after]")).ToHaveCountAsync(1);
+            await Assertions.Expect(page.Locator("#history-before")).ToBeFocusedAsync();
+        }, atAppTime: true);
+    }
+
     private static Task WaitForMonacoAsync(IPage page)
         => page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
 
+    /// <param name="atAppTime">
+    /// Whether the browser goes by the app's clock (stopped there), in UTC and in British English, for a page that shows times: so that it
+    /// shows the same with every run, wherever it runs.
+    /// </param>
     private async Task CaptureAsync(string name, TestUser user, string path, Func<IPage, Task>? prepare = null, string? beforeLoad = null,
-        string? hiddenCss = null, bool expectOk = true)
+        string? hiddenCss = null, bool expectOk = true, bool atAppTime = false)
     {
         foreach (Variant variant in Variants)
         {
@@ -141,13 +182,17 @@ public sealed class ScreenshotTests(UiFixture fixture) : UiTest(fixture), IClass
                 ExtraHTTPHeaders = headers,
                 ViewportSize = variant.Viewport,
                 ColorScheme = variant.Scheme,
-                DeviceScaleFactor = 1
+                DeviceScaleFactor = 1,
+                TimezoneId = atAppTime ? "UTC" : null,
+                Locale = atAppTime ? "en-GB" : null
             });
             context.SetDefaultTimeout(10_000);
             if (beforeLoad is not null)
                 await context.AddInitScriptAsync(beforeLoad);
 
             IPage page = await context.NewPageAsync();
+            if (atAppTime)
+                await page.Clock.SetFixedTimeAsync(App.Time.GetUtcNow().UtcDateTime);
             IResponse? response = await page.GotoAsync(path);
             if (expectOk)
                 Assert.True(response?.Ok, $"{path}: {response?.Status}");

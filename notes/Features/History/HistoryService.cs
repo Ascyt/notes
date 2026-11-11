@@ -5,7 +5,7 @@ namespace notes.Features.History;
 
 /// <summary>
 /// Keeps the history of the notes in a git repository of their own (<see cref="HistoryRepository"/>), so that what was changed can be found
-/// again. There is no page for it yet. This decides when to commit: changes are committed, by the users who made them, when
+/// again (earlier states are read by <see cref="HistoryViewing.EarlierStateReader"/>). This decides when to commit: changes are committed, by the users who made them, when
 /// <list type="bullet">
 /// <item>nothing was changed in the app for <see cref="HistoryConfig.IdleMinutes"/> (<see cref="CommitIfIdle"/>, run by a background job),</item>
 /// <item>the changed lines reach <see cref="HistoryConfig.LineThreshold"/>,</item>
@@ -49,8 +49,8 @@ public sealed class HistoryService : IDisposable
     public string GitDirectory => _repository.GitDirectory;
 
     /// <summary>Whether the history keeps the file or directory (physical path), as the configuration says now (<c>gitignore</c>).</summary>
-    public bool Keeps(string physicalPath, bool isDirectory)
-        => _kept.KeepsEntry(physicalPath, isDirectory);
+    public bool IsKept(string physicalPath, bool isDirectory)
+        => _kept.IsEntryKept(physicalPath, isDirectory);
 
     /// <summary>Commits whatever is pending, e.g. when the app starts.</summary>
     public void CommitPending(CommitReason reason)

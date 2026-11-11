@@ -32,19 +32,19 @@ public sealed class HistoryGitignoreTests : HistoryTest
         Notes.Files.Config("media/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
         HistoryService history = History();
 
-        Assert.True(history.Keeps(Notes.P(""), isDirectory: true));
-        Assert.True(history.Keeps(Notes.P("docs"), isDirectory: true));
-        Assert.True(history.Keeps(Notes.P("docs/a.md"), isDirectory: false));
-        Assert.False(history.Keeps(Notes.P("media"), isDirectory: true));
-        Assert.False(history.Keeps(Notes.P("media/video.bin"), isDirectory: false));
-        Assert.False(history.Keeps(Notes.P("media/other"), isDirectory: true));
-        Assert.False(history.Keeps(Notes.P("media/other/clip.md"), isDirectory: false));
-        Assert.True(history.Keeps(Notes.P("media/keep"), isDirectory: true));
-        Assert.True(history.Keeps(Notes.P("media/keep/notes.md"), isDirectory: false));
+        Assert.True(history.IsKept(Notes.P(""), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/video.bin"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media/other"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/other/clip.md"), isDirectory: false));
+        Assert.True(history.IsKept(Notes.P("media/keep"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("media/keep/notes.md"), isDirectory: false));
 
         // Kept earlier doesn't count: what the configuration says now decides
         Notes.Files.Config("docs", Cfg.Folder(gitignore: true, Cfg.Perms()));
-        Assert.False(history.Keeps(Notes.P("docs/a.md"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
     }
 
     [Fact]

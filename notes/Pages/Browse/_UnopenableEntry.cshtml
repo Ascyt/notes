@@ -1,0 +1,34 @@
+@using notes.Pages.Browse
+@model _UnopenableEntry
+
+@{
+    bool isLocked = Model.Kind == ListedKind.Locked;
+    string reason = isLocked
+        ? Model.IsDirectory ? "No read access to this directory. Its contents are hidden." : "No read access to this file."
+        : Model.Href is null ? "Insufficient permissions to see this entry as it was. It is not there any more." : "Insufficient permissions to see this entry as it was.";
+
+    // The cell is the same for both kinds, only the row around it says which kind it is
+    Func<object?, object> cell =
+        @<td class="text-secondary">@if (Model.ShowsCheckbox){<input type="checkbox" class="form-check-input entry-select" disabled aria-label="@Model.Name: can't be opened or selected" style="cursor: not-allowed;"/>}<span class="entry-index">@Model.Number</span><i class="fa-regular @(Model.IsDirectory ? "fa-folder" : "fa-file")"></i>
+            @if (Model.Href is not null)
+            {
+                <a class="text-secondary text-decoration-none" href="@Model.Href" key="@Model.Key" key-anchor="i">@Model.Name</a>
+            }
+            else
+            {
+                @Model.Name
+            }
+            <i class="fa-solid @(isLocked ? "fa-lock" : "fa-calendar-xmark") fa-xs ms-1" aria-label="@reason"></i></td>;
+}
+
+@* Not an .entry-row: the selection script leaves it alone. The box (where the others have one) is only there to keep the names in line with them,
+   and says why it can't be ticked. The data attribute says why it can't be opened; each kind has its own <tr>, as Razor writes a data-
+   attribute even when its value is null. *@
+@if (isLocked)
+{
+    <tr data-locked-entry="@Model.Name" title="@reason">@cell(null)</tr>
+}
+else
+{
+    <tr data-no-history-entry="@Model.Name" title="@reason">@cell(null)</tr>
+}

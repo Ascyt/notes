@@ -1,6 +1,7 @@
 @page "{**path}"
 @using notes.Extensions
 @using notes.Features.Auth
+@using notes.Features.HistoryViewing
 @model notes.Pages.IndexModel
 @inject Config Config
 @{
@@ -37,4 +38,15 @@ else if (Model.Directory is not null)
 else if (Model.File is not null)
 {
     <partial name="/Pages/Editor/FileView.cshtml" model="Model.File"/>
+}
+
+@if (Model.Before is { } before)
+{
+    <partial name="/Features/HistoryViewing/_EarlierStateCard.cshtml" model="new _EarlierStateCard { Before = before, BackToNowHref = Model.AddressWithoutBefore() }"/>
+}
+
+@* Why the page was sent here instead of to an earlier state (see EarlierStateNotice) *@
+@if (Model.EarlierStateMessage is not null)
+{
+    <script>document.addEventListener('DOMContentLoaded', () => notify(@Json.Serialize(Model.EarlierStateMessage), 'danger'));</script>
 }

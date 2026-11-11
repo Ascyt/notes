@@ -101,7 +101,7 @@ public sealed record ToolbarButton(
     /// </summary>
     /// <param name="disabledReason">Why there are no earlier states to see (only for admins, who may know about the configuration).</param>
     public static ToolbarButton History(string? disabledReason = null)
-        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!+H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
+        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()

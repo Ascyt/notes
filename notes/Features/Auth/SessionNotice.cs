@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using notes.Extensions;
 
 namespace notes.Features.Auth;
 
@@ -23,18 +24,15 @@ public static class SessionNotice
         context.Items[ItemKey] = notice;
         // A page that is being made shows the notice itself; only the answer to a script has to leave it for the next page
         if (!HttpMethods.IsGet(context.Request.Method))
-            context.Response.Cookies.Append(CookieName, notice, new CookieOptions { HttpOnly = true, IsEssential = true, SameSite = SameSiteMode.Lax, Secure = context.Request.IsHttps, MaxAge = TimeSpan.FromMinutes(5) });
+            context.SetNoticeCookie(CookieName, notice, TimeSpan.FromMinutes(5));
     }
 
     /// <summary>Picks up the notice a previous request left in the cookie, so that this request shows it once.</summary>
     public static IApplicationBuilder UseSessionNotice(this IApplicationBuilder app)
         => app.Use(async (context, next) =>
         {
-            if (context.Request.Cookies.TryGetValue(CookieName, out string? notice) && HttpMethods.IsGet(context.Request.Method))
-            {
+            if (HttpMethods.IsGet(context.Request.Method) && context.TakeNoticeCookie(CookieName) is { } notice)
                 context.Items[ItemKey] = notice;
-                context.Response.Cookies.Delete(CookieName);
-            }
 
             await next(context);
         });

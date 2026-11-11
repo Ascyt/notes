@@ -94,6 +94,12 @@ public interface IEntryAccess
         => GetAccess(user, physicalPath);
 
     /// <summary>
+    /// What the user could do with the path if the notes were as <paramref name="snapshot"/> has them (an earlier state, see the history),
+    /// decided by the same rules. The path need not exist there either.
+    /// </summary>
+    EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, IConfigSnapshot snapshot);
+
+    /// <summary>
     /// Whether the user may see and change the configuration of each folder and file (the permissions among it) rather than just
     /// live by it. Answered once for the whole notes: it is not up to the entry.
     /// </summary>
@@ -114,13 +120,17 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
         => user.IsInRole(NotesAccess.AdminRole);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
-        => Resolve(user, physicalPath, isDirectory: null);
+        => Resolve(user, physicalPath, store.Get, isDirectory: Directory.Exists);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
-        => Resolve(user, physicalPath, isDirectory);
+        => Resolve(user, physicalPath, store.Get, isDirectory: _ => isDirectory);
 
-    /// <param name="isDirectory">Whether the path is a directory, if the caller knows; null to look at the disk.</param>
-    private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, bool? isDirectory)
+    public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, IConfigSnapshot snapshot)
+        => Resolve(user, physicalPath, snapshot.FolderConfigOf, snapshot.IsDirectory);
+
+    /// <param name="configOf">The configuration of a folder (physical path).</param>
+    /// <param name="isDirectory">Whether the path (physical) is a directory.</param>
+    private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, Func<string, FolderConfigState> configOf, Func<string, bool> isDirectory)
     {
         if (CanManageConfiguration(user))
             return Everything;
@@ -133,7 +143,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
             return EntryAccessInfo.None;
 
         PrincipalSet principals = PrincipalSet.Of(user);
-        if (FindLayers(path, root, isDirectory) is not { } layers)
+        if (FindLayers(path, root, configOf, isDirectory(path)) is not { } layers)
             return EntryAccessInfo.None;
 
         // Each level is decided by the first layer that says anything about the user
@@ -147,16 +157,16 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
     /// The permissions that apply to the path, the most specific first: the entry of the file (a directory has none, its own folder is
     /// its entry), then the folder and each folder above it, stopping after the first one with <c>inherit: false</c>. Null if one of those is invalid.
     /// </summary>
-    private List<PermsBlock>? FindLayers(string path, string root, bool? isDirectory)
+    private static List<PermsBlock>? FindLayers(string path, string root, Func<string, FolderConfigState> configOf, bool isDirectory)
     {
         List<PermsBlock> layers = [];
         string folder = path;
 
         // A directory is its own folder. Any other path (a file, or one that doesn't exist yet) has the entry its folder has for its name.
-        if (!(isDirectory ?? Directory.Exists(path)))
+        if (!isDirectory)
         {
             folder = Path.GetDirectoryName(path)!;
-            FolderConfigState parent = store.Get(folder);
+            FolderConfigState parent = configOf(folder);
             if (parent.IsInvalid)
                 return null;
 
@@ -170,7 +180,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
 
         while (true)
         {
-            FolderConfigState state = store.Get(folder);
+            FolderConfigState state = configOf(folder);
             if (state.IsInvalid)
                 return null;
 

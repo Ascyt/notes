@@ -14,7 +14,14 @@ An entry with a lock can be seen but not opened: its name is visible, but what i
 
 ## Earlier states
 
-Where the permissions allow it, the toolbar has a calendar icon (Alt+Shift+H). It opens a dialog to choose a date and time; **View** then shows the directory or file as it was at that time, read-only, and everything reached from there stays at that time. The address says so with `?before=` and the time. Whether an earlier state can be seen is up to the permissions now and at that time (see [Permissions](../administration/permissions.md#what-they-mean)).
+Where the permissions allow it, the toolbar has a calendar icon (Alt+H). It opens a dialog to choose a date and time, which lists the times at which the directory or file can be seen as it was; **View** then shows it as it was at that time, read-only, and everything reached from there stays at that time. The address says so with `?before=` and the time, and a card at the bottom of the page says which time is shown; its × (Alt+Shift+N) goes back to now. Files and directories that were deleted, moved or renamed since can be seen as they were too, where the permissions allow it.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![A directory as it was, with the card that says when](../screenshots/history-desktop.png) | ![A directory as it was, on a phone](../screenshots/history-phone.png) |
+| ![The dialog to choose a time](../screenshots/history-dialog-desktop.png) | ![The dialog to choose a time, on a phone](../screenshots/history-dialog-phone.png) |
+
+Whether an earlier state can be seen is up to the permissions now and at that time (see [Permissions](../administration/permissions.md#what-they-mean)). In a listing of an earlier state, an entry whose history can't be seen has a crossed-out calendar instead of the lock, and so has such a directory in the breadcrumb; an address that can't be shown goes to the entry as it is now, and says why. What the history keeps is committed every few minutes, so the latest changes may not be in it yet (see [History](../administration/history.md#when-it-commits)).
 
 ## Addresses
 

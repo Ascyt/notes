@@ -16,7 +16,9 @@ using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Features.HistoryViewing;
 using notes.Features.KillSwitch;
+using notes.Pages;
 using notes.Pages.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -74,6 +76,11 @@ builder.Services.AddSingleton<ConfigHandler>();
 builder.Services.AddSingleton<KillSwitchService>();
 // The history of the notes: a git repository in _/history, see docs/administration/history.md
 builder.Services.AddSingleton<HistoryService>();
+// Earlier states of the notes (?before=), and who may see them: docs/development/history-specification.md
+builder.Services.AddSingleton<EarlierStateReader>();
+builder.Services.AddSingleton<EarlierStatePermissions>();
+builder.Services.AddSingleton<EarlierStateRequests>();
+builder.Services.AddSingleton<EarlierStateViews>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());
@@ -90,6 +97,10 @@ if (!Directory.Exists(dir))
     app.Logger.LogInformation("Created directory: {dir}", dir);
 }
 app.Logger.LogInformation("In working dir: {dir}", dir);
+
+// Git refuses a repository whose folders belong to another user, so that it never trusts one someone else put there. The history is the
+// app's own, where the app is configured to keep it, and the notes folder is often mounted with an owner of its own (root, in Docker Desktop).
+LibGit2Sharp.GlobalSettings.SetOwnerValidation(false);
 
 // What changed while the app didn't run goes into the history on its own, before the migrations change anything
 HistoryService history = app.Services.GetRequiredService<HistoryService>();

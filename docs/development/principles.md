@@ -96,8 +96,8 @@ A change to a format that is stored raises its version and comes with a migratio
 
 ### 17. Code that reads easily
 
-- Names say what something is, without cryptic abbreviations.
-- Few comments, short and simple, that say why, not what.
+- Names say what something is, or what it does: descriptive, and preferably not abstract, without cryptic abbreviations or words that need looking up, and no longer than that takes. `TimesAtWhichEntryCanBeSeen` rather than `OpenTimes`, `CheckWhatDependsOnTheState` rather than `JudgeAt`.
+- Comments are short and simple, and say why rather than what. Code that is hard to follow (a loop that walks a tree, a method that weighs several cases, an algorithm) also gets a short comment for each step, saying what it does, so that it can be read without working it out first.
 - Every view and partial gets its data through a typed viewmodel, not through loose variables or `ViewData`.
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
 - Files stay short. One that grows past around 250 lines is split up along what its parts do (deciding, storing, looking up, …), not into a first and a second half; tests are split by topic, with what they share in a base class. This is a guide, not a limit: a file that clearly reads better in one piece stays one.

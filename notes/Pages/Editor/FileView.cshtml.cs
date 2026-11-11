@@ -1,7 +1,8 @@
 ﻿using System.Buffers;
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using notes.Features.History;
+using notes.Features.Components.Breadcrumb;
+using notes.Features.HistoryViewing;
 using notes.Pages.Editor.Markdown;
 
 namespace notes.Pages.Editor;
@@ -11,6 +12,10 @@ namespace notes.Pages.Editor;
 /// <param name="MonacoPath">Where Monaco is served from.</param>
 /// <param name="ReadOnlyMessage">What the editor says when typing into it while it is read-only.</param>
 public sealed record FileEditorOptions(bool CanWrite, string Contents, string Language, string MonacoPath, string ReadOnlyMessage);
+
+/// <summary>A file as an earlier state has it (<c>?before=</c>), shown instead of the one on disk.</summary>
+/// <param name="Before">The time of the state, as the address has it.</param>
+public sealed record EarlierFile(DateTimeOffset Before, long Size, Func<Stream> OpenContents);
 
 public class FileView : PageModel
 {
@@ -23,11 +28,25 @@ public class FileView : PageModel
     /// <summary>Whether the user may change the contents. Without it the editor is read-only and there is no saving.</summary>
     public bool CanWrite { get; init; }
 
+    /// <summary>The file as an earlier state has it, or null for the file on disk. Nothing of it can be changed.</summary>
+    public EarlierFile? Earlier { get; init; }
+
+    public bool ShowsEarlierState => Earlier is not null;
+
+    /// <summary>Why the contents can't be changed, which the editor says when typed into.</summary>
+    public string ReadOnlyReason => ShowsEarlierState ? EarlierStateViews.CantBeChangedReason : "Insufficient permissions to change this file.";
+
+    /// <summary>The query of the raw bytes of the file (of the state that is shown).</summary>
+    public string RawBytesQuery => ShowsEarlierState ? "raw&" + _HistoryModal.BeforeParameter + "=" + EarlierStateTime.Format(Earlier!.Before) : "raw";
+
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the file.</summary>
     public bool CanConfigure { get; init; }
 
     /// <summary>Whether the page has the way to the earlier states of the file.</summary>
-    public HistoryOffer History { get; init; } = HistoryOffer.None;
+    public HistoryButtonState HistoryButton { get; init; } = HistoryButtonState.Hidden;
+
+    /// <summary>In an earlier state: the directories above that can't be seen as they were, for the breadcrumb.</summary>
+    public IReadOnlyDictionary<string, ParentWithoutHistory> ParentsWithoutHistory { get; init; } = new Dictionary<string, ParentWithoutHistory>();
 
     /// <summary>Why the user can't delete the file, or null if they can.</summary>
     public string? DeleteDeniedReason { get; init; }
@@ -90,7 +109,7 @@ public class FileView : PageModel
 
     public async Task InitAsync()
     {
-        Size = new FileInfo(PhysicalPath).Length;
+        Size = Earlier?.Size ?? new FileInfo(PhysicalPath).Length;
 
         if (await LooksBinaryAsync())
         {
@@ -100,17 +119,22 @@ public class FileView : PageModel
             return;
         }
 
-        Contents = await System.IO.File.ReadAllTextAsync(PhysicalPath);
+        using (StreamReader reader = new(OpenContents(), detectEncodingFromByteOrderMarks: true))
+            Contents = await reader.ReadToEndAsync();
         if (ShowsPreview)
-            Preview = MarkdownRenderer.Render(Contents, SiteHost);
+            Preview = MarkdownRenderer.Render(Contents, SiteHost, RawBytesQuery);
     }
+
+    /// <summary>The contents of the file that is shown: as the earlier state has it, or on disk.</summary>
+    private Stream OpenContents()
+        => Earlier?.OpenContents() ?? new FileStream(PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
     /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>
     private async Task<bool> LooksBinaryAsync()
     {
         byte[] buffer = new byte[SniffLength];
         int length;
-        await using (FileStream stream = new(PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        await using (Stream stream = OpenContents())
             length = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
 
         ReadOnlySpan<byte> bytes = buffer.AsSpan(0, length);

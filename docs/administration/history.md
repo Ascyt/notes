@@ -15,6 +15,8 @@ git --git-dir=_/history show HEAD~3:plans/plan.md
 
 Only read it this way: the app expects to be the only one that writes to it.
 
+Git refuses a repository whose folders belong to another user than the one it runs as. The app doesn't check this for its own repository, as the notes folder is often mounted with an owner of its own (root, in Docker Desktop). Git itself still does: if it says the folder has "dubious ownership", add `-c safe.directory='*'` after `git` (for that command only).
+
 ## When it commits
 
 Changes are collected and committed when:

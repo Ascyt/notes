@@ -11,6 +11,7 @@ using notes.Features.Components.Upload;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Features.HistoryViewing;
 using notes.Pages.Browse;
 using notes.Pages.ConfigEditor;
 using notes.Pages.Editor;
@@ -41,7 +42,9 @@ public sealed class IndexModel(Config config,
     SelectionHandler selectionHandler,
     TransferHandler transferHandler,
     ISelectionService selectionService,
-    HistoryService history) : PageModel
+    HistoryService history,
+    EarlierStateRequests earlierStateRequests,
+    EarlierStateViews earlierStateViews) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -51,12 +54,24 @@ public sealed class IndexModel(Config config,
     /// <summary>The editor of the configuration of the entry (<c>?config</c>), instead of the entry itself.</summary>
     public ConfigEditorView? ConfigEditor { get; private set; }
 
+    /// <summary>The time of the earlier state that is shown (<c>?before=</c>), or null for the notes as they are.</summary>
+    public DateTimeOffset? Before { get; private set; }
+
+    /// <summary>Why the page was sent here from an earlier state (<see cref="EarlierStateNotice"/>), shown as an error message.</summary>
+    public string? EarlierStateMessage { get; private set; }
+
     public async Task<IActionResult> OnGetAsync()
     {
         VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
         // No body, so the error page is shown instead
         if (VirtualPath.StartsWith("_/"))
             return NotFound();
+
+        // Earlier states have their own rules, also for paths that aren't there any more (docs/development/history-specification.md)
+        if (Request.Query.ContainsKey(_HistoryModal.BeforeParameter))
+            return await OnGetEarlierStateAsync();
+        if (Request.Query.ContainsKey(_HistoryModal.VisibleTimesParameter))
+            return OnGetTimesAtWhichEntryCanBeSeen();
 
         string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
         if (physicalPath is null || !System.IO.Path.Exists(physicalPath))
@@ -94,8 +109,9 @@ public sealed class IndexModel(Config config,
         if (Request.Query.ContainsKey("raw"))
             return canOpen ? rawHandler.Handle(Response, PhysicalPath) : NotFound();
 
+        EarlierStateMessage = EarlierStateNotice.TakeMessage(HttpContext);
         bool isDirectory = System.IO.Directory.Exists(PhysicalPath);
-        HistoryOffer historyOffer = OfferHistory(access, isDirectory);
+        HistoryButtonState historyButton = DecideHistoryButtonState(access, isDirectory);
 
         if (isDirectory)
         {
@@ -107,7 +123,7 @@ public sealed class IndexModel(Config config,
                 Viewer = User,
                 CanBrowse = canOpen,
                 CanConfigure = tree.CanManageConfiguration(User),
-                History = historyOffer,
+                HistoryButton = historyButton,
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
             };
             Directory.Init();
@@ -121,7 +137,7 @@ public sealed class IndexModel(Config config,
                 PhysicalPath = PhysicalPath,
                 CanWrite = access.CanWrite,
                 CanConfigure = tree.CanManageConfiguration(User),
-                History = historyOffer,
+                HistoryButton = historyButton,
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
                 DeleteDeniedReason = inspected.DeleteDeniedReason,
@@ -138,21 +154,88 @@ public sealed class IndexModel(Config config,
     /// history, disabled with the reason where the configuration leaves the entry out of it. Everyone else only has it where they can use
     /// it: they aren't to know about the configuration.
     /// </summary>
-    private HistoryOffer OfferHistory(EntryAccessInfo access, bool isDirectory)
+    private HistoryButtonState DecideHistoryButtonState(EntryAccessInfo access, bool isDirectory)
     {
         if (!config.History.Enabled || !access.CanViewHistory)
-            return HistoryOffer.None;
+            return HistoryButtonState.Hidden;
 
-        if (history.Keeps(PhysicalPath, isDirectory))
-            return HistoryOffer.Available;
+        if (history.IsKept(PhysicalPath, isDirectory))
+            return HistoryButtonState.Usable;
 
         return tree.CanManageConfiguration(User)
-            ? new HistoryOffer(IsOffered: true, $"The configuration leaves this {(isDirectory ? "directory" : "file")} out of the history (gitignore).")
-            : HistoryOffer.None;
+            ? new HistoryButtonState(IsShown: true, $"The configuration leaves this {(isDirectory ? "directory" : "file")} out of the history (gitignore).")
+            : HistoryButtonState.Hidden;
+    }
+
+    /// <summary>An address with <c>?before=</c>: the entry as it was, if the user may see it so.</summary>
+    private async Task<IActionResult> OnGetEarlierStateAsync()
+    {
+        // They are about the notes as they are now
+        if (Request.Query.ContainsKey("config") || Request.Query.ContainsKey("selection"))
+            return BadRequest();
+
+        switch (earlierStateRequests.AnswerRequestForEarlierState(User, VirtualPath, Request.Query[_HistoryModal.BeforeParameter]))
+        {
+            case AnswerWithStatus status:
+                return StatusCode(status.StatusCode);
+            case RedirectToNow redirect:
+                EarlierStateNotice.Set(HttpContext, redirect.Notice);
+                return Redirect(AddressWithoutBefore());
+            case ShowEntryAsItWas shown:
+                // The state is read from until the response is sent (a zip is written while it is sent)
+                Response.RegisterForDispose(shown.State);
+                return await ShowEntryAsItWasAsync(shown);
+            default:
+                throw new InvalidOperationException("Unknown answer to a request for an earlier state.");
+        }
+    }
+
+    private async Task<IActionResult> ShowEntryAsItWasAsync(ShowEntryAsItWas shown)
+    {
+        PhysicalPath = shown.PhysicalPath;
+        Before = shown.Before;
+
+        // The bytes and the download of the entry as it was, like those of the entry as it is
+        if (Request.Query.ContainsKey("raw"))
+            return EarlierStateRequests.RawBytesAsTheyWere(Response, shown);
+        if (Request.Query.ContainsKey("download"))
+            return earlierStateRequests.DownloadAsItWas(User, VirtualPath, shown);
+
+        // Otherwise its page, in which nothing can be changed (?edit only shows what it shows without)
+        if (shown.Entry.IsDirectory)
+            Directory = earlierStateViews.CreateDirectoryView(User, VirtualPath, shown);
+        else
+            File = await earlierStateViews.CreateFileViewAsync(User, VirtualPath, shown, Request.Query.ContainsKey("edit"), Request.Host.Host);
+        return Page();
+    }
+
+    /// <summary><c>?history</c>: the times at which the entry can be seen as it was, for the dialog of the history button.</summary>
+    private IActionResult OnGetTimesAtWhichEntryCanBeSeen()
+    {
+        if (earlierStateRequests.TimesAtWhichEntryCanBeSeen(User, VirtualPath) is not { } ranges)
+            return NotFound();
+
+        return new JsonResult(new
+        {
+            ranges = ranges.Select(range => new { after = EarlierStateTime.Format(range.After), until = range.Until is { } until ? EarlierStateTime.Format(until) : null })
+        });
+    }
+
+    /// <summary>The address of this page without <c>?before=</c> (the rest of the query as it is): the entry as it is now.</summary>
+    public string AddressWithoutBefore()
+    {
+        // The other parts of the query are kept as they were written (not encoded again), so that only the time goes
+        string[] kept = [.. (Request.QueryString.Value ?? "").TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(part => !string.Equals(part.Split('=')[0], _HistoryModal.BeforeParameter, StringComparison.OrdinalIgnoreCase))];
+        return Request.PathBase.ToUriComponent() + Request.Path.ToUriComponent() + (kept.Length > 0 ? "?" + string.Join('&', kept) : "");
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
+        // An earlier state can't be changed, by anyone (the same answer whatever the path, so it tells nothing about it)
+        if (Request.Query.ContainsKey(_HistoryModal.BeforeParameter))
+            return BadRequest(EarlierStateViews.CantBeChangedReason);
+
         IActionResult? notFound = ResolveForChange();
         if (notFound is not null)
             return notFound;
@@ -185,6 +268,9 @@ public sealed class IndexModel(Config config,
 
     public async Task<IActionResult> OnDeleteAsync()
     {
+        if (Request.Query.ContainsKey(_HistoryModal.BeforeParameter))
+            return BadRequest(EarlierStateViews.CantBeChangedReason);
+
         IActionResult? notFound = ResolveForChange();
         if (notFound is not null)
             return notFound;

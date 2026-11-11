@@ -6,7 +6,7 @@ How earlier states of the notes are shown, and who may see which. This is the re
 
 - An address with **`?before=<time>`** shows the notes as they were at that time: the last state the history has from before it. Every page of the notes reached from there keeps the time, so that the earlier state can be browsed like the current one.
 - Such a view is **read-only**, for everyone, admins included.
-- Seeing it needs **`Read`** and the permission **`history`**, both **now and at that time** (as the configuration was then). What lies between doesn't matter.
+- Seeing an entry as it was needs **`Read`** and the permission **`history`** on it, both **now and at that time** (as the configuration was then), and `Read` on the directories above it, now and then. What lies between doesn't matter.
 - `history` has two levels: **`historyExistingOnly`** for the earlier states of what exists now, **`historyAllow`** also for what was deleted, moved or renamed since. `historyDeny` takes it away.
 - **`Read` always comes first:** without it, there is no history either.
 - What the [`gitignore`](../administration/history.md#what-it-keeps) of the current configuration leaves out has **no history at all**, even for the times it was kept, for admins too.
@@ -26,8 +26,10 @@ A state holds what was committed, not what was on disk at that moment: changes a
 ## The address
 
 - `?before=` holds a time in ISO 8601 with a time zone, as the dialog writes it: `2026-11-11T13:30:00Z` (UTC, to the second). An offset other than `Z` is accepted too (`2026-11-11T14:30:00+01:00`); a time without a time zone is not, as it would mean something else in every time zone.
-- A value that isn't such a time, or that lies in the future, is not shown: the page is answered with a redirect to the same address without `?before=`, and a message that says why (`danger`).
-- `?before=` is kept by every link of the app that leads to a page of the notes: the breadcrumb, the entries of a listing, the way up to the parent directory, the toolbar, links and images inside rendered Markdown that lead to the notes (images load with `?raw&before=`). Links to the app's own pages (`/_/…`) and to other sites don't get it. The way out of the historic view (see [The card](#the-card)) is the one link of the notes without it.
+- A value that isn't such a time, or that lies in the future, is not shown: the page is answered with a redirect to the same address without `?before=` (the rest of the query as it was), and a message that says why (`danger`). So is any `?before=` while there is no history (`Config:History:Enabled` is false, or nothing was committed yet); only admins are told that there is none, everyone else that the permissions don't allow it.
+- The message travels with the redirect in a short-lived cookie (`EarlierStateNotice`), and the page it leads to shows it once.
+- `?before=` is kept by every link of the app that leads to a page of the notes: the breadcrumb, the entries of a listing, the way up to the parent directory, the toolbar, links inside rendered Markdown that lead to the notes. Links to the app's own pages (`/_/…`), to other sites and within the page don't get it. The way out of the historic view (see [The card](#the-card)) is the one link of the notes without it. The script of the card adds it to the links of the page, so that every link the page has, now or later, is covered; what the browser loads by itself (images, media, PDFs, also those in rendered Markdown) gets `?raw&before=` from the server.
+- `?history` asks for the times at which the entry can be seen as it was, as JSON (`{ "ranges": [ { "after": "…Z", "until": "…Z" or null } ] }`, the latest first), for the dialog of the history button. It answers 404, like a missing path, to whoever may not see the history of the entry now (see 1., 3. and 4. below, for now), or where the history doesn't keep it.
 
 ## Who may see a state
 
@@ -51,7 +53,7 @@ For a user, a path P and a time T, **P is open at T** when all of these hold:
 2. **It existed:** P is in the state before T.
 3. **Read, now and then:** the user may read P now, and in the state before T.
 4. **History, now and then:** in the state before T the user has at least `Existing` on P; now they have at least `Existing` if P exists now, and `ExistingAndDeleted` if it doesn't.
-5. **Known, now and then:** every directory above P passes 2. to 4. — the historic counterpart of [known](security-specification.md#known-openable-hidden). (Not 1.: a directory that is kept again below one that is left out has its history, though the one above has none.)
+5. **Known, now and then:** the user may read every directory above P now, and in the state before T — the historic counterpart of [known](security-specification.md#known-openable-hidden), so that nothing is seen as it was inside a directory that couldn't be read then. Their `history` doesn't matter: giving `history` on a directory is enough to see its history, without giving it on the directories above. Neither does 1.: a directory that is kept again below one that is left out has its history, though the one above has none.
 
 Only now and T count: what the permissions were between them doesn't matter. So:
 
@@ -97,6 +99,10 @@ Each entry of a historic listing (as it was at T) is shown by what the user may 
 
 The listing shows nothing about an entry beyond its name and kind, as now (see [What a user may learn](security-specification.md#what-a-user-may-learn)).
 
+### The breadcrumb
+
+The directories above P can all be read, now and at T (5.), but their own history may not be seen: a directory above that isn't open at T itself is shown in the breadcrumb like such an entry of a listing, in the low-emphasis style with a crossed-out calendar (after the house icon, for the root) and a tooltip that says why. It is a link to it, which leads to the explanation, unless it doesn't exist now. The tooltip says that the configuration leaves it out of the history only to those who manage the configuration, as the explanation does (see [below](#addresses-that-cant-be-shown)); everyone else is told that the permissions don't allow it.
+
 ### Addresses that can't be shown
 
 What an address with `?before=` answers depends first on what P is now:
@@ -104,7 +110,8 @@ What an address with `?before=` answers depends first on what P is now:
 | P now | P at T | Answer |
 |---|---|---|
 | Openable (exists, known and readable) | Open at T | The page as it was. |
-| Openable | Not open at T, for any reason | A redirect to P without `?before=`, with a message that says why (`danger`): left out of the history, insufficient permissions to see its history, or not there at that time. It reveals nothing that the page of P without `?before=` doesn't. |
+| Openable | Not open at T, for any reason | A redirect to P without `?before=`, with a message that says why (`danger`): left out of the history (only to those who manage the configuration; everyone else is told that the permissions don't allow it), insufficient permissions to see it as it was, or not there at that time. It reveals nothing that the page of P without `?before=` doesn't. |
+| The root, not readable | — | A redirect to the root without `?before=`, with the message about the permissions: the root page is there for everyone (it has the way to log in). |
 | Known, but not readable | — | 403, as for an unreadable entry now. |
 | Hidden | — | 404, as for a missing path. |
 | Doesn't exist | Open at T | The page as it was. |
@@ -116,7 +123,7 @@ A hidden entry, and one that doesn't exist now and may not be seen as it was, an
 
 ### The history button
 
-The calendar icon (`fa-calendar`, `#history-button`, shortcut Alt+Shift+H) is in the toolbar of a directory and of a file, right of the configuration button and left of everything else that only reads (the other views, Save as PDF, the download). Who sees it:
+The calendar icon (`fa-calendar`, `#history-button`, shortcut Alt+H) is in the toolbar of a directory and of a file, right of the configuration button and left of everything else that only reads (the other views, Save as PDF, the download). Who sees it:
 
 | User | Shown |
 |---|---|
@@ -128,13 +135,13 @@ Without a history at all (`Config:History:Enabled` is false), it is there for no
 
 It opens a dialog (`#history-modal`):
 
-- A field for the date and time (`datetime-local`, in the browser's time zone), set to the time that is shown (in a historic view) or to now. It can't be set later than now.
-- The times at which the entry can be seen (open, as above): from the earliest state in which it is open, up to now, without the times at which it isn't. They are worked out for the entry and the directories above it, for this user.
-- **View** (Enter) opens the same address with `?before=` set to that time in UTC, and nothing else of the query (`?edit` and the like are about changing). It is disabled while the field is empty, invalid or in the future, with the reason as its tooltip and under the field (for phones, which have no tooltips). **Cancel** (Escape) closes the dialog.
+- A field for the date and time (`datetime-local`, to the second, as the states are, in the browser's time zone), set to the time that is shown (in a historic view) or to now. It can't be set later than now.
+- The times at which the entry can be seen (open, as above), the latest first: each from the state in which it is open on, up to the next state in which it isn't (or up to now). They are worked out for the entry and the directories above it, for this user, and asked for (`?history`) when the dialog opens, as working them out goes through the whole history. While they are loading, or if they can't be loaded, only the server decides whether a time can be seen.
+- **View** (Enter) opens the same address with `?before=` set to that time in UTC, and nothing else of the query (`?edit` and the like are about changing). It is disabled while the field is empty, invalid, in the future or outside the times listed, with the reason as its tooltip and under the field (for phones, which have no tooltips). **Cancel** (Escape) closes the dialog.
 
 ### The card
 
-While a historic view is shown, a card at the bottom of the page (one of the floating cards, like the selection card) says which time is shown, in the browser's time zone. It stays as long as the page. Its × leads to the same address without `?before=`: the entry as it is now.
+While a historic view is shown, a card at the bottom of the page (one of the floating cards, like the selection card) says which time is shown, in the browser's time zone. It stays as long as the page. Its × (Alt+Shift+N) leads to the same address without `?before=`: the entry as it is now.
 
 ## What a user may learn
 
@@ -154,8 +161,15 @@ On top of [what the security specification allows](security-specification.md#wha
 | What | Where |
 |---|---|
 | The `history` permission, resolving it for now | `notes/Features/Auth/EntryAccess.cs` (`HistoryAccess`, `CanViewHistory`), `notes/Features/Permissions/PermissionModel.cs`, `notes/Features/Configuration/ConfigParser.cs` |
-| What the history keeps now | `notes/Features/History/KeptFiles.cs` (`KeepsEntry`), through `HistoryService.Keeps` |
-| Whether a page has the history button, and its dialog | `notes/Pages/Index.cshtml.cs` (`OfferHistory`), `notes/Features/Components/Toolbar/_Toolbar.cshtml.cs` (`ToolbarButton.History`), `notes/Features/History/_HistoryModal.cshtml(.cs)` |
+| What the history keeps now | `notes/Features/History/KeptFiles.cs` (`IsEntryKept`), through `HistoryService.IsKept` |
+| Whether a page has the history button, and its dialog | `notes/Pages/Index.cshtml.cs` (`DecideHistoryButtonState`), `notes/Features/Components/Toolbar/_Toolbar.cshtml.cs` (`ToolbarButton.History`), `notes/Features/HistoryViewing/HistoryButtonState.cs`, `notes/Features/HistoryViewing/_HistoryModal.cshtml(.cs)` |
+| Deciding by the configuration of a state | `IEntryAccess.GetAccess(user, path, IConfigSnapshot)` in `notes/Features/Auth/EntryAccess.cs`; `notes/Features/HistoryViewing/EarlierState.cs`, which is the snapshot of a commit |
+| Reading states from the repository | `notes/Features/HistoryViewing/EarlierStateReader.cs`: each request opens the repository on its own (reading needs no lock), and the configuration files of the history are read once, by their contents |
+| The rule ("open at T"), the listings, the times | `notes/Features/HistoryViewing/EarlierStatePermissions.cs` |
+| Answering `?before=` and `?history`, raw bytes and downloads of a state | `notes/Features/HistoryViewing/EarlierStateRequests.cs`, `EarlierStateNotice.cs`, `EarlierStateTime.cs`; called by `notes/Pages/Index.cshtml.cs`. Zips and raw bytes go through the same code as for the notes as they are (`ZipService`, `DownloadHandler.ZipDownload`, `RawHandler.HandleContents`) |
+| The pages of a state | `notes/Features/HistoryViewing/EarlierStateViews.cs`, `notes/Pages/Browse/DirectoryView.cshtml(.cs)` (`Before`, `InitFromEarlierState`), `notes/Pages/Browse/_UnopenableEntry.cshtml(.cs)` (the lock and the crossed-out calendar), `notes/Features/Components/Breadcrumb/_Breadcrumb.cshtml(.cs)` (`ParentsWithoutHistory`), `notes/Pages/Editor/FileView.cshtml.cs` (`Earlier`, `RawBytesQuery`), `notes/Features/HistoryViewing/_EarlierStateCard.cshtml(.cs)` (the card, and the script that keeps the time on the links) |
+
+How costly it is: a request for a state goes through the commits from the newest until the one before its time, and checks the configuration of the entry and the directories above it, then and now. The times of the dialog judge every state once, but states in which nothing the entry's permissions depend on changed (its configuration files, whether it and the directories above it were there) are judged alike, so a long history with few changes of the permissions stays quick.
 
 ## Tests
 
@@ -165,8 +179,10 @@ Every rule above is a case to cover, in particular:
 - What is kept: files and directories, a subfolder kept again below one that is left out, and that what the configuration says now decides.
 - The button and dialog: there exactly for those who have `history` now, where the entry is kept; disabled with a reason for admins where it isn't, and not there for anyone else; its place in the toolbar; the address the dialog makes (UTC, nothing else of the query), and that it refuses an empty, invalid or future time.
 - Each row of the example table above, as states of a test history made with a fake clock, and an entry deleted since with `historyAllow` and with `historyExistingOnly`.
-- Each row of [The entries of a listing](#the-entries-of-a-listing) and [Addresses that can't be shown](#addresses-that-cant-be-shown), for logged-in and anonymous users, and that a hidden entry answers exactly like a missing one.
+- Each row of [The entries of a listing](#the-entries-of-a-listing), [The breadcrumb](#the-breadcrumb) and [Addresses that can't be shown](#addresses-that-cant-be-shown), for logged-in and anonymous users, and that a hidden entry answers exactly like a missing one.
 - That `gitignore` of now beats a state in which the entry was kept, and that an invalid or old-format configuration in a state is read as it was then.
 - That every change request with `?before=` is refused and changes nothing, also for admins; that `?config` and `?selection` with it are refused.
 - That every link of the notes in a historic page keeps `?before=`, and the card's × doesn't.
-- Downloads and `?raw` of an earlier state, and that a zip leaves out what isn't open at T.
+- Downloads and `?raw` of an earlier state, and that a zip leaves out what isn't open at T; images in rendered Markdown that load from the state.
+- The times (`?history`): the ranges for a history with a gap, and that it answers 404 to whoever may not see the history now, for what is hidden and for what the history leaves out.
+- The message of a redirect, and that it is shown once.
