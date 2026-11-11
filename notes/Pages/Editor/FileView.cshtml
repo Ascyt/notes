@@ -1,7 +1,8 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Delete
 @using notes.Features.Components.Toolbar
-@using notes.Features.HistoryViewing
+@using notes.Features.HistoryViewing.Commits
+@using notes.Features.HistoryViewing.Views
 @using notes.Pages.Editor
 @model notes.Pages.Editor.FileView
 
@@ -25,11 +26,14 @@
         toolbarButtons.Add(ToolbarButton.ZoomOut());
         toolbarButtons.Add(ToolbarButton.ZoomIn());
     }
-    // The configuration (only there for those who manage it), then the history, left of the other views and the download
+    // The configuration (only there for those who manage it), then the history (its changes, then the choice of a time), left of the other views and the download
     if (Model.CanConfigure)
         toolbarButtons.Add(ToolbarButton.Config("file"));
     if (Model.HistoryButton.IsShown)
+    {
+        toolbarButtons.Add(ToolbarButton.Commits(Model.HistoryButton.DisabledReason));
         toolbarButtons.Add(ToolbarButton.History(Model.HistoryButton.DisabledReason));
+    }
     // Only what the browser can show has raw bytes to look at (see RawHandler)
     if (Model.IsBinary && Model.Media != MediaKind.None)
         toolbarButtons.Add(ToolbarButton.Raw());
@@ -44,7 +48,8 @@
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
 @if (Model.HistoryButton.CanBeUsed)
 {
-    <partial name="/Features/HistoryViewing/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "file" }'/>
+    <partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "file" }'/>
+    <partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "file" }'/>
 }
 
 @if (Model.IsBinary)
@@ -108,7 +113,18 @@
 }
 
 @Html.AntiForgeryToken()
-<div id="editor" style="height: 75vh; border: 1px solid var(--bs-border-color);" key="Enter"></div>
+<style>
+    #editor {
+        height: 75vh;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    /* Where the focus is, at a glance */
+    #editor:focus-within {
+        border-color: var(--bs-primary);
+    }
+</style>
+<div id="editor" key="Enter"></div>
 @* The simple view: a plain text field, for phones, where Monaco is awkward to use. Only one of the two is shown. *@
 <textarea id="simple-editor" class="form-control font-monospace" style="height: 75vh; resize: none; font-size: 1rem;" spellcheck="false" key="Enter" aria-label="File contents" hidden></textarea>
 @if (!Model.IsReadOnly)

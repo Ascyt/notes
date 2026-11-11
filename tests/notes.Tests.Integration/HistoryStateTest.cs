@@ -1,7 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using notes.Features.History;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Requests;
 
 namespace notes.Tests.Integration;
 

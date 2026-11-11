@@ -4,7 +4,7 @@ using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.History;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.States;
 
 /// <summary>
 /// Reads earlier states of the notes from the history (<see cref="EarlierState"/>). Each reader opens the repository on its own: reading
@@ -22,6 +22,34 @@ public sealed class EarlierStateReader(Config config, HistoryService history, Co
 
     /// <summary>The state before the time (the latest commit before it), or null if there is none. To be disposed.</summary>
     public EarlierState? OpenStateBefore(DateTimeOffset before)
+        => OpenNewestStateThat(commit => commit.Author.When < before);
+
+    /// <summary>The state the commit with the id made (the full hash, in lower case), or null if the history has none. To be disposed.</summary>
+    public EarlierState? OpenStateOfCommit(string id)
+        => OpenNewestStateThat(commit => commit.Sha == id);
+
+    /// <summary>
+    /// Every state from the one of the commit with the id (or the newest) back to the first, each with the state before it (null for the
+    /// first). Each pair is only valid until the next one is asked for. Nothing if the history has no such commit.
+    /// </summary>
+    public IEnumerable<(EarlierState State, EarlierState? Previous)> EveryStateWithPreviousNewestFirst(string? fromCommitId)
+    {
+        if (!HasHistory)
+            yield break;
+
+        using Repository repository = new(history.GitDirectory);
+        Commit? start = fromCommitId is null ? repository.Head.Tip : CommitsNewestFirst(repository).FirstOrDefault(commit => commit.Sha == fromCommitId);
+        EarlierState? state = start is null ? null : new EarlierState(repository, ownsRepository: false, start, _paths, ReadConfigurationFile);
+        // Each state's previous one is the next state: it is opened once, and what it has looked up is kept
+        while (state is not null)
+        {
+            EarlierState? previous = state.OpenPrevious();
+            yield return (state, previous);
+            state = previous;
+        }
+    }
+
+    private EarlierState? OpenNewestStateThat(Func<Commit, bool> isTheOne)
     {
         if (!HasHistory)
             return null;
@@ -29,7 +57,7 @@ public sealed class EarlierStateReader(Config config, HistoryService history, Co
         Repository repository = new(history.GitDirectory);
         try
         {
-            if (CommitsNewestFirst(repository).FirstOrDefault(commit => commit.Author.When < before) is { } found)
+            if (CommitsNewestFirst(repository).FirstOrDefault(isTheOne) is { } found)
                 return new EarlierState(repository, ownsRepository: true, found, _paths, ReadConfigurationFile);
         }
         catch

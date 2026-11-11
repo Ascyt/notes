@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using notes.Features.History;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Requests;
 
 namespace notes.Tests.Ui;
 
@@ -162,6 +162,23 @@ public sealed class HistoryUiTests(UiFixture fixture) : UiTest(fixture), IClassF
         await Page.Locator("#history-exit").ClickAsync();
         await Page.WaitForURLAsync(new Regex("/docs/a\\.md$"));
         await Expect(Page.Locator("#history-card")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Escape_leads_back_to_now_unless_a_dialog_is_open()
+    {
+        string before = CommitState();
+        await OpenAsync("/docs?before=" + before);
+
+        // An open dialog takes it first
+        await Page.Locator("#history-button").ClickAsync();
+        await Expect(Field).ToBeFocusedAsync();
+        await Page.Keyboard.PressAsync("Escape");
+        await Expect(Modal).ToBeHiddenAsync();
+        Assert.Contains("before=", Page.Url);
+
+        await Page.Keyboard.PressAsync("Escape");
+        await Page.WaitForURLAsync(new Regex("/docs$"));
     }
 
     [Fact]

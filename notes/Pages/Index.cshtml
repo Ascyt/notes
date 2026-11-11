@@ -1,7 +1,6 @@
 @page "{**path}"
 @using notes.Extensions
 @using notes.Features.Auth
-@using notes.Features.HistoryViewing
 @model notes.Pages.IndexModel
 @inject Config Config
 @{
@@ -40,9 +39,9 @@ else if (Model.File is not null)
     <partial name="/Pages/Editor/FileView.cshtml" model="Model.File"/>
 }
 
-@if (Model.Before is { } before)
+@if (Model.EarlierStateCard is not null)
 {
-    <partial name="/Features/HistoryViewing/_EarlierStateCard.cshtml" model="new _EarlierStateCard { Before = before, BackToNowHref = Model.AddressWithoutBefore() }"/>
+    <partial name="/Features/HistoryViewing/Views/_EarlierStateCard.cshtml" model="Model.EarlierStateCard"/>
 }
 
 @* Why the page was sent here instead of to an earlier state (see EarlierStateNotice) *@

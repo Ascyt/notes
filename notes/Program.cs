@@ -16,7 +16,10 @@ using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
 using notes.Features.History;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Commits;
+using notes.Features.HistoryViewing.Requests;
+using notes.Features.HistoryViewing.States;
+using notes.Features.HistoryViewing.Views;
 using notes.Features.KillSwitch;
 using notes.Pages;
 using notes.Pages.Editor;
@@ -79,6 +82,7 @@ builder.Services.AddSingleton<HistoryService>();
 // Earlier states of the notes (?before=), and who may see them: docs/development/history-specification.md
 builder.Services.AddSingleton<EarlierStateReader>();
 builder.Services.AddSingleton<EarlierStatePermissions>();
+builder.Services.AddSingleton<EarlierStateCommits>();
 builder.Services.AddSingleton<EarlierStateRequests>();
 builder.Services.AddSingleton<EarlierStateViews>();
 

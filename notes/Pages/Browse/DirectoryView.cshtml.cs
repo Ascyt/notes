@@ -5,7 +5,10 @@ using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Selection;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Commits;
+using notes.Features.HistoryViewing.Requests;
+using notes.Features.HistoryViewing.States;
+using notes.Features.HistoryViewing.Views;
 
 namespace notes.Pages.Browse;
 
@@ -51,10 +54,10 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
     public bool CanBrowse { get; init; }
 
-    /// <summary>The time of the earlier state that is shown (<c>?before=</c>), or null for the directory as it is.</summary>
-    public DateTimeOffset? Before { get; init; }
+    /// <summary>Which earlier state is shown (<c>?before=</c> or <c>?commit=</c>), or null for the directory as it is.</summary>
+    public EarlierStateParameter? Shown { get; init; }
 
-    public bool ShowsEarlierState => Before is not null;
+    public bool ShowsEarlierState => Shown is not null;
 
     /// <summary>
     /// Whether the page offers selecting entries. It needs the user's own id (the selection is kept under it), so not for someone who is not
@@ -67,6 +70,9 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
 
     /// <summary>Whether the page has the way to the earlier states of the directory.</summary>
     public HistoryButtonState HistoryButton { get; init; } = HistoryButtonState.Hidden;
+
+    /// <summary>In the view of a commit, the sidebar of the list of changes with what it shows from the start; otherwise null (it starts empty).</summary>
+    public _CommitSidebar? CommitSidebar { get; init; }
 
     /// <summary>In an earlier state: the directories above that can't be seen as they were, for the breadcrumb.</summary>
     public IReadOnlyDictionary<string, ParentWithoutHistory> ParentsWithoutHistory { get; init; } = new Dictionary<string, ParentWithoutHistory>();
@@ -141,7 +147,7 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     }
 
     /// <summary>
-    /// Fills the listing with the entries of an earlier state (<see cref="Before"/>), as <see cref="EarlierStatePermissions"/> says they are
+    /// Fills the listing with the entries of an earlier state (<see cref="Shown"/>), as <see cref="EarlierStatePermissions"/> says they are
     /// shown. Nothing in it can be changed.
     /// </summary>
     public void InitFromEarlierState(IEnumerable<(ListedEntry Entry, bool IsDirectory)> entries)

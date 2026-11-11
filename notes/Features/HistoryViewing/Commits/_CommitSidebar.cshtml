@@ -1,0 +1,359 @@
+@using notes.Features.HistoryViewing.Commits
+@using notes.Features.HistoryViewing.Requests
+@model notes.Features.HistoryViewing.Commits._CommitSidebar
+
+@* The changes of the current file or directory (the commits that changed it, or what is in it, in a way the user may see), at the left of
+   the page, behind the changes button of the toolbar (#commits-button, see ToolbarButton.Commits). The page moves to the right to make room
+   for it; on a narrow screen it is shown instead of the page.
+
+   In the view of a commit (?commit=) it is always shown (where there is room), with its first page from the server, and its × leads back to
+   now; the button and its shortcut only move the focus into it and out again. Elsewhere it is asked for (?commits) when it is first shown,
+   and the button shows or hides it; its shortcut goes through hidden → shown and focused → focused (when the focus went elsewhere) → hidden.
+
+   While the focus is in it, the arrow keys are shortcuts (`key`) of what they lead to, so that holding Right Ctrl shows where each goes: up
+   and down to the commit before and after (at the ends: the newer ones, or the next page), left and right to the pages. *@
+
+<style>
+    .commit-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 18rem;
+        display: flex;
+        flex-direction: column;
+        background: var(--bs-body-bg);
+        border: 1px solid transparent;
+        border-right-color: var(--bs-border-color);
+        z-index: 1030;
+    }
+
+    /* Where the focus is, at a glance */
+    .commit-sidebar:focus-within {
+        border-color: var(--bs-primary);
+    }
+
+    .commit-sidebar:focus {
+        outline: none;
+    }
+
+    body:has(> .commit-sidebar:not([hidden])) {
+        padding-left: 18rem;
+    }
+
+    /* Too narrow for both: the list is shown instead of the page (the cards at the bottom stay) */
+    @@media (max-width: 767.98px) {
+        .commit-sidebar {
+            position: static;
+            width: auto;
+            height: 100dvh;
+        }
+
+        body:has(> .commit-sidebar:not([hidden])) {
+            padding-left: 0;
+        }
+
+        body:has(> .commit-sidebar:not([hidden])) > :not(.commit-sidebar):not(#floating-cards):not(script) {
+            display: none !important;
+        }
+
+        /* A card that stays at the bottom (of an earlier state, of the selection) would cover the pages */
+        body:has(#floating-cards > .floating-card:not(.toast-card):not([hidden])) .commit-sidebar {
+            padding-bottom: 5rem;
+        }
+    }
+
+    .commit-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.25rem 1rem;
+        white-space: nowrap;
+        color: var(--bs-body-color);
+        text-decoration: none;
+    }
+
+    .commit-line:hover, .commit-line:focus {
+        background: var(--bs-secondary-bg);
+        outline: none;
+    }
+
+    /* The commit that is shown */
+    .commit-line[aria-current] {
+        background: var(--bs-primary-bg-subtle);
+    }
+
+    .commit-time {
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .commit-author {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--bs-secondary-color);
+    }
+</style>
+
+@* key-scope: while it has the focus, its Escape goes before the page's (the card's way back to now) *@
+<aside id="commit-sidebar" class="commit-sidebar" tabindex="-1" hidden="@(!Model.IsCommitView)" aria-labelledby="commit-sidebar-title"
+       data-commit-view="@(Model.IsCommitView ? "true" : "false")" key-scope key-anchor="#commits-button">
+    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+        <h2 class="h6 m-0 me-auto" id="commit-sidebar-title">Changes of this @Model.Kind</h2>
+        @if (Model.AddressOfNow is { } addressOfNow)
+        {
+            @* Only where it is shown instead of the page: elsewhere it stays as long as the commit is shown *@
+            <button type="button" id="commit-sidebar-hide" class="btn btn-sm btn-link link-secondary p-0 d-md-none" aria-label="Hide the changes" title="Hide the changes">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <a id="commit-sidebar-exit" class="btn-close" href="@addressOfNow" data-history-exit aria-label="Back to now" title="Back to now"></a>
+        }
+        else
+        {
+            <button type="button" id="commit-sidebar-hide" class="btn-close" aria-label="Hide the changes" title="Hide the changes"></button>
+        }
+    </div>
+    <div id="commit-sidebar-contents" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+        @if (Model.Contents is not null)
+        {
+            <partial name="/Features/HistoryViewing/Commits/_CommitList.cshtml" model="Model.Contents"/>
+        }
+    </div>
+</aside>
+
+<script>
+    (function () {
+        const LIST_PARAMETER = @Json.Serialize(_CommitSidebar.CommitListParameter);
+        const PAGE_PARAMETER = @Json.Serialize(_CommitSidebar.PageParameter);
+        const NEWER_PARAMETER = @Json.Serialize(_CommitSidebar.NewerParameter);
+        const COMMIT_PARAMETER = @Json.Serialize(EarlierStateParameter.Commit);
+        const STATE_PARAMETERS = [@Json.Serialize(EarlierStateParameter.Before), COMMIT_PARAMETER];
+
+        const sidebar = document.getElementById('commit-sidebar');
+        const contents = document.getElementById('commit-sidebar-contents');
+        const hideButton = document.getElementById('commit-sidebar-hide');
+        const toolbarButton = document.getElementById('commits-button');
+        const isCommitView = sidebar.dataset.commitView === 'true';
+        const narrow = window.matchMedia('(max-width: 767.98px)');
+        // Next to the page rather than inside it, so that the page can make room for it (or be hidden for it)
+        document.body.prepend(sidebar);
+
+        // The state the page shows (?before= or ?commit=), which the list starts from
+        const query = new URLSearchParams(window.location.search);
+        const shownStateName = STATE_PARAMETERS.find(name => query.has(name));
+        const shownState = shownStateName ? '&' + shownStateName + '=' + encodeURIComponent(query.get(shownStateName)) : '';
+
+        let hasLoaded = contents.children.length > 0;
+
+        const isShown = () => !sidebar.hidden;
+        // Always shown: in the view of a commit, where there is room for it next to the page
+        const isPinned = () => isCommitView && !narrow.matches;
+        const hasFocus = () => sidebar.contains(document.activeElement);
+        const lines = () => [...contents.querySelectorAll('.commit-line')];
+
+        // Only one line can be reached with Tab (the one last gone to): the others are reached with the arrow keys
+        function focusLine(line) {
+            for (const other of lines())
+                other.tabIndex = other === line ? 0 : -1;
+            line.focus();
+            line.scrollIntoView({ block: 'nearest' });
+        }
+
+        // The line gone to last, otherwise the commit that is shown, otherwise the newest; the sidebar itself while there is none
+        function focusList() {
+            const line = contents.querySelector('.commit-line[tabindex="0"]') || contents.querySelector('[aria-current]') || lines()[0];
+            if (line)
+                focusLine(line);
+            else
+                sidebar.focus();
+        }
+
+        // What came from the server: the times in the browser's time zone, the arrow keys going to the lines, the buttons in their state
+        function prepare(root) {
+            for (const time of root.querySelectorAll('time.commit-time')) {
+                const date = new Date(time.dateTime);
+                time.textContent = date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+                time.closest('.commit-line').title = date.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'medium' });
+            }
+            for (const line of root.querySelectorAll('.commit-line'))
+                line.addEventListener('shortcut', function (e) {
+                    e.preventDefault();
+                    focusLine(line);
+                });
+            for (const button of root.querySelectorAll('[data-label]'))
+                refreshButton(button);
+        }
+
+        // Gives each arrow key (and Escape) to what it leads to from where the focus is; nothing while the focus is elsewhere
+        function updateKeys() {
+            for (const element of document.querySelectorAll('[data-sidebar-key]')) {
+                element.removeAttribute('key');
+                element.removeAttribute('data-sidebar-key');
+            }
+            if (!hasFocus())
+                return;
+
+            const keys = new Map();
+            const give = (element, key) => {
+                if (element && element.getAttribute('aria-disabled') !== 'true')
+                    keys.set(element, [...(keys.get(element) || []), key]);
+            };
+            const all = lines();
+            const index = all.indexOf(document.activeElement);
+            const newer = document.getElementById('commit-newer');
+            const older = document.getElementById('commit-older');
+            // Down: the next commit, after the last one the next page
+            give(index + 1 < all.length ? all[index + 1] : older, 'ArrowDown');
+            // Up: the commit before, above the first one the newer ones
+            if (index > 0)
+                give(all[index - 1], 'ArrowUp');
+            else if (index === 0)
+                give(document.getElementById('commit-show-newer') || newer, 'ArrowUp');
+            give(newer, 'ArrowLeft');
+            give(older, 'ArrowRight');
+            // Escape leaves the sidebar: where it is always shown only the focus goes (the sidebar's own shortcut, shown over the toolbar
+            // button), elsewhere it is hidden
+            give(isPinned() ? sidebar : hideButton, 'Escape');
+
+            for (const [element, elementKeys] of keys) {
+                element.setAttribute('key', elementKeys.join(' '));
+                element.setAttribute('data-sidebar-key', '');
+            }
+        }
+
+        async function fetchHtml(parameters) {
+            const response = await fetch(window.location.pathname + '?' + LIST_PARAMETER + '&' + parameters);
+            if (!response.ok)
+                throw new Error(String(response.status));
+            return await response.text();
+        }
+
+        // Puts a page of the list in, with a spinner on the button that asked for it until then. If the focus is in the sidebar, it goes to
+        // the first or the last commit of the page (`focusAt`), as the arrow keys go. Returns whether it could be loaded.
+        async function loadPage(number, button, focusAt) {
+            setButtonBusy(button, true);
+            let html;
+            try {
+                html = await fetchHtml(PAGE_PARAMETER + '=' + number + shownState);
+            } catch {
+                notify('The changes could not be loaded.', 'danger');
+                setButtonBusy(button, false);
+                return false;
+            }
+            const hadFocus = hasFocus();
+            contents.innerHTML = html;
+            prepare(contents);
+            hasLoaded = true;
+            setButtonBusy(button, false); // (the toolbar's; one of the pages is gone with the old page)
+
+            const all = lines();
+            if (hadFocus && all.length > 0)
+                focusLine(focusAt === 'last' ? all[all.length - 1] : all[0]);
+            else if (hadFocus)
+                sidebar.focus();
+            updateKeys();
+            return true;
+        }
+
+        // Puts the newer commits in place of "Show newer…" (with the next "Show newer…" above them, if there are more), with a spinner on it
+        // until then. If the focus is in the sidebar, it goes to the one right above those there were, as the up arrow goes.
+        async function loadNewer(button) {
+            setButtonBusy(button, true);
+            let html;
+            try {
+                html = await fetchHtml(NEWER_PARAMETER + '&' + COMMIT_PARAMETER + '=' + button.dataset.newerAfter);
+            } catch {
+                notify('The newer changes could not be loaded.', 'danger');
+                setButtonBusy(button, false);
+                return;
+            }
+            const hadFocus = hasFocus();
+            const template = document.createElement('template');
+            template.innerHTML = html;
+            const added = [...template.content.querySelectorAll('.commit-line')];
+            prepare(template.content);
+            button.replaceWith(template.content);
+            if (hadFocus)
+                focusLine(added.length > 0 ? added[added.length - 1] : lines()[0]);
+            updateKeys();
+        }
+
+        // The focus goes back to the page as a whole, not to any one control of it
+        function leaveFocus() {
+            if (hasFocus())
+                document.activeElement.blur();
+        }
+
+        function setShown(shown) {
+            if (!shown)
+                leaveFocus();
+            sidebar.hidden = !shown;
+            updateKeys();
+        }
+
+        // Shows it, asking for the list first if it isn't there yet (with a spinner on the toolbar button meanwhile)
+        async function show() {
+            if (!hasLoaded && !await loadPage(1, toolbarButton))
+                return;
+            setShown(true);
+            focusList();
+        }
+
+        function moveFocus() {
+            if (hasFocus())
+                leaveFocus();
+            else
+                focusList();
+        }
+
+        // The click: where it is always shown it moves the focus in and out, elsewhere it shows (and focuses) or hides it
+        window.toggleCommitSidebar = function () {
+            if (isPinned())
+                moveFocus();
+            else if (isShown())
+                setShown(false);
+            else
+                show();
+        };
+
+        // The shortcut: the same where it is always shown, elsewhere hidden → shown and focused → focused (when the focus went elsewhere) → hidden
+        toolbarButton.addEventListener('shortcut', function (e) {
+            e.preventDefault();
+            if (isPinned())
+                moveFocus();
+            else if (!isShown())
+                show();
+            else if (!hasFocus())
+                focusList();
+            else
+                setShown(false);
+        });
+
+        hideButton.addEventListener('click', () => setShown(false));
+        sidebar.addEventListener('shortcut', function (e) {
+            e.preventDefault();
+            leaveFocus();
+        });
+
+        contents.addEventListener('click', function (e) {
+            const button = e.target instanceof Element ? e.target.closest('button') : null;
+            if (!button)
+                return;
+            if (button.id === 'commit-show-newer')
+                loadNewer(button);
+            else if (button.dataset.page)
+                loadPage(Number(button.dataset.page), button, button.id === 'commit-newer' ? 'last' : 'first');
+        });
+
+        sidebar.addEventListener('focusin', updateKeys);
+        // (Once the focus is where it went)
+        sidebar.addEventListener('focusout', () => setTimeout(updateKeys));
+
+        prepare(contents);
+        // In the view of a commit there is not enough room next to the page on a narrow screen: there it is shown when asked for, as elsewhere
+        if (isCommitView && narrow.matches)
+            sidebar.hidden = true;
+        contents.querySelector('[aria-current]')?.scrollIntoView({ block: 'nearest' });
+    })();
+</script>

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.Requests;
 
 /// <summary>
 /// How the time of an earlier state is written in the address (<c>?before=</c>): ISO 8601 with a time zone, such as <c>2026-11-11T13:30:00Z</c>.

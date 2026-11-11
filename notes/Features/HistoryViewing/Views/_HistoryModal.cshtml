@@ -1,4 +1,4 @@
-@model notes.Features.HistoryViewing._HistoryModal
+@model notes.Features.HistoryViewing.Views._HistoryModal
 
 @* Choosing an earlier state of the current file or directory: the dialog and the script behind the History button of the toolbar
    (#history-button, see ToolbarButton.History). The time goes into the address as ?before=, in UTC, so that it means the same
@@ -33,8 +33,8 @@
 
 <script>
     (function () {
-        const PARAMETER = @Json.Serialize(notes.Features.HistoryViewing._HistoryModal.BeforeParameter);
-        const VISIBLE_TIMES_PARAMETER = @Json.Serialize(notes.Features.HistoryViewing._HistoryModal.VisibleTimesParameter);
+        const PARAMETER = @Json.Serialize(notes.Features.HistoryViewing.Requests.EarlierStateParameter.Before);
+        const VISIBLE_TIMES_PARAMETER = @Json.Serialize(notes.Features.HistoryViewing.Views._HistoryModal.VisibleTimesParameter);
         const KIND = @Json.Serialize(Model.Kind);
         const modal = document.getElementById('history-modal');
         const form = document.getElementById('history-form');

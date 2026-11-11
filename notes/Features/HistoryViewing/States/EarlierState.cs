@@ -4,7 +4,7 @@ using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.History;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.States;
 
 /// <summary>An entry of an earlier state.</summary>
 /// <param name="GitPath">Its path relative to the root of the notes, with "/" ("" for the root), spelled as the history has it.</param>
@@ -46,6 +46,48 @@ public sealed class EarlierState : IConfigSnapshot, IDisposable
 
     /// <summary>When the state was committed. It is the state for every time after this, up to the next commit.</summary>
     public DateTimeOffset CommitTime => _commit.Author.When;
+
+    /// <summary>The id of the commit (its full hash, in lower case), by which <c>?commit=</c> asks for it.</summary>
+    public string CommitId => _commit.Sha;
+
+    /// <summary>The message of the commit: a keyword for why it was made (see <see cref="CommitKeywords"/>).</summary>
+    public string CommitMessage => _commit.Message.Trim();
+
+    /// <summary>The name of who the commit is by (see <see cref="HistoryAuthor"/>). Their email or id is never shown, so it isn't read either.</summary>
+    public string AuthorName => _commit.Author.Name;
+
+    /// <summary>The state before this one (of the commit's parent), or null for the first. It reads from the same repository, so it is valid as long as this one is.</summary>
+    public EarlierState? OpenPrevious()
+        => _commit.Parents.FirstOrDefault() is { } parent ? new EarlierState(_repository, ownsRepository: false, parent, _paths, _readConfigurationFile) : null;
+
+    /// <summary>
+    /// The files that are different in this state than in an older one (null: before the first, when there was nothing), at the path or below
+    /// it (git paths, spelled as either state has them). What is no entry of the notes (configuration files, links) may be among them.
+    /// </summary>
+    public IReadOnlyList<string> FilesChangedSince(EarlierState? older, string gitPath)
+    {
+        EarlierEntry? now = FindEntry(gitPath);
+        EarlierEntry? then = older?.FindEntry(gitPath);
+        // The same object has the same contents, all the way down: nothing below it needs to be looked at (this is most commits)
+        if (now?.Target.Id == then?.Target.Id)
+            return [];
+
+        List<string> changed = [];
+        // A file is the change itself (also one that became a directory, or the other way round)
+        if (now?.Blob is not null || then?.Blob is not null)
+            changed.Add(now?.GitPath ?? then!.GitPath);
+
+        // A directory: what differs below it, which git finds by comparing the two trees (a missing one is empty)
+        if (now?.Target is Tree || then?.Target is Tree)
+        {
+            string directory = (now?.Target is Tree ? now : then)!.GitPath;
+            using TreeChanges changes = _repository.Diff.Compare<TreeChanges>(then?.Target as Tree, now?.Target as Tree,
+                new CompareOptions { Similarity = SimilarityOptions.None });
+            changed.AddRange(changes.Select(change => directory == "" ? change.Path : directory + "/" + change.Path));
+        }
+
+        return changed;
+    }
 
     public string ToGitPath(string physicalPath) => _paths.ToGitPath(physicalPath);
 

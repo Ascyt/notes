@@ -4,7 +4,8 @@ How earlier states of the notes are shown, and who may see which. This is the re
 
 ## In short
 
-- An address with **`?before=<time>`** shows the notes as they were at that time: the last state the history has from before it. Every page of the notes reached from there keeps the time, so that the earlier state can be browsed like the current one.
+- An address with **`?before=<time>`** shows the notes as they were at that time: the last state the history has from before it. **`?commit=<id>`** shows them as one commit left them. Every page of the notes reached from there keeps the time or the commit, so that the earlier state can be browsed like the current one.
+- The **list of changes** of an entry shows the commits that changed it (or what is in it) in a way the user may see as it was, with when, why and by whom (the user name, nothing else about them).
 - Such a view is **read-only**, for everyone, admins included.
 - Seeing an entry as it was needs **`Read`** and the permission **`history`** on it, both **now and at that time** (as the configuration was then), and `Read` on the directories above it, now and then. What lies between doesn't matter.
 - `history` has two levels: **`historyExistingOnly`** for the earlier states of what exists now, **`historyAllow`** also for what was deleted, moved or renamed since. `historyDeny` takes it away.
@@ -18,7 +19,8 @@ How earlier states of the notes are shown, and who may see which. This is the re
 | **Now** | The notes as they are on disk, with their configuration on disk. |
 | **State** | A commit of the history: the notes and their configuration files as they were committed. |
 | **The state before T** | The latest state whose commit time (the author time, from the app's clock) is earlier than T. If there is none (T is before the first commit), there is no state before T. |
-| **A historic view** | Any page of the notes with a valid `?before=`. |
+| **The state of commit C** | The state C made: the notes as committed in C. It is the state before any time from C's commit time up to the next commit (when the next commit has the same time, `?before=` can't tell them apart, `?commit=` can). |
+| **A historic view** | Any page of the notes with a valid `?before=` or `?commit=`. "The state before T" below is then the state of that commit. |
 | **Exists now** | There is a file or directory at the path on disk now. An entry that was renamed or moved since doesn't exist now at its old path. |
 
 A state holds what was committed, not what was on disk at that moment: changes are only committed [after a while](../administration/history.md#when-it-commits), so the state before T may lack what was changed shortly before T, and what is pending now is in no state yet (only in now). Git keeps files, not directories: a directory is in a state if anything kept below it is (its `.config.json` always is), so an empty directory without a configuration is in no state.
@@ -27,9 +29,11 @@ A state holds what was committed, not what was on disk at that moment: changes a
 
 - `?before=` holds a time in ISO 8601 with a time zone, as the dialog writes it: `2026-11-11T13:30:00Z` (UTC, to the second). An offset other than `Z` is accepted too (`2026-11-11T14:30:00+01:00`); a time without a time zone is not, as it would mean something else in every time zone.
 - A value that isn't such a time, or that lies in the future, is not shown: the page is answered with a redirect to the same address without `?before=` (the rest of the query as it was), and a message that says why (`danger`). So is any `?before=` while there is no history (`Config:History:Enabled` is false, or nothing was committed yet); only admins are told that there is none, everyone else that the permissions don't allow it.
+- `?commit=` holds the id of a commit: its full hash, 40 hexadecimal digits (upper case is accepted, as git does). It is answered like `?before=` with the time of that state, except that a value that isn't such an id, and an id the history has no commit of, are sent to the address without it, with a message that says so (`danger`; what doesn't exist now answers 404 instead, as below). Both `?before=` and `?commit=` at once answer 400.
 - The message travels with the redirect in a short-lived cookie (`EarlierStateNotice`), and the page it leads to shows it once.
-- `?before=` is kept by every link of the app that leads to a page of the notes: the breadcrumb, the entries of a listing, the way up to the parent directory, the toolbar, links inside rendered Markdown that lead to the notes. Links to the app's own pages (`/_/…`), to other sites and within the page don't get it. The way out of the historic view (see [The card](#the-card)) is the one link of the notes without it. The script of the card adds it to the links of the page, so that every link the page has, now or later, is covered; what the browser loads by itself (images, media, PDFs, also those in rendered Markdown) gets `?raw&before=` from the server.
+- `?before=` (and in the same way `?commit=`) is kept by every link of the app that leads to a page of the notes: the breadcrumb, the entries of a listing, the way up to the parent directory, the toolbar, links inside rendered Markdown that lead to the notes. Links to the app's own pages (`/_/…`), to other sites and within the page don't get it. The way out of the historic view (see [The card](#the-card)) is the one link of the notes without it. The script of the card adds it to the links of the page, so that every link the page has, now or later, is covered; what the browser loads by itself (images, media, PDFs, also those in rendered Markdown) gets `?raw&before=` from the server.
 - `?history` asks for the times at which the entry can be seen as it was, as JSON (`{ "ranges": [ { "after": "…Z", "until": "…Z" or null } ] }`, the latest first), for the dialog of the history button. It answers 404, like a missing path, to whoever may not see the history of the entry now (see 1., 3. and 4. below, for now), or where the history doesn't keep it.
+- `?commits` asks for a page of the [list of changes](#the-list-of-changes) of the entry, as the HTML of the sidebar's contents (`_CommitList`: the commits of the page, the newest first, and the way to the other pages). `&page=` says which page (from 1, the newest; anything else is page 1). With the `?before=` or `?commit=` of a historic view, the list starts at the state that is shown and goes back from there; with one the history doesn't have, it is empty. Its first page then has **Show newer…** on top exactly when the list has commits after that state. With `&newer` it is instead the lines of the (up to 25) commits right after that state (`_CommitLines`), the newest first, with **Show newer…** on top while there are newer ones still; without a state (now) there are none. It answers 404 as `?history` does.
 
 ## Who may see a state
 
@@ -75,13 +79,33 @@ Examples, for alice and `/plan.md`, which exists now (a "–" is "not given"):
 
 If alice had no `history` (or no `Read`) now, none of these times would be open.
 
+### The list of changes
+
+A commit C has its parent, the state before it (the first commit has none: before it there was nothing). **A change of C can be seen** by a user when it is a change of a file F (added, changed or deleted between the parent and C) and F is open at C, or open at the parent (for what C deleted). A change of a configuration file never can, as configuration files are no entries of the notes; neither can one of what the current `gitignore` leaves out.
+
+**The list of changes of an entry P** has every commit C for which, for that user:
+
+- they may see the history of P now (as for `?history`; otherwise there is no list),
+- P is open at C, so that the commit can be opened from the list,
+- C changed P, or for a directory something below it, and at least one of those changes can be seen.
+
+A commit that changed only what the user may not see (files they can't read, or whose history they can't see, or only configuration files) is not in any of their lists: they don't learn that it was made, nor by whom. A user **may know of a commit** when it changed anything of the notes they can see; only then does the card of `?commit=` say what it was (see [The card](#the-card)).
+
+Of a commit the user may know of, the app says (the list only when and by whom, the [card](#the-card) of its state all three):
+
+| | |
+|---|---|
+| When | Its commit time. |
+| Why | Its message, as text (`CommitDescriptions`). A message about the configuration (`#migration`, `#before-gitignore`, `#gitignore`) is only told as such to those who manage the configuration; everyone else, and any message this version doesn't know, gets a plain "Changes". |
+| By whom | The user name of its author. Never the email or id. What no user made in the app (the author `_`) says "automatic". |
+
 ## A historic view
 
 A historic page is the page of the entry as it was: its listing or its contents at the state before T. What it offers is limited to reading:
 
 - **No changes.** No Save, Edit, Delete, Rename, Upload, Create, selection or configuration: the controls aren't there (the editor is read-only, Markdown shows only its preview). `?edit` shows the same as the plain address.
-- **The server refuses every change.** Every `POST` and `DELETE` with `?before=` answers 400 and changes nothing, whatever the user may do now. So do `?config` and `?selection` with `?before=` (also for admins): they are about now.
-- **Reading works as it does now:** viewing, `?raw`, `?download` (a zip of a directory as it was, with each entry checked as described here), Save as PDF, and the history button (to choose another time).
+- **The server refuses every change.** Every `POST` and `DELETE` with `?before=` or `?commit=` answers 400 and changes nothing, whatever the user may do now. So do `?config` and `?selection` with either (also for admins): they are about now.
+- **Reading works as it does now:** viewing, `?raw`, `?download` (a zip of a directory as it was, with each entry checked as described here), Save as PDF, the history button (to choose another time) and the changes button.
 
 ### The entries of a listing
 
@@ -123,7 +147,7 @@ A hidden entry, and one that doesn't exist now and may not be seen as it was, an
 
 ### The history button
 
-The calendar icon (`fa-calendar`, `#history-button`, shortcut Alt+H) is in the toolbar of a directory and of a file, right of the configuration button and left of everything else that only reads (the other views, Save as PDF, the download). Who sees it:
+The calendar icon (`fa-calendar`, `#history-button`, shortcut Alt+H) is in the toolbar of a directory and of a file, right of the configuration button and the changes button, and left of everything else that only reads (the other views, Save as PDF, the download). Who sees it:
 
 | User | Shown |
 |---|---|
@@ -139,9 +163,19 @@ It opens a dialog (`#history-modal`):
 - The times at which the entry can be seen (open, as above), the latest first: each from the state in which it is open on, up to the next state in which it isn't (or up to now). They are worked out for the entry and the directories above it, for this user, and asked for (`?history`) when the dialog opens, as working them out goes through the whole history. While they are loading, or if they can't be loaded, only the server decides whether a time can be seen.
 - **View** (Enter) opens the same address with `?before=` set to that time in UTC, and nothing else of the query (`?edit` and the like are about changing). It is disabled while the field is empty, invalid, in the future or outside the times listed, with the reason as its tooltip and under the field (for phones, which have no tooltips). **Cancel** (Escape) closes the dialog.
 
+### The changes button
+
+The git icon (`fa-brands fa-git-alt`, `#commits-button`, shortcut H) is left of the history button, and shown, disabled and left out exactly as it is. It shows the [list of changes](#the-list-of-changes) of the entry in a sidebar at the left of the page (`#commit-sidebar`). The page moves to the right to make room for it, so that both can be used; on a narrow screen (a phone) the list is shown instead of the page. While the focus is in it, it has a border in the primary color.
+
+- Each commit is one line: its time (in the browser's time zone) and by whom; the newest at the top. Why it was made is on the card of its state. In a historic view the list starts at the state that is shown (with `?commit=`, that commit, marked) and goes back from there; **Show newer…** at its top, there only where the list has newer commits, adds them above, 25 at a time.
+- The server renders what the sidebar shows (`?commits`, a page of 25 at a time). In the view of a commit it is in the page from the start; elsewhere it is asked for when the sidebar is first shown, with a spinner on the button meanwhile. **Newer** and **Older** go through the pages, with a spinner on the one that was used until the page is there; each is disabled, with the reason, where there is no such page.
+- While the focus is in the sidebar, the arrow keys are the shortcuts (`key`) of what they lead to, so that holding Right Ctrl shows where each goes: up and down to the commit before and after; above the first one **Show newer…** (or Newer, on a later page), below the last one Older; left and right to Newer and Older. Each goes to the commit next to where the focus was (on another page, its first or last). Enter (or a click) opens the same address with `?commit=` set to the commit, and nothing else of the query.
+- **In the view of a commit** (`?commit=`) the sidebar is always shown, where there is room for it (not on a phone, where the page comes first and the sidebar is shown when asked for). Its × leads back to now, as the card's does. The button and its shortcut only move the focus into it and back to the page, and so does Escape.
+- **Elsewhere** the button shows the sidebar (and focuses it) or hides it. Its shortcut goes through the three: hidden → shown and focused → focused again (when the focus went to the page) → hidden. Escape, in the sidebar, hides it.
+
 ### The card
 
-While a historic view is shown, a card at the bottom of the page (one of the floating cards, like the selection card) says which time is shown, in the browser's time zone. It stays as long as the page. Its × (Alt+Shift+N) leads to the same address without `?before=`: the entry as it is now.
+While a historic view is shown, a card at the bottom of the page (one of the floating cards, like the selection card) says which state is shown, in the browser's time zone: the time asked for (`?before=`) or when the commit was made (`?commit=`). For a commit the user [may know of](#the-list-of-changes), a second line says why it was made and by whom, as the list does. It stays as long as the page. Its × (Escape, unless something else takes it first: an open dialog, a field being typed in, the list of changes while it has the focus) leads to the same address without `?before=` or `?commit=`: the entry as it is now.
 
 ## What a user may learn
 
@@ -154,7 +188,8 @@ On top of [what the security specification allows](security-specification.md#wha
 | An entry openable now that isn't open at T | Why (left out, permissions, not there then) | — |
 | Their own permissions | When they could see the history of an entry (the times in the dialog) | The permissions of others; why theirs changed |
 | The configuration | That an entry is left out of the history (admins only) | Anything about it, for everyone else |
-| The history itself | — | Commit messages, authors and their emails or ids, the commits themselves, `.config.json` of any state (also for admins, as part of the view: the configuration page is about now) |
+| A commit that changed something they may see as it was | That it was made, when, why (a message about the configuration only for those who manage it) and the user name of its author; its id | What else it changed |
+| The history itself | — | Commits that changed nothing they may see as it was (also their authors); the emails or ids of authors; `.config.json` of any state (also for admins, as part of the view: the configuration page is about now) |
 
 ## Where it is implemented
 
@@ -162,14 +197,15 @@ On top of [what the security specification allows](security-specification.md#wha
 |---|---|
 | The `history` permission, resolving it for now | `notes/Features/Auth/EntryAccess.cs` (`HistoryAccess`, `CanViewHistory`), `notes/Features/Permissions/PermissionModel.cs`, `notes/Features/Configuration/ConfigParser.cs` |
 | What the history keeps now | `notes/Features/History/KeptFiles.cs` (`IsEntryKept`), through `HistoryService.IsKept` |
-| Whether a page has the history button, and its dialog | `notes/Pages/Index.cshtml.cs` (`DecideHistoryButtonState`), `notes/Features/Components/Toolbar/_Toolbar.cshtml.cs` (`ToolbarButton.History`), `notes/Features/HistoryViewing/HistoryButtonState.cs`, `notes/Features/HistoryViewing/_HistoryModal.cshtml(.cs)` |
-| Deciding by the configuration of a state | `IEntryAccess.GetAccess(user, path, IConfigSnapshot)` in `notes/Features/Auth/EntryAccess.cs`; `notes/Features/HistoryViewing/EarlierState.cs`, which is the snapshot of a commit |
-| Reading states from the repository | `notes/Features/HistoryViewing/EarlierStateReader.cs`: each request opens the repository on its own (reading needs no lock), and the configuration files of the history are read once, by their contents |
-| The rule ("open at T"), the listings, the times | `notes/Features/HistoryViewing/EarlierStatePermissions.cs` |
-| Answering `?before=` and `?history`, raw bytes and downloads of a state | `notes/Features/HistoryViewing/EarlierStateRequests.cs`, `EarlierStateNotice.cs`, `EarlierStateTime.cs`; called by `notes/Pages/Index.cshtml.cs`. Zips and raw bytes go through the same code as for the notes as they are (`ZipService`, `DownloadHandler.ZipDownload`, `RawHandler.HandleContents`) |
-| The pages of a state | `notes/Features/HistoryViewing/EarlierStateViews.cs`, `notes/Pages/Browse/DirectoryView.cshtml(.cs)` (`Before`, `InitFromEarlierState`), `notes/Pages/Browse/_UnopenableEntry.cshtml(.cs)` (the lock and the crossed-out calendar), `notes/Features/Components/Breadcrumb/_Breadcrumb.cshtml(.cs)` (`ParentsWithoutHistory`), `notes/Pages/Editor/FileView.cshtml.cs` (`Earlier`, `RawBytesQuery`), `notes/Features/HistoryViewing/_EarlierStateCard.cshtml(.cs)` (the card, and the script that keeps the time on the links) |
+| Whether a page has the history and changes buttons, the dialog and the sidebar | `notes/Pages/Index.cshtml.cs` (`DecideHistoryButtonState`), `notes/Features/Components/Toolbar/_Toolbar.cshtml.cs` (`ToolbarButton.History`, `ToolbarButton.Commits`), `notes/Features/HistoryViewing/Views/HistoryButtonState.cs`, `notes/Features/HistoryViewing/Views/_HistoryModal.cshtml(.cs)`, `notes/Features/HistoryViewing/Commits/_CommitSidebar.cshtml(.cs)` |
+| Which commits a user may know of, the list of changes and what it says of them | `notes/Features/HistoryViewing/Commits/`: `EarlierStateCommits.cs`, `CommitDescriptions.cs`, the sidebar's contents `_CommitList.cshtml(.cs)` and `_CommitLines.cshtml(.cs)`; what a commit changed: `EarlierState.FilesChangedSince` |
+| Deciding by the configuration of a state | `IEntryAccess.GetAccess(user, path, IConfigSnapshot)` in `notes/Features/Auth/EntryAccess.cs`; `notes/Features/HistoryViewing/States/EarlierState.cs`, which is the snapshot of a commit |
+| Reading states from the repository | `notes/Features/HistoryViewing/States/EarlierStateReader.cs`: each request opens the repository on its own (reading needs no lock), and the configuration files of the history are read once, by their contents |
+| The rule ("open at T"), the listings, the times | `notes/Features/HistoryViewing/States/EarlierStatePermissions.cs` |
+| Answering `?before=`, `?commit=`, `?history` and `?commits`, raw bytes and downloads of a state | `notes/Features/HistoryViewing/Requests/`: `EarlierStateRequests.cs`, `EarlierStateParameter.cs`, `EarlierStateNotice.cs`, `EarlierStateTime.cs`; called by `notes/Pages/Index.cshtml.cs`. Zips and raw bytes go through the same code as for the notes as they are (`ZipService`, `DownloadHandler.ZipDownload`, `RawHandler.HandleContents`) |
+| The pages of a state | `notes/Features/HistoryViewing/Views/EarlierStateViews.cs`, `notes/Pages/Browse/DirectoryView.cshtml(.cs)` (`Shown`, `InitFromEarlierState`), `notes/Pages/Browse/_UnopenableEntry.cshtml(.cs)` (the lock and the crossed-out calendar), `notes/Features/Components/Breadcrumb/_Breadcrumb.cshtml(.cs)` (`ParentsWithoutHistory`), `notes/Pages/Editor/FileView.cshtml.cs` (`Earlier`, `RawBytesQuery`), `notes/Features/HistoryViewing/Views/_EarlierStateCard.cshtml(.cs)` (the card, and the script that keeps the state on the links) |
 
-How costly it is: a request for a state goes through the commits from the newest until the one before its time, and checks the configuration of the entry and the directories above it, then and now. The times of the dialog judge every state once, but states in which nothing the entry's permissions depend on changed (its configuration files, whether it and the directories above it were there) are judged alike, so a long history with few changes of the permissions stays quick.
+How costly it is: a request for a state goes through the commits from the newest until the one before its time (or the one asked for), and checks the configuration of the entry and the directories above it, then and now. The times of the dialog judge every state once, but states in which nothing the entry's permissions depend on changed (its configuration files, whether it and the directories above it were there) are judged alike, so a long history with few changes of the permissions stays quick. The list of changes goes back through the commits until it has its page: a commit that didn't touch the entry is passed over by comparing one object id, and only the files a commit changed below the entry are checked, each against the rule.
 
 ## Tests
 
@@ -181,8 +217,10 @@ Every rule above is a case to cover, in particular:
 - Each row of the example table above, as states of a test history made with a fake clock, and an entry deleted since with `historyAllow` and with `historyExistingOnly`.
 - Each row of [The entries of a listing](#the-entries-of-a-listing), [The breadcrumb](#the-breadcrumb) and [Addresses that can't be shown](#addresses-that-cant-be-shown), for logged-in and anonymous users, and that a hidden entry answers exactly like a missing one.
 - That `gitignore` of now beats a state in which the entry was kept, and that an invalid or old-format configuration in a state is read as it was then.
-- That every change request with `?before=` is refused and changes nothing, also for admins; that `?config` and `?selection` with it are refused.
-- That every link of the notes in a historic page keeps `?before=`, and the card's × doesn't.
+- That every change request with `?before=` or `?commit=` is refused and changes nothing, also for admins; that `?config` and `?selection` with it are refused, and both at once.
+- That every link of the notes in a historic page keeps `?before=` (or `?commit=`), and the card's × doesn't.
+- `?commit=`: that it shows the state of that commit, accepts upper case, sends an invalid or unknown id to now, and that the card says what the commit was only to whoever may know of it.
+- The list of changes (`?commits`): of a file and of a directory, without what can't be seen (unreadable, hidden, only configuration files) and with deletions; its authors; its pages; that it starts at the state that is shown, and the newer ones after it (and **Show newer…** only where there are any); and that it answers 404 as `?history` does. Its sidebar: the button and the shortcut, in the view of a commit and elsewhere, and on a narrow screen; the arrow keys and the shortcuts they are given; the pages; the newer commits.
 - Downloads and `?raw` of an earlier state, and that a zip leaves out what isn't open at T; images in rendered Markdown that load from the state.
 - The times (`?history`): the ranges for a history with a gap, and that it answers 404 to whoever may not see the history now, for what is hidden and for what the history leaves out.
 - The message of a redirect, and that it is shown once.

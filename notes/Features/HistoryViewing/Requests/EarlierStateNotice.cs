@@ -1,9 +1,9 @@
 using notes.Extensions;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.Requests;
 
 /// <summary>
-/// Why an address with <c>?before=</c> was sent to the entry as it is now instead (docs/development/history-specification.md, "Addresses that
+/// Why an address with <c>?before=</c> or <c>?commit=</c> was sent to the entry as it is now instead (docs/development/history-specification.md, "Addresses that
 /// can't be shown"). The redirect leaves it in a short-lived cookie, and the page it leads to shows it once, as an error message.
 /// </summary>
 public static class EarlierStateNotice
@@ -14,6 +14,8 @@ public static class EarlierStateNotice
     public const string NotPermitted = "not-permitted";
     public const string NotKeptInHistory = "not-kept";
     public const string DidNotExistThen = "did-not-exist";
+    public const string InvalidCommit = "invalid-commit";
+    public const string NoSuchCommit = "no-such-commit";
 
     private const string CookieName = ".notes.history-notice";
 
@@ -30,6 +32,8 @@ public static class EarlierStateNotice
             NotPermitted => "Insufficient permissions to see this entry as it was at that time.",
             NotKeptInHistory => "The configuration leaves this entry out of the history.",
             DidNotExistThen => "This entry was not there at that time.",
+            InvalidCommit => "The commit of the earlier state is not a valid commit id.",
+            NoSuchCommit => "The history has no such commit.",
             _ => null
         };
 }

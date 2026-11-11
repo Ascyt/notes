@@ -60,7 +60,7 @@ public sealed record ToolbarButton(
 
     /// <summary>Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.</summary>
     public static ToolbarButton ZoomIn()
-        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!+ !++", OnClick: "editorZoom.zoomIn()");
+        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!=", OnClick: "editorZoom.zoomIn()");
 
     /// <summary>Makes the text of the editor smaller.</summary>
     public static ToolbarButton ZoomOut()
@@ -102,6 +102,13 @@ public sealed record ToolbarButton(
     /// <param name="disabledReason">Why there are no earlier states to see (only for admins, who may know about the configuration).</param>
     public static ToolbarButton History(string? disabledReason = null)
         => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
+
+    /// <summary>
+    /// Shows or hides the list of the changes of the entry (_CommitSidebar), its shortcut also focuses it; in the view of a commit, where the list
+    /// is always shown, it focuses it or leaves it. It is there wherever the history button is (left of it), and disabled for the same reason.
+    /// </summary>
+    public static ToolbarButton Commits(string? disabledReason = null)
+        => new(Id: "commits-button", Icon: "fa-brands fa-git-alt", Label: "Show the changes", Key: "h", OnClick: "toggleCommitSidebar()", DisabledReason: disabledReason);
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()

@@ -5,15 +5,20 @@ public sealed class HistoryViewTests(NotesAppFactory app) : IntegrationTest(app)
 {
     private const string Button = "id=\"history-button\"";
     private const string Modal = "id=\"history-modal\"";
+    private const string ChangesButton = "id=\"commits-button\"";
+    private const string ChangesSidebar = "id=\"commit-sidebar\"";
 
     private async Task<string> PageAsync(TestUser user, string path)
         => await BodyOf(await Client.GetAsync(user, path));
 
+    /// <summary>That the page has the history button and its dialog, and the changes button and its list, or none of them.</summary>
     private async Task AssertOffered(TestUser user, string path, bool offered)
     {
         string body = await PageAsync(user, path);
         Assert.Equal(offered, body.Contains(Button));
         Assert.Equal(offered, body.Contains(Modal));
+        Assert.Equal(offered, body.Contains(ChangesButton));
+        Assert.Equal(offered, body.Contains(ChangesSidebar));
     }
 
     [Fact]
@@ -92,10 +97,12 @@ public sealed class HistoryViewTests(NotesAppFactory app) : IntegrationTest(app)
         {
             await AssertOffered(Users.Alice, path, offered: false);
 
-            // Admins see the button, disabled with the reason, and have no dialog behind it
+            // Admins see the buttons, disabled with the reason, and have no dialog or list behind them
             string body = await PageAsync(Users.Admin, path);
             Assert.Matches(@"id=""history-button""[^>]* data-disabled-reason=""[^""]+""", body);
+            Assert.Matches(@"id=""commits-button""[^>]* data-disabled-reason=""[^""]+""", body);
             Assert.DoesNotContain(Modal, body);
+            Assert.DoesNotContain(ChangesSidebar, body);
         }
 
         // A subdirectory that is kept again has its history
@@ -116,10 +123,11 @@ public sealed class HistoryViewTests(NotesAppFactory app) : IntegrationTest(app)
 
         _ = Tree.File("docs/picture.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00]);
 
-        AssertOrder(await PageAsync(Users.Admin, "/docs"), "config-button", "history-button", "download-button", "upload-button");
-        AssertOrder(await PageAsync(Users.Admin, "/docs/a.md"), "config-button", "history-button", "download-button");
-        AssertOrder(await PageAsync(Users.Admin, "/readme.md"), "edit-button", "config-button", "history-button", "pdf-button", "download-button");
-        AssertOrder(await PageAsync(Users.Admin, "/docs/picture.png"), "config-button", "history-button", "raw-button", "download-button");
+        // The changes left of the choice of a time
+        AssertOrder(await PageAsync(Users.Admin, "/docs"), "config-button", "commits-button", "history-button", "download-button", "upload-button");
+        AssertOrder(await PageAsync(Users.Admin, "/docs/a.md"), "config-button", "commits-button", "history-button", "download-button");
+        AssertOrder(await PageAsync(Users.Admin, "/readme.md"), "edit-button", "config-button", "commits-button", "history-button", "pdf-button", "download-button");
+        AssertOrder(await PageAsync(Users.Admin, "/docs/picture.png"), "config-button", "commits-button", "history-button", "raw-button", "download-button");
     }
 
     [Fact]

@@ -1,0 +1,28 @@
+@using notes.Features.HistoryViewing.Commits
+@using notes.Features.HistoryViewing.Requests
+@model notes.Features.HistoryViewing.Commits._CommitLines
+
+@* The times are in UTC here; the script of the sidebar shows them in the browser's time zone *@
+@if (Model.NewerAfter is not null)
+{
+    <button type="button" id="commit-show-newer" class="btn btn-link link-secondary fst-italic small px-3 py-1" data-newer-after="@Model.NewerAfter" data-label="Show newer changes">
+        <span class="btn-icon">Show newer…</span><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+    </button>
+}
+@foreach (CommitSummary commit in Model.Commits)
+{
+    string time = EarlierStateTime.Format(commit.Time);
+    <a class="commit-line" href="?@EarlierStateParameter.ForCommit(commit.Id).QueryPart" tabindex="-1" data-commit="@commit.Id"
+       aria-current="@(commit.Id == Model.ShownCommitId ? "true" : null)">
+        <time class="commit-time" datetime="@time">@time</time>
+        @* Who made what no user made in the app is said in italics, as it is no name *@
+        @if (commit.Author is { } author)
+        {
+            <span class="commit-author">@author</span>
+        }
+        else
+        {
+            <i class="commit-author">automatic</i>
+        }
+    </a>
+}

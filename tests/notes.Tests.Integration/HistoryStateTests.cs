@@ -1,5 +1,5 @@
 using System.Net;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Requests;
 
 namespace notes.Tests.Integration;
 

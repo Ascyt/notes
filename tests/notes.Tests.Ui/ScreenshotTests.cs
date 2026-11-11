@@ -1,8 +1,9 @@
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using notes.Features.History;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Requests;
 
 namespace notes.Tests.Ui;
 
@@ -146,8 +147,11 @@ public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture)
         history.CommitPending(CommitReason.Idle);
         DateTimeOffset betweenTheStates = App.Time.GetUtcNow().AddDays(1);
         App.Time.Advance(TimeSpan.FromDays(2));
+        // By two users, as if made in the app: each gets a commit of their own, which the list of changes shows with their names
         File.Delete(Tree.Physical("docs/plan.md"));
+        history.AfterChange(Users.Carol.ToPrincipal(), [Tree.Physical("docs/plan.md")], HistoryChangeKind.Delete);
         _ = Tree.File("docs/meeting.md", Guide);
+        history.AfterChange(Users.Alice.ToPrincipal(), [Tree.Physical("docs/meeting.md")], HistoryChangeKind.Change);
         history.CommitPending(CommitReason.Idle);
         App.Time.Advance(TimeSpan.FromHours(3));
 
@@ -158,6 +162,20 @@ public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture)
             await page.Locator("#history-button").ClickAsync();
             await Assertions.Expect(page.Locator("#history-times li[data-after]")).ToHaveCountAsync(1);
             await Assertions.Expect(page.Locator("#history-before")).ToBeFocusedAsync();
+        }, atAppTime: true);
+        // The view of one of the changes, chosen from the list: the list is next to the directory as that commit left it (on a phone, where
+        // it is shown instead of the page, it is asked for)
+        await CaptureAsync("history-changes", Users.Alice, "/docs", async page =>
+        {
+            await page.Keyboard.PressAsync("h");
+            await Assertions.Expect(page.Locator("#commit-list .commit-line").First).ToBeFocusedAsync();
+            await page.Keyboard.PressAsync("ArrowDown");
+            await page.Keyboard.PressAsync("Enter");
+            await page.WaitForURLAsync(new Regex("commit="));
+            if (!await page.Locator("#commit-sidebar").IsVisibleAsync())
+                await page.Keyboard.PressAsync("h");
+            await Assertions.Expect(page.Locator("#commit-list .commit-line[aria-current]")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator("#history-card-commit")).ToBeVisibleAsync();
         }, atAppTime: true);
     }
 

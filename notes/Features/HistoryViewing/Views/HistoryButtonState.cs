@@ -1,4 +1,4 @@
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.Views;
 
 /// <summary>Whether a page has the history button (the way to the earlier states of its entry), and whether it can be used.</summary>
 /// <param name="IsShown">Whether the button is there at all.</param>

@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Requests;
 
 namespace notes.Tests.Integration;
 

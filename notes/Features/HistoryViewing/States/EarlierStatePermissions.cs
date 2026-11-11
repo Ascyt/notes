@@ -2,7 +2,7 @@ using System.Security.Claims;
 using notes.Features.Auth;
 using notes.Features.History;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.States;
 
 /// <summary>Whether an entry may be seen as it was at a state, and if not, why.</summary>
 public enum EarlierStateVerdict
@@ -152,8 +152,11 @@ public sealed class EarlierStatePermissions(Config config, IEntryAccess access, 
         return AllowsSeeingHistoryNow(accessNow, existsNow) && AllowedSeeingHistoryThen(accessThen) ? EarlierListingKind.Link : EarlierListingKind.NoHistory;
     }
 
-    /// <summary>Everything of <see cref="CheckWhetherEntryCanBeSeenAsItWas"/> but what is decided by the permissions now (<see cref="MaySeeHistoryOfEntryNow"/>).</summary>
-    private EarlierStateVerdict CheckWhatDependsOnTheState(ClaimsPrincipal user, string physicalPath, string gitPath, EarlierState state)
+    /// <summary>
+    /// Everything of <see cref="CheckWhetherEntryCanBeSeenAsItWas"/> but what is decided by the permissions now (<see cref="MaySeeHistoryOfEntryNow"/>),
+    /// for whoever checks many states of the same entry and asks about now only once.
+    /// </summary>
+    public EarlierStateVerdict CheckWhatDependsOnTheState(ClaimsPrincipal user, string physicalPath, string gitPath, EarlierState state)
     {
         EarlierEntry? entry = state.FindEntry(gitPath);
         // What the history leaves out now has no history, whatever it was then. (What isn't there either way is asked about as it is now.)

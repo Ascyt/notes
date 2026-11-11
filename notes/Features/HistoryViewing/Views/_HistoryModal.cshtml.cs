@@ -1,13 +1,10 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.Views;
 
 /// <summary>The choice of an earlier state of the current file or directory, behind the History button of the toolbar.</summary>
 public class _HistoryModal : PageModel
 {
-    /// <summary>The query parameter that says which state of the notes is shown: the last one before this time (UTC, ISO 8601).</summary>
-    public const string BeforeParameter = "before";
-
     /// <summary>The query parameter that asks for the times at which the entry can be seen as it was (as JSON), which the dialog shows.</summary>
     public const string VisibleTimesParameter = "history";
 

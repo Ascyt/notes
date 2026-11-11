@@ -2,7 +2,9 @@
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Components.Breadcrumb;
-using notes.Features.HistoryViewing;
+using notes.Features.HistoryViewing.Commits;
+using notes.Features.HistoryViewing.Requests;
+using notes.Features.HistoryViewing.Views;
 using notes.Pages.Editor.Markdown;
 
 namespace notes.Pages.Editor;
@@ -13,9 +15,9 @@ namespace notes.Pages.Editor;
 /// <param name="ReadOnlyMessage">What the editor says when typing into it while it is read-only.</param>
 public sealed record FileEditorOptions(bool CanWrite, string Contents, string Language, string MonacoPath, string ReadOnlyMessage);
 
-/// <summary>A file as an earlier state has it (<c>?before=</c>), shown instead of the one on disk.</summary>
-/// <param name="Before">The time of the state, as the address has it.</param>
-public sealed record EarlierFile(DateTimeOffset Before, long Size, Func<Stream> OpenContents);
+/// <summary>A file as an earlier state has it (<c>?before=</c> or <c>?commit=</c>), shown instead of the one on disk.</summary>
+/// <param name="Shown">Which state it is, as the address has it.</param>
+public sealed record EarlierFile(EarlierStateParameter Shown, long Size, Func<Stream> OpenContents);
 
 public class FileView : PageModel
 {
@@ -37,13 +39,16 @@ public class FileView : PageModel
     public string ReadOnlyReason => ShowsEarlierState ? EarlierStateViews.CantBeChangedReason : "Insufficient permissions to change this file.";
 
     /// <summary>The query of the raw bytes of the file (of the state that is shown).</summary>
-    public string RawBytesQuery => ShowsEarlierState ? "raw&" + _HistoryModal.BeforeParameter + "=" + EarlierStateTime.Format(Earlier!.Before) : "raw";
+    public string RawBytesQuery => ShowsEarlierState ? "raw&" + Earlier!.Shown.QueryPart : "raw";
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the file.</summary>
     public bool CanConfigure { get; init; }
 
     /// <summary>Whether the page has the way to the earlier states of the file.</summary>
     public HistoryButtonState HistoryButton { get; init; } = HistoryButtonState.Hidden;
+
+    /// <summary>In the view of a commit, the sidebar of the list of changes with what it shows from the start; otherwise null (it starts empty).</summary>
+    public _CommitSidebar? CommitSidebar { get; init; }
 
     /// <summary>In an earlier state: the directories above that can't be seen as they were, for the breadcrumb.</summary>
     public IReadOnlyDictionary<string, ParentWithoutHistory> ParentsWithoutHistory { get; init; } = new Dictionary<string, ParentWithoutHistory>();

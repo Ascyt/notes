@@ -4,15 +4,18 @@ using notes.Features.Auth;
 using notes.Features.Components.Download;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Features.HistoryViewing.Commits;
+using notes.Features.HistoryViewing.States;
 using notes.Pages.Editor;
 
-namespace notes.Features.HistoryViewing;
+namespace notes.Features.HistoryViewing.Requests;
 
 /// <summary>What a request for an earlier state gets.</summary>
 public abstract record EarlierStateAnswer;
 
 /// <summary>The entry as it was. The state is disposed with the response.</summary>
-public sealed record ShowEntryAsItWas(EarlierState State, EarlierEntry Entry, string PhysicalPath, DateTimeOffset Before) : EarlierStateAnswer;
+/// <param name="Shown">What in the address says which state it is, which every link of the page keeps.</param>
+public sealed record ShowEntryAsItWas(EarlierState State, EarlierEntry Entry, string PhysicalPath, EarlierStateParameter Shown) : EarlierStateAnswer;
 
 /// <summary>A redirect to the entry as it is now, with the reason (<see cref="EarlierStateNotice"/>).</summary>
 public sealed record RedirectToNow(string Notice) : EarlierStateAnswer;
@@ -21,19 +24,36 @@ public sealed record RedirectToNow(string Notice) : EarlierStateAnswer;
 public sealed record AnswerWithStatus(int StatusCode) : EarlierStateAnswer;
 
 /// <summary>
-/// Answers the requests for earlier states of the notes (<c>?before=</c>, and <c>?history</c> for the times at which an entry can be seen), as
-/// docs/development/history-specification.md says. Who may see what is decided by <see cref="EarlierStatePermissions"/>.
+/// Answers the requests for earlier states of the notes (<c>?before=</c> and <c>?commit=</c>, <c>?history</c> for the times at which an entry
+/// can be seen, <c>?commits</c> for the list of its changes), as docs/development/history-specification.md says. Who may see what is decided by
+/// <see cref="EarlierStatePermissions"/>.
 /// </summary>
 public sealed class EarlierStateRequests(Config config, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateReader reader,
-    HistoryService history, DownloadHandler downloadHandler, TimeProvider time)
+    EarlierStateCommits commits, HistoryService history, DownloadHandler downloadHandler, TimeProvider time)
 {
-    /// <summary>What <c>?before=</c> gets for the address (<paramref name="virtualPath"/>, as typed).</summary>
-    public EarlierStateAnswer AnswerRequestForEarlierState(ClaimsPrincipal user, string virtualPath, string? beforeText)
+    /// <summary>
+    /// What <c>?before=</c> (<paramref name="beforeText"/>) or <c>?commit=</c> (<paramref name="commitText"/>, which goes first) gets for the
+    /// address (<paramref name="virtualPath"/>, as typed).
+    /// </summary>
+    public EarlierStateAnswer AnswerRequestForEarlierState(ClaimsPrincipal user, string virtualPath, string? beforeText, string? commitText)
     {
-        if (!EarlierStateTime.TryParse(beforeText, out DateTimeOffset before))
-            return new RedirectToNow(EarlierStateNotice.InvalidTime);
-        if (before > time.GetUtcNow())
-            return new RedirectToNow(EarlierStateNotice.FutureTime);
+        // Which state is asked for, if it can be one at all
+        EarlierStateParameter asked;
+        if (commitText is not null)
+        {
+            if (!EarlierStateParameter.IsCommitId(commitText))
+                return new RedirectToNow(EarlierStateNotice.InvalidCommit);
+            asked = EarlierStateParameter.ForCommit(commitText.ToLowerInvariant());
+        }
+        else
+        {
+            if (!EarlierStateTime.TryParse(beforeText, out DateTimeOffset before))
+                return new RedirectToNow(EarlierStateNotice.InvalidTime);
+            if (before > time.GetUtcNow())
+                return new RedirectToNow(EarlierStateNotice.FutureTime);
+            asked = EarlierStateParameter.ForTime(before);
+        }
+
         // Whether there is a history is how the site is run: only admins are told
         if (!reader.HasHistory)
             return new RedirectToNow(tree.CanManageConfiguration(user) ? EarlierStateNotice.NoHistory : EarlierStateNotice.NotPermitted);
@@ -51,9 +71,11 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
         else if (PhysicalPathAsTyped(virtualPath) is null)
             return new AnswerWithStatus(StatusCodes.Status404NotFound);
 
-        EarlierState? state = reader.OpenStateBefore(before);
+        EarlierState? state = OpenState(asked);
         if (state is null)
-            return existingPath is not null ? new RedirectToNow(EarlierStateNotice.DidNotExistThen) : new AnswerWithStatus(StatusCodes.Status404NotFound);
+            return existingPath is null ? new AnswerWithStatus(StatusCodes.Status404NotFound)
+                // Before the first state there was nothing; a commit that isn't there is about the commit, not the entry
+                : new RedirectToNow(asked.IsCommit ? EarlierStateNotice.NoSuchCommit : EarlierStateNotice.DidNotExistThen);
 
         // An entry that is gone now has its path as the history spells it (which may differ in case from the address)
         string gitPath = GitPathAsTyped(virtualPath);
@@ -61,7 +83,7 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
 
         EarlierStateVerdict verdict = permissions.CheckWhetherEntryCanBeSeenAsItWas(user, physicalPath, state);
         if (verdict == EarlierStateVerdict.CanBeSeen)
-            return new ShowEntryAsItWas(state, state.FindEntry(state.ToGitPath(physicalPath))!, physicalPath, before);
+            return new ShowEntryAsItWas(state, state.FindEntry(state.ToGitPath(physicalPath))!, physicalPath, asked);
 
         state.Dispose();
         // Only what is there now (and may be opened) can be gone back to; anything else is answered like a missing path
@@ -81,6 +103,39 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
     /// history now, it is hidden, or the history doesn't keep it. Those are answered like a missing path.
     /// </summary>
     public IReadOnlyList<VisibleTimeRange>? TimesAtWhichEntryCanBeSeen(ClaimsPrincipal user, string virtualPath)
+        => EntryWhoseHistoryMayBeSeen(user, virtualPath) is { } physicalPath ? permissions.TimesAtWhichEntryCanBeSeen(user, physicalPath) : null;
+
+    /// <summary>
+    /// The commits that changed the entry (<c>?commits</c>): the <paramref name="page"/>-th page of them from the state that is shown
+    /// (<paramref name="shown"/>, null for now) back, or with <paramref name="newer"/> those that come right after it. Null where there is
+    /// nothing to say, as for <see cref="TimesAtWhichEntryCanBeSeen"/>.
+    /// </summary>
+    public CommitList? CommitsThatChangedEntry(ClaimsPrincipal user, string virtualPath, EarlierStateParameter? shown, int page, bool newer)
+    {
+        if (EntryWhoseHistoryMayBeSeen(user, virtualPath) is not { } physicalPath)
+            return null;
+
+        CommitList none = new([], page, HasOlder: false, NewerAfter: null);
+        // Now is the newest state: there is nothing after it
+        if (shown is null)
+            return newer ? none : commits.PageOfChanges(user, physicalPath, null, page);
+
+        string commitId;
+        using (EarlierState? state = OpenState(shown))
+        {
+            if (state is null)
+                return none;
+            commitId = state.CommitId;
+        }
+
+        return newer ? commits.NewerChanges(user, physicalPath, commitId) : commits.PageOfChanges(user, physicalPath, commitId, page);
+    }
+
+    /// <summary>
+    /// The physical path of the entry, if the user may see its history now and the history keeps it; otherwise null, also for what is hidden.
+    /// It may be an entry that isn't there any more.
+    /// </summary>
+    private string? EntryWhoseHistoryMayBeSeen(ClaimsPrincipal user, string virtualPath)
     {
         if (!reader.HasHistory)
             return null;
@@ -90,10 +145,15 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
             return null;
 
         string? physicalPath = existingPath ?? PhysicalPathAsTyped(virtualPath);
-        if (physicalPath is null || !permissions.MaySeeHistoryOfEntryNow(user, physicalPath))
-            return null;
+        return physicalPath is not null && permissions.MaySeeHistoryOfEntryNow(user, physicalPath) ? physicalPath : null;
+    }
 
-        return permissions.TimesAtWhichEntryCanBeSeen(user, physicalPath);
+    /// <summary>The state the address asks for, if the history has it. To be disposed.</summary>
+    private EarlierState? OpenState(EarlierStateParameter asked)
+    {
+        if (asked.IsCommit)
+            return reader.OpenStateOfCommit(asked.Value);
+        return EarlierStateTime.TryParse(asked.Value, out DateTimeOffset before) ? reader.OpenStateBefore(before) : null;
     }
 
     /// <summary><c>?raw</c> of an earlier state: the bytes of a media file as they were.</summary>

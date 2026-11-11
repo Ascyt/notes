@@ -1,0 +1,25 @@
+@model notes.Features.HistoryViewing.Commits._CommitList
+
+@{
+    string? newestReason = Model.Page > 1 ? null : "These are the newest changes.";
+    string? oldestReason = Model.HasOlder ? null : "There are no older changes.";
+}
+
+<nav id="commit-list" class="flex-grow-1 overflow-auto py-1" aria-label="Changes" data-page="@Model.Page" data-has-older="@(Model.HasOlder ? "true" : "false")">
+    <partial name="/Features/HistoryViewing/Commits/_CommitLines.cshtml" model="Model.Lines"/>
+    @if (Model.Lines.Commits.Count == 0)
+    {
+        <div class="px-3 py-1 text-secondary fst-italic">None</div>
+    }
+</nav>
+<div class="d-flex align-items-center justify-content-between gap-2 border-top px-3 py-2">
+    <button type="button" id="commit-newer" class="btn btn-sm btn-outline-secondary" data-page="@(Model.Page - 1)"
+            data-label="Newer changes" data-disabled-reason="@newestReason" aria-disabled="@(newestReason is not null ? "true" : "false")">
+        <span class="btn-icon"><i class="fa-solid fa-chevron-left"></i> Newer</span><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+    </button>
+    <span class="small text-secondary">Page @Model.Page</span>
+    <button type="button" id="commit-older" class="btn btn-sm btn-outline-secondary" data-page="@(Model.Page + 1)"
+            data-label="Older changes" data-disabled-reason="@oldestReason" aria-disabled="@(oldestReason is not null ? "true" : "false")">
+        <span class="btn-icon">Older <i class="fa-solid fa-chevron-right"></i></span><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+    </button>
+</div>

@@ -123,9 +123,10 @@ Apart from the notes, nobody but admins learns anything about how the site is ru
 | Move the selection here | `POST /dir?transfer=move` | As for copy, plus `CreateAndDelete` on every source tree | Fails (403, names the unreadable entry) |
 | See the permissions of an entry | `GET /entry?config` | Entry known, and the user may manage permissions (otherwise 404, like a missing path) | — |
 | Change the permissions of an entry | `POST /entry?config` (body) | As above. The text is checked completely first; invalid text changes nothing (400). | — |
-| Choose an earlier state | the history button of the toolbar | Entry openable + `CanViewHistory` on it now, the history is enabled and keeps the entry (`gitignore`). Admins see it disabled, with the reason, where the history doesn't keep the entry; nobody else sees it at all. | — |
-| View an earlier state | `GET /entry?before=<time>` (also with `?raw`, `?download`) | As in the [history specification](history-specification.md#addresses-that-cant-be-shown): the entry open at that time. The path need not exist now. | Locked or not listed, as now; a zip leaves out what isn't open at that time |
+| Choose an earlier state | the changes button and the history button of the toolbar | Entry openable + `CanViewHistory` on it now, the history is enabled and keeps the entry (`gitignore`). Admins see it disabled, with the reason, where the history doesn't keep the entry; nobody else sees it at all. | — |
+| View an earlier state | `GET /entry?before=<time>` or `GET /entry?commit=<id>` (also with `?raw`, `?download`) | As in the [history specification](history-specification.md#addresses-that-cant-be-shown): the entry open at that time. The path need not exist now. | Locked or not listed, as now; a zip leaves out what isn't open at that time |
 | The times at which an entry can be seen as it was | `GET /entry?history` | The user may see the history of the entry now (otherwise 404, like a missing path), and the history keeps it | — |
+| The list of changes of an entry | `GET /entry?commits` (with `&page=`, and the `?before=` or `?commit=` that is shown) | As `?history`; each commit listed as in the [history specification](history-specification.md#the-list-of-changes) | Only commits that changed what the user may see as it was |
 | Change anything in an earlier state | any `POST`, `DELETE`, `?config` or `?selection` with `?before=` | Refused for everyone (400), admins included | — |
 
 Notes on the table:
@@ -148,7 +149,7 @@ Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a
 
 ### The history
 
-The [history](../administration/history.md) (`HistoryService`, a git repository in `_/history`) keeps every version of every file it keeps, also what a user may not read, and the names (and emails or Keycloak ids) of the users who changed them. As part of `_` no path of the notes leads to it, so every request for it answers 404, to admins too. The only way into it is the history view (`?before=`), which decides for every path and state with `IEntryAccess`, as for the notes themselves, and shows nothing of the repository beyond the notes as they were: see the [history specification](history-specification.md).
+The [history](../administration/history.md) (`HistoryService`, a git repository in `_/history`) keeps every version of every file it keeps, also what a user may not read, and the names (and emails or Keycloak ids) of the users who changed them. As part of `_` no path of the notes leads to it, so every request for it answers 404, to admins too. The only way into it is the history view (`?before=`, `?commit=` and the list of changes), which decides for every path and state with `IEntryAccess`, as for the notes themselves, and shows nothing of the repository beyond the notes as they were and, for the commits that changed what the user may see, when, why and by whom (the name, never the email or id): see the [history specification](history-specification.md).
 
 What the history does never decides whether an operation is allowed, and never fails it: it runs after the operation's checks, and errors only go to the log.
 
