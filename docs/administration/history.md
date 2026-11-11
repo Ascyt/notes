@@ -1,6 +1,6 @@
 # History
 
-The app keeps a history of the notes in a git repository of its own, so that what was changed, and by whom, can be found again. There is no page for it yet: it is for admins with access to the server.
+The app keeps a history of the notes in a git repository of its own, so that what was changed, and by whom, can be found again. Who may see earlier states of the notes in the app, and how, is in the [history specification](../development/history-specification.md); the repository itself is for admins with access to the server.
 
 ## Where it is
 

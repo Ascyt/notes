@@ -17,7 +17,7 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
 
 ```jsonc
 {
-    "version": "1.1.0",                       // the version of this format, see "Versions and migrations"
+    "version": "1.2.0",                       // the version of this format, see "Versions and migrations"
     "perms": {                                // required: who may do what, see Permissions
         "inherit": true,                      // required
         "rwAllow":      ["g:team-a"],         // may read and write
@@ -25,7 +25,10 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
         "rwDeny":       [],                   // may not read
         "cdAllow":      ["g:team-a"],         // may create and delete
         "cdCreateOnly": ["u:alice"],          // may create
-        "cdDeny":       []                    // may neither
+        "cdDeny":       [],                   // may neither
+        "historyAllow": ["g:team-a"],         // may see earlier states, also of what was deleted since
+        "historyExistingOnly": ["u:alice"],   // may see earlier states of what exists now
+        "historyDeny":  []                    // may not
     },
     "gitignore": false,                       // required: whether the history leaves this directory out
     "files": [                                // required: one entry per file, kept up to date by the app
@@ -46,7 +49,7 @@ A directory without a `.config.json` says nothing: for each setting, the directo
 
 The format of `.config.json` changes over time (a new required property, a property that moves into an object, ...). So that files that were written for an older format keep working, every file says which version of the app wrote it (`version`), and the app brings older files up to date.
 
-- The version of the app is **`Config:Version`** in `appsettings.json` (`major.minor.patch`, e.g. `1.1.0`). The app doesn't start if it isn't a version.
+- The version of the app is **`Config:Version`** in `appsettings.json` (`major.minor.patch`, e.g. `1.2.0`). The app doesn't start if it isn't a version.
 - A file **without** a `version` is from before there were versions: it counts as `0.0.0`.
 - Not every version needs a migration. When a file is read, and its version is lower than `Config:Version`, every migration after its version up to the current one is applied, oldest first (there may be none), and the file gets the current version. A file with the current version is not touched. A file with a **higher** version (written by a newer app, then rolled back) is never guessed at: it counts as invalid, so only admins have access where it applies, and the editor says why.
 - The migrated text is what the app uses and what the editor shows. It is **written to disk** when the app starts (every `.config.json` under the notes is looked at once), and by anything that writes the file anyway (saving it, or adding, renaming and removing a file's entry). A file that can't be migrated (a migration fails) is left as it is, logged, and counts as invalid.
@@ -57,5 +60,6 @@ The migrations there are:
 | Version | What changes |
 |---|---|
 | 1.1.0 | `gitignore` comes in, and every file gets `"gitignore": false`: everything stays in the history. |
+| 1.2.0 | `historyAllow`, `historyExistingOnly` and `historyDeny` come in. They are optional, so files only get the new version: nobody but admins may see the history until it is given. |
 
 How a migration is added is in [Migrations of the configuration files](../development/config-migrations.md).

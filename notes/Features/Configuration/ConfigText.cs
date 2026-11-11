@@ -37,9 +37,10 @@ public static class ConfigText
                         "version": "{{version}}",
                         // Who may do what in this folder. Subfolders and files start from these permissions.
                         // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
-                        // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read).
+                        // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read and to see the history).
                         // Admins may always do everything.
-                        // Lists: rwAllow, rwReadOnly, rwDeny (see and change what is in it), cdAllow, cdCreateOnly, cdDeny (create and delete).
+                        // Lists: rwAllow, rwReadOnly, rwDeny (see and change what is in it), cdAllow, cdCreateOnly, cdDeny (create and delete),
+                        // historyAllow, historyExistingOnly (only of what exists now), historyDeny (see earlier states).
                         "perms": {
                             "inherit": true
                         },

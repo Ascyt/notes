@@ -37,6 +37,7 @@ public static class ConfigParser
 
     private static readonly string[] RwKeys = ["rwAllow", "rwReadOnly", "rwDeny"];
     private static readonly string[] CdKeys = ["cdAllow", "cdCreateOnly", "cdDeny"];
+    private static readonly string[] HistoryKeys = ["historyAllow", "historyExistingOnly", "historyDeny"];
 
     /// <summary>The lists that give the right to change something (write, create, delete), which "everyone" (including those not logged in) can't be in.</summary>
     private static readonly string[] NoAnonymousKeys = ["rwAllow", "cdAllow", "cdCreateOnly"];
@@ -221,7 +222,7 @@ public static class ConfigParser
     /// <summary>Reads a <c>perms</c> block. Everything but <c>inherit</c> is optional, and a list that is missing is an empty one.</summary>
     private static PermsBlock? ParsePerms(JsonElement element, string path, List<string> errors)
     {
-        string[] keys = [InheritKey, .. RwKeys, .. CdKeys];
+        string[] keys = [InheritKey, .. RwKeys, .. CdKeys, .. HistoryKeys];
         Dictionary<string, JsonElement>? properties = ReadObject(element, path, keys, required: [InheritKey], errors);
         if (properties is null)
             return null;
@@ -236,8 +237,8 @@ public static class ConfigParser
             valid = false;
         }
 
-        // A principal can be in one list of each pair of levels, not in several: what is allowed and denied can't both be meant.
-        // (It may be in an rw list and a cd list: they are about different things.)
+        // A principal can be in one list of each kind, not in several: what is allowed and denied can't both be meant.
+        // (It may be in an rw, a cd and a history list: they are about different things.)
         Dictionary<string, HashSet<string>> lists = [];
         foreach (string key in keys.Skip(1))
         {
@@ -248,6 +249,7 @@ public static class ConfigParser
 
         valid &= CheckExclusive(lists, RwKeys, path, errors);
         valid &= CheckExclusive(lists, CdKeys, path, errors);
+        valid &= CheckExclusive(lists, HistoryKeys, path, errors);
 
         // Someone who is not logged in must never be able to change the notes: they may be allowed to read, or denied, and that is all
         foreach (string key in NoAnonymousKeys.Where(key => lists[key].Contains(Principal.Everyone)))
@@ -257,7 +259,7 @@ public static class ConfigParser
         }
 
         return valid
-            ? new PermsBlock(inherit, lists["rwAllow"], lists["rwReadOnly"], lists["rwDeny"], lists["cdAllow"], lists["cdCreateOnly"], lists["cdDeny"])
+            ? new PermsBlock(inherit, lists["rwAllow"], lists["rwReadOnly"], lists["rwDeny"], lists["cdAllow"], lists["cdCreateOnly"], lists["cdDeny"], lists["historyAllow"], lists["historyExistingOnly"], lists["historyDeny"])
             : null;
     }
 

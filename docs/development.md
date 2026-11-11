@@ -7,6 +7,7 @@ How the app is built and how to work on it.
 - [Migrations of the configuration files](development/config-migrations.md): changing the format of `.config.json` without breaking existing files.
 - [Tests](development/tests.md): what is tested where, how to run the tests, and the screenshots they take.
 - [Security specification](development/security-specification.md): who may do what, the reference for the code and its tests.
+- [History specification](development/history-specification.md): who may see which earlier state of the notes, and how they are shown.
 
 ## How the app is put together
 

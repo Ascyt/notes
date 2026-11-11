@@ -1,4 +1,4 @@
-﻿// Buttons that can't be used right now are never hidden, and never just greyed out: they say why, and while they work they show a spinner.
+﻿// Buttons that are there but can't be used right now are never just greyed out: they say why, and while they work they show a spinner.
 //
 //   setButtonDisabled(button, 'Select something first.')   greys it out and shows the reason on hover
 //   setButtonDisabled(button, null)                         makes it usable again

@@ -10,6 +10,7 @@ using notes.Features.Components.Transfer;
 using notes.Features.Components.Upload;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
+using notes.Features.History;
 using notes.Pages.Browse;
 using notes.Pages.ConfigEditor;
 using notes.Pages.Editor;
@@ -39,7 +40,8 @@ public sealed class IndexModel(Config config,
     DeleteHandler deleteHandler,
     SelectionHandler selectionHandler,
     TransferHandler transferHandler,
-    ISelectionService selectionService) : PageModel
+    ISelectionService selectionService,
+    HistoryService history) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -80,7 +82,8 @@ public sealed class IndexModel(Config config,
 
         // The root page is the one everybody may open (it carries the login button); it shows nothing of the notes to those who may not read it.
         // Any other entry the user knows of but may not read (only logged-in users know of such) is listed in its directory, but can't be opened.
-        bool canOpen = tree.GetAccess(User, PhysicalPath).CanRead;
+        EntryAccessInfo access = tree.GetAccess(User, PhysicalPath);
+        bool canOpen = access.CanRead;
         bool isRoot = VirtualPath == "";
         if (!canOpen && !isRoot)
             return StatusCode(StatusCodes.Status403Forbidden);
@@ -91,7 +94,10 @@ public sealed class IndexModel(Config config,
         if (Request.Query.ContainsKey("raw"))
             return canOpen ? rawHandler.Handle(Response, PhysicalPath) : NotFound();
 
-        if (System.IO.Directory.Exists(PhysicalPath))
+        bool isDirectory = System.IO.Directory.Exists(PhysicalPath);
+        HistoryOffer historyOffer = OfferHistory(access, isDirectory);
+
+        if (isDirectory)
         {
             string? userId = SelectionHandler.UserIdOf(User);
             Directory = new DirectoryView(config, path, tree)
@@ -101,6 +107,7 @@ public sealed class IndexModel(Config config,
                 Viewer = User,
                 CanBrowse = canOpen,
                 CanConfigure = tree.CanManageConfiguration(User),
+                History = historyOffer,
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
             };
             Directory.Init();
@@ -112,8 +119,9 @@ public sealed class IndexModel(Config config,
             {
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
-                CanWrite = tree.GetAccess(User, PhysicalPath).CanWrite,
+                CanWrite = access.CanWrite,
                 CanConfigure = tree.CanManageConfiguration(User),
+                History = historyOffer,
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
                 DeleteDeniedReason = inspected.DeleteDeniedReason,
@@ -123,6 +131,24 @@ public sealed class IndexModel(Config config,
         }
 
         return Page();
+    }
+
+    /// <summary>
+    /// Whether the page has the way to the earlier states of the entry. Those who manage the configuration have it wherever there is a
+    /// history, disabled with the reason where the configuration leaves the entry out of it. Everyone else only has it where they can use
+    /// it: they aren't to know about the configuration.
+    /// </summary>
+    private HistoryOffer OfferHistory(EntryAccessInfo access, bool isDirectory)
+    {
+        if (!config.History.Enabled || !access.CanViewHistory)
+            return HistoryOffer.None;
+
+        if (history.Keeps(PhysicalPath, isDirectory))
+            return HistoryOffer.Available;
+
+        return tree.CanManageConfiguration(User)
+            ? new HistoryOffer(IsOffered: true, $"The configuration leaves this {(isDirectory ? "directory" : "file")} out of the history (gitignore).")
+            : HistoryOffer.None;
     }
 
     public async Task<IActionResult> OnPostAsync()

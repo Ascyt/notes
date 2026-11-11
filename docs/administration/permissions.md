@@ -12,24 +12,27 @@ Who may see and change what is written down in the `perms` blocks of the [config
     "rwDeny":       [],                   // may not read
     "cdAllow":      ["g:team-a"],         // may create and delete
     "cdCreateOnly": ["u:alice"],          // may create
-    "cdDeny":       []                    // may neither
+    "cdDeny":       [],                   // may neither
+    "historyAllow": ["g:team-a"],         // may see earlier states, also of what was deleted since
+    "historyExistingOnly": ["a"],         // may see earlier states of what exists now
+    "historyDeny":  ["u:bob"]             // may not
 }
 ```
 
 - **Principals** are `u:<user name>`, `g:<group>` and `r:<role>`. User names are not case sensitive, group and role names are. A user also matches `u:<id>` with their Keycloak id.
-- **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny` and `cdDeny`; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
+- **`a`** stands for **all users**, logged in or not, so a user who is logged in never gets less than one who is not. Anonymous users can never change anything, so `a` is only allowed in `rwReadOnly`, `rwDeny`, `cdDeny` and the `history` lists; in `rwAllow`, `cdAllow` or `cdCreateOnly` it is an error (400 when saving, and a configuration that has it is invalid, which closes it to everyone but admins). Pages of the notes tell anonymous users that they may need to log in to see more or to change anything. `a` in `rwDeny` or `cdDeny` denies everyone (except admins), those in a group included.
 - **`l`** stands for **all users who are logged in**, so that no group with everyone in it has to be made in Keycloak. It is allowed in every list, e.g. `"rwAllow": ["l"]` lets every logged-in user write, while `"rwReadOnly": ["a"]` lets the public read.
 - **Only `inherit` is required** in a `perms` block; a list that is missing is empty.
-- **A principal can be in only one of the `rw` lists, and in only one of the `cd` lists** (it may be in one of each). Anything else is an error when saving.
+- **A principal can be in only one of the `rw` lists, only one of the `cd` lists and only one of the `history` lists** (it may be in one of each). Anything else is an error when saving.
 
 ## What they mean
 
-`rw` is about the contents: *read* lets a user open, download, select and copy it; *write* also lets them save a file. `cd` is about its existence: *create* lets them bring entries into a directory (or a file into existence at a path), *delete* also lets them delete, move and rename it. The details, and what else is needed for an operation (for example reading a directory in order to create anything in it), are in the specification.
+`rw` is about the contents: *read* lets a user open, download, select and copy it; *write* also lets them save a file. `cd` is about its existence: *create* lets them bring entries into a directory (or a file into existence at a path), *delete* also lets them delete, move and rename it. `history` is about its earlier states: *existing only* lets a user see them, read-only, for what exists now; *allow* also for what was deleted, moved or renamed since. Seeing the state at a time needs `history` and `read`, both now and at that time (as the configuration was then): giving it today opens nothing from before today, and taking it away closes all of the history at once. What the history leaves out (`gitignore`) has none (see the [history specification](../development/history-specification.md#who-may-see-a-state)). The details, and what else is needed for an operation (for example reading a directory in order to create anything in it), are in the specification.
 
-For a user, each of the two kinds is decided on its own:
+For a user, each of the three kinds is decided on its own:
 
 1. The layers that apply are looked at from the most specific: the file's own entry (for a file), then the permissions of its directory, then those of the directory above, and so on up to the root. A layer with `"inherit": false` is the last one looked at.
-2. The first layer in which any of the user's principals (their name, groups and roles) is in one of the lists decides. **Within that layer, a deny beats an allow, and an allow beats read-only / create-only.**
+2. The first layer in which any of the user's principals (their name, groups and roles) is in one of the lists decides. **Within that layer, a deny beats an allow, and an allow beats read-only / create-only / existing-only.**
 3. If no layer says anything, the user gets nothing.
 4. Admins are not subject to any of this, and neither is a missing `.config.json`: **without any configuration only admins have access.**
 

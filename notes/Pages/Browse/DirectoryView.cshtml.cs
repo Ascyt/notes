@@ -4,6 +4,7 @@ using notes.Features.Auth;
 using notes.Features.Components.Selection;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
+using notes.Features.History;
 
 namespace notes.Pages.Browse;
 
@@ -37,6 +38,9 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
     public bool CanConfigure { get; init; }
+
+    /// <summary>Whether the page has the way to the earlier states of the directory.</summary>
+    public HistoryOffer History { get; init; } = HistoryOffer.None;
 
     /// <summary>Why the user can't delete the directory, or null if they can.</summary>
     public string? DeleteDeniedReason { get; private set; }

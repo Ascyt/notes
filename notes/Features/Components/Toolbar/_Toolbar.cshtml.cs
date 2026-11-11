@@ -13,7 +13,10 @@ public enum ToolbarTone
     Danger
 }
 
-/// <summary>An icon of the toolbar, which works as a button. It is always there: when it can't be used it is disabled (with the reason) or shows a spinner, never hidden.</summary>
+/// <summary>
+/// An icon of the toolbar, which works as a button. What the user may not do at all is left out by the page; a button that is there but can't
+/// be used right now is disabled (with the reason) or shows a spinner.
+/// </summary>
 /// <param name="Id">Id of the element, for the scripts of the page to find it.</param>
 /// <param name="Icon">Font Awesome classes of the icon, e.g. "fa-solid fa-download".</param>
 /// <param name="Label">What the button does. Shown as its tooltip, as there is no text on it.</param>
@@ -91,6 +94,14 @@ public sealed record ToolbarButton(
     /// <param name="kind">What the configuration is of ("file" or "directory").</param>
     public static ToolbarButton Config(string kind)
         => new(Id: "config-button", Icon: "fa-solid fa-gear", Label: $"Edit the configuration of this {kind}", Key: "c", Href: "?config");
+
+    /// <summary>
+    /// Opens the choice of an earlier state to look at (_HistoryModal). Only for those who may see the history of the entry, and for admins,
+    /// who see it disabled where the configuration leaves the entry out of the history: for everyone else there are no earlier states.
+    /// </summary>
+    /// <param name="disabledReason">Why there are no earlier states to see (only for admins, who may know about the configuration).</param>
+    public static ToolbarButton History(string? disabledReason = null)
+        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!+H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()

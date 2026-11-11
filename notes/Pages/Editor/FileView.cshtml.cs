@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using notes.Features.History;
 using notes.Pages.Editor.Markdown;
 
 namespace notes.Pages.Editor;
@@ -24,6 +25,9 @@ public class FileView : PageModel
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the file.</summary>
     public bool CanConfigure { get; init; }
+
+    /// <summary>Whether the page has the way to the earlier states of the file.</summary>
+    public HistoryOffer History { get; init; } = HistoryOffer.None;
 
     /// <summary>Why the user can't delete the file, or null if they can.</summary>
     public string? DeleteDeniedReason { get; init; }

@@ -12,6 +12,10 @@ Above the listing is the path of the directory (the *breadcrumb*): each part of 
 
 An entry with a lock can be seen but not opened: its name is visible, but what is in it isn't, for lack of permission. Hovering it says so.
 
+## Earlier states
+
+Where the permissions allow it, the toolbar has a calendar icon (Alt+Shift+H). It opens a dialog to choose a date and time; **View** then shows the directory or file as it was at that time, read-only, and everything reached from there stays at that time. The address says so with `?before=` and the time. Whether an earlier state can be seen is up to the permissions now and at that time (see [Permissions](../administration/permissions.md#what-they-mean)).
+
 ## Addresses
 
 Every file and directory has an address that is its path, for example `/projects/plan.md`. Such an address can be shared: whoever opens it sees the entry if they may. An address that leads nowhere, and one that leads to something the user may not know about, both show the same "not found" page.

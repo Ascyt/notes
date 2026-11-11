@@ -4,6 +4,7 @@
 @using notes.Features.Components.Selection
 @using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
+@using notes.Features.History
 @using notes.Pages.Browse
 @model notes.Pages.Browse.DirectoryView
 
@@ -36,19 +37,26 @@
 
 @{
     // Whoever can't change anything isn't offered the buttons that do (create, upload, delete), instead of seeing them disabled
-    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: false)];
+    // The configuration leftmost (only there for those who manage it), then the history, then what moves files in and out
+    List<ToolbarButton> toolbarButtons = [];
+    if (Model.CanConfigure)
+        toolbarButtons.Add(ToolbarButton.Config("directory"));
+    if (Model.History.IsOffered)
+        toolbarButtons.Add(ToolbarButton.History(Model.History.DisabledReason));
+    toolbarButtons.Add(ToolbarButton.Download(isFile: false));
     if (!Model.IsReadOnly)
     {
         toolbarButtons.Add(ToolbarButton.Upload(Model.CreateDeniedReason));
         toolbarButtons.Add(ToolbarButton.Delete("directory", Model.DeleteDeniedReason));
     }
-    // The leftmost of them, but only there for those who manage the configuration
-    if (Model.CanConfigure)
-        toolbarButtons.Insert(0, ToolbarButton.Config("directory"));
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+@if (Model.History.IsUsable)
+{
+    <partial name="/Features/History/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "directory" }'/>
+}
 
 <div>
     <table class="table entry-table">

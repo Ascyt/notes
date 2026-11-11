@@ -62,7 +62,7 @@ Everything is gray (Bootstrap's secondary styles, low emphasis), unless it is so
 
 ### 10. Nobody is left wondering why
 
-A control that can't be used is disabled, not hidden, and says why (as its tooltip, from `data-disabled-reason`). An error says what went wrong and, where it helps, what can be done about it. (The one thing that is hidden instead of disabled is what someone may not even know exists, see [principle 4](#4-nothing-about-how-the-site-is-run-is-shown-to-users) and the security specification.)
+What a user may not do at all isn't offered to them: someone who may change nothing in a directory doesn't see Upload or Delete there, and someone without the history doesn't see its button. A control that is there but can't be used right now, or not here, is disabled and always says why (as its tooltip, from `data-disabled-reason`): nothing selected yet, nothing to save, one entry in the directory that may not be deleted. Where hiding would make no sense, things are shown and say why they can't be used: an entry that can't be opened is still listed with a lock, as its name is visible anyway (see the security specification). What someone may not even know exists is never shown or named (see [principle 4](#4-nothing-about-how-the-site-is-run-is-shown-to-users)). An error says what went wrong and, where it helps, what can be done about it.
 
 ### 11. Neutral wording
 

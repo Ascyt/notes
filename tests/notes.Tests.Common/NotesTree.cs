@@ -73,11 +73,11 @@ public sealed class NotesTree(string root)
 public static class Cfg
 {
     /// <summary>The version the configurations are written with (Config:Version of the app's appsettings).</summary>
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
 
     /// <summary>A <c>perms</c> block.</summary>
     public static JsonObject Perms(bool inherit = true, string[]? rwAllow = null, string[]? rwReadOnly = null, string[]? rwDeny = null,
-        string[]? cdAllow = null, string[]? cdCreateOnly = null, string[]? cdDeny = null)
+        string[]? cdAllow = null, string[]? cdCreateOnly = null, string[]? cdDeny = null, string[]? historyAllow = null, string[]? historyExistingOnly = null, string[]? historyDeny = null)
     {
         JsonObject perms = new() { ["inherit"] = inherit };
         void Add(string key, string[]? list)
@@ -92,6 +92,9 @@ public static class Cfg
         Add("cdAllow", cdAllow);
         Add("cdCreateOnly", cdCreateOnly);
         Add("cdDeny", cdDeny);
+        Add("historyAllow", historyAllow);
+        Add("historyExistingOnly", historyExistingOnly);
+        Add("historyDeny", historyDeny);
         return perms;
     }
 

@@ -40,8 +40,24 @@ public enum CreateAccess
     CreateAndDelete,
 }
 
+/// <summary>
+/// Whether the earlier states of an entry may be seen (read-only). Each level includes the one before. Seeing one also needs
+/// <see cref="ReadAccess.Read"/>, now and then.
+/// </summary>
+public enum HistoryAccess
+{
+    /// <summary>Only the entry as it is now.</summary>
+    None,
+
+    /// <summary>Earlier states, as long as there is an entry at the path now.</summary>
+    Existing,
+
+    /// <summary>Also the earlier states of a path where nothing is now (a deleted, moved or renamed entry).</summary>
+    ExistingAndDeleted,
+}
+
 /// <summary>Everything a user may do with one path. More may be added here; it is all found out by a single <see cref="IEntryAccess.GetAccess"/>.</summary>
-public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create)
+public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create, HistoryAccess History = HistoryAccess.None)
 {
     public static EntryAccessInfo None { get; } = new(ReadAccess.None, CreateAccess.None);
 
@@ -53,6 +69,9 @@ public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create)
     public bool CanCreate => Create >= CreateAccess.Create;
 
     public bool CanDelete => Create >= CreateAccess.CreateAndDelete;
+
+    /// <summary>Earlier states may be seen (of an entry that exists now). Read always comes first: without it, the history isn't there either.</summary>
+    public bool CanViewHistory => History >= HistoryAccess.Existing && CanRead;
 }
 
 /// <summary>
@@ -89,7 +108,7 @@ public interface IEntryAccess
 /// </summary>
 public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntryAccess
 {
-    private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete);
+    private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
 
     public bool CanManageConfiguration(ClaimsPrincipal user)
         => user.IsInRole(NotesAccess.AdminRole);
@@ -120,7 +139,8 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
         // Each level is decided by the first layer that says anything about the user
         ReadAccess read = layers.Select(perms => perms.DecideRead(principals)).FirstOrDefault(decision => decision is not null) ?? ReadAccess.None;
         CreateAccess create = layers.Select(perms => perms.DecideCreate(principals)).FirstOrDefault(decision => decision is not null) ?? CreateAccess.None;
-        return new EntryAccessInfo(read, create);
+        HistoryAccess history = layers.Select(perms => perms.DecideHistory(principals)).FirstOrDefault(decision => decision is not null) ?? HistoryAccess.None;
+        return new EntryAccessInfo(read, create, history);
     }
 
     /// <summary>

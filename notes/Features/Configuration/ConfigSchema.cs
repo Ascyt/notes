@@ -36,7 +36,7 @@ public static class ConfigSchema
                 ["type"] = "string",
                 ["pattern"] = @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
                 ["description"] = "The version of the format of this file (major.minor.patch). The app keeps it up to date and brings older files up to the current version when it reads them: don't change it.",
-                ["examples"] = new[] { "1.1.0" }
+                ["examples"] = new[] { "1.2.0" }
             };
             properties["gitignore"] = new Dictionary<string, object>
             {
@@ -110,12 +110,15 @@ public static class ConfigSchema
             ("rwDeny", "May not open the contents. Beats rwAllow and rwReadOnly."),
             ("cdAllow", "May create entries here, and delete (also move, rename) this one."),
             ("cdCreateOnly", "May create entries here, but not delete."),
-            ("cdDeny", "May neither create nor delete. Beats cdAllow and cdCreateOnly.")
+            ("cdDeny", "May neither create nor delete. Beats cdAllow and cdCreateOnly."),
+            ("historyAllow", "May see earlier states (read-only), also of what was deleted, moved or renamed since. Needs read access (rw) and this, now and at that time."),
+            ("historyExistingOnly", "May see earlier states (read-only) of what exists now, not of what was deleted, moved or renamed since. Needs read access (rw) and this, now and at that time."),
+            ("historyDeny", "May not see earlier states, whatever was given at that time. Beats historyAllow and historyExistingOnly.")
         ];
         foreach ((string key, string description) in lists)
         {
             string definition = key is "rwAllow" or "cdAllow" or "cdCreateOnly" ? "changingPrincipals" : "principals";
-            properties[key] = new Dictionary<string, object> { ["$ref"] = "#/definitions/" + definition, ["description"] = description + " Each principal may be in one of the rw lists and one of the cd lists." };
+            properties[key] = new Dictionary<string, object> { ["$ref"] = "#/definitions/" + definition, ["description"] = description + " Each principal may be in one of the rw lists, one of the cd lists and one of the history lists." };
         }
 
         return new Dictionary<string, object>

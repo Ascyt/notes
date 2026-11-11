@@ -48,6 +48,10 @@ public sealed class HistoryService : IDisposable
     /// <summary>Where the repository is (physical). Its work tree is the root of the notes.</summary>
     public string GitDirectory => _repository.GitDirectory;
 
+    /// <summary>Whether the history keeps the file or directory (physical path), as the configuration says now (<c>gitignore</c>).</summary>
+    public bool Keeps(string physicalPath, bool isDirectory)
+        => _kept.KeepsEntry(physicalPath, isDirectory);
+
     /// <summary>Commits whatever is pending, e.g. when the app starts.</summary>
     public void CommitPending(CommitReason reason)
         => Run(() => Commit(reason));
