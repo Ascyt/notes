@@ -40,8 +40,24 @@ public enum CreateAccess
     CreateAndDelete,
 }
 
+/// <summary>
+/// Whether the earlier states of an entry may be seen (read-only). Each level includes the one before. Seeing one also needs
+/// <see cref="ReadAccess.Read"/>, now and then.
+/// </summary>
+public enum HistoryAccess
+{
+    /// <summary>Only the entry as it is now.</summary>
+    None,
+
+    /// <summary>Earlier states, as long as there is an entry at the path now.</summary>
+    Existing,
+
+    /// <summary>Also the earlier states of a path where nothing is now (a deleted, moved or renamed entry).</summary>
+    ExistingAndDeleted,
+}
+
 /// <summary>Everything a user may do with one path. More may be added here; it is all found out by a single <see cref="IEntryAccess.GetAccess"/>.</summary>
-public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create)
+public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create, HistoryAccess History = HistoryAccess.None)
 {
     public static EntryAccessInfo None { get; } = new(ReadAccess.None, CreateAccess.None);
 
@@ -53,6 +69,9 @@ public sealed record EntryAccessInfo(ReadAccess Read, CreateAccess Create)
     public bool CanCreate => Create >= CreateAccess.Create;
 
     public bool CanDelete => Create >= CreateAccess.CreateAndDelete;
+
+    /// <summary>Earlier states may be seen (of an entry that exists now). Read always comes first: without it, the history isn't there either.</summary>
+    public bool CanViewHistory => History >= HistoryAccess.Existing && CanRead;
 }
 
 /// <summary>
@@ -75,6 +94,12 @@ public interface IEntryAccess
         => GetAccess(user, physicalPath);
 
     /// <summary>
+    /// What the user could do with the path if the notes were as <paramref name="snapshot"/> has them (an earlier state, see the history),
+    /// decided by the same rules. The path need not exist there either.
+    /// </summary>
+    EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, IConfigSnapshot snapshot);
+
+    /// <summary>
     /// Whether the user may see and change the configuration of each folder and file (the permissions among it) rather than just
     /// live by it. Answered once for the whole notes: it is not up to the entry.
     /// </summary>
@@ -89,19 +114,23 @@ public interface IEntryAccess
 /// </summary>
 public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntryAccess
 {
-    private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete);
+    private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
 
     public bool CanManageConfiguration(ClaimsPrincipal user)
         => user.IsInRole(NotesAccess.AdminRole);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
-        => Resolve(user, physicalPath, isDirectory: null);
+        => Resolve(user, physicalPath, store.Get, isDirectory: Directory.Exists);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
-        => Resolve(user, physicalPath, isDirectory);
+        => Resolve(user, physicalPath, store.Get, isDirectory: _ => isDirectory);
 
-    /// <param name="isDirectory">Whether the path is a directory, if the caller knows; null to look at the disk.</param>
-    private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, bool? isDirectory)
+    public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, IConfigSnapshot snapshot)
+        => Resolve(user, physicalPath, snapshot.FolderConfigOf, snapshot.IsDirectory);
+
+    /// <param name="configOf">The configuration of a folder (physical path).</param>
+    /// <param name="isDirectory">Whether the path (physical) is a directory.</param>
+    private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, Func<string, FolderConfigState> configOf, Func<string, bool> isDirectory)
     {
         if (CanManageConfiguration(user))
             return Everything;
@@ -114,29 +143,30 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
             return EntryAccessInfo.None;
 
         PrincipalSet principals = PrincipalSet.Of(user);
-        if (FindLayers(path, root, isDirectory) is not { } layers)
+        if (FindLayers(path, root, configOf, isDirectory(path)) is not { } layers)
             return EntryAccessInfo.None;
 
         // Each level is decided by the first layer that says anything about the user
         ReadAccess read = layers.Select(perms => perms.DecideRead(principals)).FirstOrDefault(decision => decision is not null) ?? ReadAccess.None;
         CreateAccess create = layers.Select(perms => perms.DecideCreate(principals)).FirstOrDefault(decision => decision is not null) ?? CreateAccess.None;
-        return new EntryAccessInfo(read, create);
+        HistoryAccess history = layers.Select(perms => perms.DecideHistory(principals)).FirstOrDefault(decision => decision is not null) ?? HistoryAccess.None;
+        return new EntryAccessInfo(read, create, history);
     }
 
     /// <summary>
     /// The permissions that apply to the path, the most specific first: the entry of the file (a directory has none, its own folder is
     /// its entry), then the folder and each folder above it, stopping after the first one with <c>inherit: false</c>. Null if one of those is invalid.
     /// </summary>
-    private List<PermsBlock>? FindLayers(string path, string root, bool? isDirectory)
+    private static List<PermsBlock>? FindLayers(string path, string root, Func<string, FolderConfigState> configOf, bool isDirectory)
     {
         List<PermsBlock> layers = [];
         string folder = path;
 
         // A directory is its own folder. Any other path (a file, or one that doesn't exist yet) has the entry its folder has for its name.
-        if (!(isDirectory ?? Directory.Exists(path)))
+        if (!isDirectory)
         {
             folder = Path.GetDirectoryName(path)!;
-            FolderConfigState parent = store.Get(folder);
+            FolderConfigState parent = configOf(folder);
             if (parent.IsInvalid)
                 return null;
 
@@ -150,7 +180,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
 
         while (true)
         {
-            FolderConfigState state = store.Get(folder);
+            FolderConfigState state = configOf(folder);
             if (state.IsInvalid)
                 return null;
 

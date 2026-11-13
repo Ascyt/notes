@@ -13,6 +13,15 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
     public bool IsKept(string path)
         => IsKept(path, NewKnown());
 
+    /// <summary>
+    /// Whether the history keeps the entry (physical path): a file as <see cref="IsKept(string)"/> says, a directory unless its configuration
+    /// (or the nearest one above) leaves it out. A subdirectory of one that is left out may still be kept, if its own configuration says so.
+    /// </summary>
+    public bool IsEntryKept(string physicalPath, bool isDirectory)
+        => isDirectory
+            ? !IsLeftOut(Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath)), NewKnown())
+            : IsKept(paths.ToGitPath(physicalPath));
+
     /// <summary>The same as <see cref="IsKept(string)"/>, for many files at once: each folder is looked at only once.</summary>
     public Func<string, bool> ForManyFiles()
     {

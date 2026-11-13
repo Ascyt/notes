@@ -13,7 +13,10 @@ public enum ToolbarTone
     Danger
 }
 
-/// <summary>An icon of the toolbar, which works as a button. It is always there: when it can't be used it is disabled (with the reason) or shows a spinner, never hidden.</summary>
+/// <summary>
+/// An icon of the toolbar, which works as a button. What the user may not do at all is left out by the page; a button that is there but can't
+/// be used right now is disabled (with the reason) or shows a spinner.
+/// </summary>
 /// <param name="Id">Id of the element, for the scripts of the page to find it.</param>
 /// <param name="Icon">Font Awesome classes of the icon, e.g. "fa-solid fa-download".</param>
 /// <param name="Label">What the button does. Shown as its tooltip, as there is no text on it.</param>
@@ -44,6 +47,10 @@ public sealed record ToolbarButton(
     public static ToolbarButton Edit()
         => new(Id: "edit-button", Icon: "fa-solid fa-pencil", Label: "Edit this file", Key: "e", Href: "?edit");
 
+    /// <summary>In place of <see cref="Edit"/> where the file can't be changed: from the rendered markdown to its source, in the read-only editor.</summary>
+    public static ToolbarButton ViewSource()
+        => new(Id: "view-source-button", Icon: "fa-regular fa-file-code", Label: "View the source of this file", Key: "e", Href: "?edit");
+
     /// <summary>From the editor of a markdown file to what it looks like rendered.</summary>
     public static ToolbarButton Preview()
         => new(Id: "preview-button", Icon: "fa-solid fa-book", Label: "Preview this file", Key: "p", Href: "?");
@@ -57,7 +64,7 @@ public sealed record ToolbarButton(
 
     /// <summary>Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.</summary>
     public static ToolbarButton ZoomIn()
-        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!+ !++", OnClick: "editorZoom.zoomIn()");
+        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!=", OnClick: "editorZoom.zoomIn()");
 
     /// <summary>Makes the text of the editor smaller.</summary>
     public static ToolbarButton ZoomOut()
@@ -91,6 +98,33 @@ public sealed record ToolbarButton(
     /// <param name="kind">What the configuration is of ("file" or "directory").</param>
     public static ToolbarButton Config(string kind)
         => new(Id: "config-button", Icon: "fa-solid fa-gear", Label: $"Edit the configuration of this {kind}", Key: "c", Href: "?config");
+
+    /// <summary>
+    /// Opens the choice of an earlier state to look at (_HistoryModal). Only for those who may see the history of the entry, and for admins,
+    /// who see it disabled where the configuration leaves the entry out of the history: for everyone else there are no earlier states.
+    /// </summary>
+    /// <param name="disabledReason">Why there are no earlier states to see (only for admins, who may know about the configuration).</param>
+    public static ToolbarButton History(string? disabledReason = null)
+        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
+
+    /// <summary>
+    /// Shows or hides the list of the changes of the entry (_CommitSidebar), its shortcut also focuses it; in the view of a commit, where the list
+    /// is always shown, it focuses it or leaves it. It is there wherever the history button is (left of it), and disabled for the same reason.
+    /// </summary>
+    public static ToolbarButton Commits(string? disabledReason = null)
+        => new(Id: "commits-button", Icon: "fa-brands fa-git-alt", Label: "Show the changes", Key: "h", OnClick: "toggleCommitSidebar()", DisabledReason: disabledReason);
+
+    /// <summary>
+    /// In the view of a commit, the way between its state and what it changed of the entry (docs/development/history-specification.md, "The
+    /// changes of a commit"), right of the changes button.
+    /// </summary>
+    /// <param name="href">The address of the other view, with the commit in it (so the card's script leaves it as it is).</param>
+    /// <param name="leadsToChanges">Whether it leads from the state to the changes, or back.</param>
+    /// <param name="disabledReason">Why the other view can't be shown, if it can't.</param>
+    public static ToolbarButton CommitChanges(string href, bool leadsToChanges, string? disabledReason = null)
+        => leadsToChanges
+            ? new(Id: "commit-changes-button", Icon: "fa-solid fa-code-compare", Label: "Show what this commit changed", Key: "+H", Href: href, DisabledReason: disabledReason)
+            : new(Id: "commit-changes-button", Icon: "fa-solid fa-code-commit", Label: "Show the state of this commit", Key: "+H", Href: href, DisabledReason: disabledReason);
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()

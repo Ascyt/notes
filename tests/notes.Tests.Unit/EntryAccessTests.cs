@@ -10,6 +10,7 @@ public sealed class EntryAccessTests : IDisposable
     public void Dispose() => _notes.Dispose();
 
     private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete);
+    private static readonly EntryAccessInfo AdminAccess = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
     private static readonly EntryAccessInfo ReadOnly = new(ReadAccess.Read, CreateAccess.None);
 
     [Fact]
@@ -20,8 +21,8 @@ public sealed class EntryAccessTests : IDisposable
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, ""));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "a/b.md"));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Anonymous, "a"));
-        Assert.Equal(Everything, _notes.Get(Users.Admin, "a/b.md"));
-        Assert.Equal(Everything, _notes.Get(Users.Admin, "does/not/exist"));
+        Assert.Equal(AdminAccess, _notes.Get(Users.Admin, "a/b.md"));
+        Assert.Equal(AdminAccess, _notes.Get(Users.Admin, "does/not/exist"));
     }
 
     [Fact]
@@ -30,8 +31,8 @@ public sealed class EntryAccessTests : IDisposable
         _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwDeny: ["r:admin", "u:admin"], cdDeny: ["r:admin"])));
         _notes.Files.Config("broken", "nope");
 
-        Assert.Equal(Everything, _notes.Get(Users.Admin, ""));
-        Assert.Equal(Everything, _notes.Get(Users.Admin, "broken/x.md"));
+        Assert.Equal(AdminAccess, _notes.Get(Users.Admin, ""));
+        Assert.Equal(AdminAccess, _notes.Get(Users.Admin, "broken/x.md"));
         Assert.True(_notes.Access.CanManageConfiguration(Users.Admin.ToPrincipal()));
         Assert.False(_notes.Access.CanManageConfiguration(Users.Alice.ToPrincipal()));
     }
@@ -98,6 +99,56 @@ public sealed class EntryAccessTests : IDisposable
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "secret.md"));
 
         Assert.Equal(new EntryAccessInfo(ReadAccess.Read, CreateAccess.CreateAndDelete), _notes.Get(Users.Alice, "readonly.md"));
+    }
+
+    [Fact]
+    public void The_history_is_decided_by_its_own_lists_like_read_and_create()
+    {
+        _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], rwReadOnly: ["a"], historyAllow: ["g:team"])));
+        _notes.Files.Config("closed", Cfg.Folder(Cfg.Perms(historyDeny: ["u:alice"])));
+        _notes.Files.Config("public", Cfg.Folder(Cfg.Perms(historyAllow: ["a"]),
+            ("own.md", Cfg.Perms(inherit: false, rwReadOnly: ["g:team"], historyDeny: ["l"])),
+            ("current.md", Cfg.Perms(historyExistingOnly: ["g:team"]))));
+
+        Assert.True(_notes.Get(Users.Alice, "x.md").CanViewHistory);
+        Assert.False(_notes.Get(Users.Bob, "x.md").CanViewHistory);
+        // Denied for alice only; the rest of the team inherits
+        Assert.False(_notes.Get(Users.Alice, "closed/x.md").CanViewHistory);
+        Assert.True(_notes.Get(Users.Carol, "closed/x.md").CanViewHistory);
+        // Given to everyone, also those who are not logged in; a file entry takes it away again
+        Assert.True(_notes.Get(Users.Anonymous, "public/x.md").CanViewHistory);
+        Assert.True(_notes.Get(Users.Bob, "public/x.md").CanViewHistory);
+        Assert.False(_notes.Get(Users.Alice, "public/own.md").CanViewHistory);
+        // Saying nothing about the history leaves it as the layers above decide, even where read and create are decided here
+        Assert.Equal(new EntryAccessInfo(ReadAccess.Read, CreateAccess.None, HistoryAccess.ExistingAndDeleted), _notes.Get(Users.Anonymous, "public/x.md"));
+        // Only what exists now, for the team; the rest still has all of it
+        Assert.Equal(HistoryAccess.Existing, _notes.Get(Users.Alice, "public/current.md").History);
+        Assert.True(_notes.Get(Users.Alice, "public/current.md").CanViewHistory);
+        Assert.Equal(HistoryAccess.ExistingAndDeleted, _notes.Get(Users.Bob, "public/current.md").History);
+    }
+
+    [Fact]
+    public void The_history_can_not_be_seen_without_read_access()
+    {
+        _notes.Files.Config("", Cfg.Folder(Cfg.Perms(inherit: false, rwAllow: ["g:team"], historyAllow: ["g:team", "u:bob"])));
+        _notes.Files.Config("secret", Cfg.Folder(Cfg.Perms(rwDeny: ["u:alice"])));
+
+        Assert.Equal(HistoryAccess.ExistingAndDeleted, _notes.Get(Users.Alice, "secret/x.md").History);
+        Assert.False(_notes.Get(Users.Alice, "secret/x.md").CanViewHistory);
+        Assert.False(_notes.Get(Users.Bob, "x.md").CanViewHistory);
+        Assert.True(_notes.Get(Users.Carol, "secret/x.md").CanViewHistory);
+    }
+
+    [Fact]
+    public void Without_a_configuration_or_with_an_invalid_one_only_admins_see_the_history()
+    {
+        _ = _notes.Files.File("a.md");
+        _notes.Files.Config("broken", "{");
+
+        Assert.False(_notes.Get(Users.Alice, "a.md").CanViewHistory);
+        Assert.False(_notes.Get(Users.Anonymous, "a.md").CanViewHistory);
+        Assert.True(_notes.Get(Users.Admin, "a.md").CanViewHistory);
+        Assert.True(_notes.Get(Users.Admin, "broken/x.md").CanViewHistory);
     }
 
     [Fact]
@@ -175,7 +226,7 @@ public sealed class EntryAccessTests : IDisposable
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "dir/.config.json"));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "dir/.CONFIG.JSON"));
         Assert.Equal(EntryAccessInfo.None, _notes.Get(Users.Alice, "new/.config.json"));
-        Assert.Equal(Everything, _notes.Get(Users.Admin, "dir/.config.json"));
+        Assert.Equal(AdminAccess, _notes.Get(Users.Admin, "dir/.config.json"));
     }
 
     [Theory]

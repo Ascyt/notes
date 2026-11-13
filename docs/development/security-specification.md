@@ -23,7 +23,7 @@ The rest of this document is about the second layer.
 
 ## Permissions
 
-`GetAccess` returns an `EntryAccessInfo` with two independent levels. Each level includes the ones before it.
+`GetAccess` returns an `EntryAccessInfo` with three independent levels. Each level includes the ones before it.
 
 ### Read: the contents of the entry
 
@@ -43,7 +43,17 @@ The name of an entry is not covered by its own Read permission. Every logged-in 
 | `Create` | An entry may come into existence at the path. This covers a new file or directory, an upload, and the destination of a copy, move or rename. |
 | `CreateAndDelete` | Also, the entry at the path may be removed. This covers deleting it, and using it as the source of a move or rename. |
 
-### How the two combine
+### History: the earlier states of the entry
+
+| Level | Meaning |
+|---|---|
+| `None` | Only the entry as it is now can be seen. |
+| `Existing` | Earlier states of the entry may be seen, read-only (`?before=`), as long as an entry exists at the path now. |
+| `ExistingAndDeleted` | Also earlier states of a path where nothing exists now (deleted, moved or renamed since). |
+
+Seeing an entry as it was needs `Read` and `History` on it, now and at that time, and `Read` on the directories above it, now and then; `EntryAccessInfo.CanViewHistory` is true only with `Read`. What exactly may be seen of which state is in the [history specification](history-specification.md#who-may-see-a-state); `GetAccess` answers for now, and the history view asks the same of the configuration of each state.
+
+### How they combine
 
 - **Read and Create are separate.** `Create` without `ReadAndWrite` is meaningful: the user can add new files (for example by uploading) but can't change existing ones.
 - **Every change of structure needs Read.**
@@ -51,6 +61,7 @@ The name of an entry is not covered by its own Read permission. Every logged-in 
   - Moving, renaming or deleting an entry needs `Read` on it and on everything inside it, because nothing may be moved or removed unseen.
   - So `Create` without `Read` currently allows nothing.
 - **Write doesn't allow renaming, moving or deleting.** Those change *where* an entry exists, which is the Create level's job.
+- **History needs Read, and allows no change.** Without `Read` there is no history of an entry, whatever `History` says, and an earlier state can't be changed by anyone, admins included.
 
 ### Permissions are decided per path
 
@@ -96,8 +107,8 @@ Apart from the notes, nobody but admins learns anything about how the site is ru
 |---|---|---|---|
 | Open the root page | `GET /` | Nothing. Without `Read` on the root, it shows only the login link (or, for someone logged in, that they have no access). | — |
 | View a directory listing | `GET /dir` | Directory openable (otherwise 403; 404 if not known) | Listed by name, with a lock and a tooltip. They can't be opened or selected. Not listed at all for anonymous users. |
-| View a file (preview, editor, media) | `GET /file` | File openable. A `.md` file is shown rendered; without `Write` that is all there is. Any other text file is shown in the editor, which is read-only without `Write`, and Save is disabled. | — |
-| Edit a markdown file | `GET /file.md?edit` | As viewing it. Without `Write`, `?edit` shows the rendered file like the plain address does, and the rendered file has no ways into the editor (neither the toolbar's nor the one next to each part of the text). | — |
+| View a file (preview, editor, media) | `GET /file` | File openable. A `.md` file is shown rendered. Any other text file is shown in the editor, which is read-only without `Write`, and Save is disabled. | — |
+| Edit a markdown file | `GET /file.md?edit` | As viewing it. Without `Write`, `?edit` shows its source in the editor, read-only, like any other text file; the ways into the editor (the toolbar's and the one next to each part of the text) are then ways to view the source (`#view-source-button`, `#view-source-here-button`) instead of to edit it. | — |
 | Raw bytes of a media file | `GET /file?raw` | File openable | — |
 | Download a file | `GET /file?download` | File openable | — |
 | Download a directory (zip) | `GET /dir?download` | Directory openable. Each entry is checked as the zip reaches it. | Left out, together with what is in them |
@@ -112,12 +123,18 @@ Apart from the notes, nobody but admins learns anything about how the site is ru
 | Move the selection here | `POST /dir?transfer=move` | As for copy, plus `CreateAndDelete` on every source tree | Fails (403, names the unreadable entry) |
 | See the permissions of an entry | `GET /entry?config` | Entry known, and the user may manage permissions (otherwise 404, like a missing path) | — |
 | Change the permissions of an entry | `POST /entry?config` (body) | As above. The text is checked completely first; invalid text changes nothing (400). | — |
+| Choose an earlier state | the changes button and the history button of the toolbar | Entry openable + `CanViewHistory` on it now, the history is enabled and keeps the entry (`gitignore`). Admins see it disabled, with the reason, where the history doesn't keep the entry; nobody else sees it at all. | — |
+| View an earlier state | `GET /entry?before=<time>` or `GET /entry?commit=<id>` (also with `?raw`, `?download`) | As in the [history specification](history-specification.md#addresses-that-cant-be-shown): the entry open at that time. The path need not exist now. | Locked or not listed, as now; a zip leaves out what isn't open at that time |
+| View the changes of a commit to an entry | `GET /entry?commit=<id>&changes` (also with `?raw`, and `&previous` for the side before it) | As in the [history specification](history-specification.md#the-changes-of-a-commit): the user may see the history of the entry now, it is open at the commit or before it, and the commit changed it (or something below it) in a way they may see; otherwise as for `?commit=`, or a redirect to the state of the commit. `&changes` without `?commit=`, or with `?download`, answers 400. | Only what the commit changed that the user may see; a side that can't be seen isn't shown (and is not there for anonymous users) |
+| The times at which an entry can be seen as it was | `GET /entry?history` | The user may see the history of the entry now (otherwise 404, like a missing path), and the history keeps it | — |
+| The list of changes of an entry | `GET /entry?commits` (with `&page=`, and the `?before=` or `?commit=` that is shown) | As `?history`; each commit listed as in the [history specification](history-specification.md#the-list-of-changes) | Only commits that changed what the user may see as it was |
+| Change anything in an earlier state | any `POST`, `DELETE`, `?config` or `?selection` with `?before=` | Refused for everyone (400), admins included | — |
 
 Notes on the table:
 
 - **Every request** first resolves the address to a known entry, or answers 404 (`IndexModel`). Each operation's own checks come on top of that.
 - **Copy, move, delete and rename are checked completely before anything is changed** (`TransferPlanner`). A copy then copies exactly the entries that were checked: nothing unreadable, and nothing that appeared later.
-- **The UI disables what the permissions don't allow and says why.** This covers the selection card and the Delete, Rename, Upload, Create and Save controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again.
+- **The UI leaves out what the permissions don't allow at all, and disables the rest of what they don't allow, saying why** (see rule 7 below). This covers the selection card and the Delete, Rename, Upload, Create, Save and history controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again.
 
 ### Pages outside the notes
 
@@ -133,7 +150,7 @@ Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a
 
 ### The history
 
-The [history](../administration/history.md) (`HistoryService`, a git repository in `_/history`) keeps every version of every file it keeps, also what a user may not read, and the names (and emails or Keycloak ids) of the users who changed them. Nothing serves it: there is no page or endpoint for it, and as part of `_` no path of the notes leads to it, so every request for it answers 404, to admins too. A page that shows the history later has to decide for every path with `IEntryAccess`, as for the notes themselves, and is added here.
+The [history](../administration/history.md) (`HistoryService`, a git repository in `_/history`) keeps every version of every file it keeps, also what a user may not read, and the names (and emails or Keycloak ids) of the users who changed them. As part of `_` no path of the notes leads to it, so every request for it answers 404, to admins too. The only way into it is the history view (`?before=`, `?commit=` and the list of changes), which decides for every path and state with `IEntryAccess`, as for the notes themselves, and shows nothing of the repository beyond the notes as they were and, for the commits that changed what the user may see, when, why and by whom (the name, never the email or id): see the [history specification](history-specification.md).
 
 What the history does never decides whether an operation is allowed, and never fails it: it runs after the operation's checks, and errors only go to the log.
 
@@ -156,7 +173,7 @@ What the history does never decides whether an operation is allowed, and never f
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
 5. **Show unreadable entries by name and kind only.** Show no other attribute.
 6. **Lock structure changes.** If the feature adds, removes or renames entries, hold the `StructureLock` from the permission check until the change is done.
-7. **Don't leave the user guessing in the UI.** A control the user can't use is disabled, with the reason as its tooltip. Don't hide it, and don't leave it to fail. The server checks again regardless.
+7. **Don't leave the user guessing in the UI.** What the user may not do at all isn't offered. A control that is there but can't be used here or now is disabled, with the reason as its tooltip, and never left to fail. A disabled control's reason only names what the user may know (the configuration, for instance, only for those who manage it). The server checks again regardless.
 8. **Record the feature here.** Add it to [Operations](#operations) (or to [Pages outside the notes](#pages-outside-the-notes)). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
 
 ## Where it is implemented
@@ -168,11 +185,11 @@ What the history does never decides whether an operation is allowed, and never f
 | Admin policy, claim names | `notes/Features/Auth/NotesAccess.cs` |
 | Principals and `perms` blocks | `notes/Features/Permissions/PermissionModel.cs` |
 | The configuration: model, parser (schema), text editing, store, migrations, `?config` handler | `notes/Features/Configuration/*` |
-| The history | `notes/Features/History/*` |
+| The history | `notes/Features/History/*` (keeping it), `notes/Features/HistoryViewing/*` (its earlier states, see the [history specification](history-specification.md#where-it-is-implemented)) |
 | The configuration page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
 | Keeping groups and roles current, notice after a forced logout | `notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
 | Resolving every request to a known entry | `notes/Pages/Index.cshtml.cs` |
-| Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_LockedEntry.cshtml` |
+| Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_UnopenableEntry.cshtml` |
 | Copy, move, delete, rename checks | `notes/Features/Components/Transfer/TransferPlanner.cs` |
 | Structure lock | `notes/Features/Helpers/StructureLock.cs` |
 | Create, upload, save, download | their handlers in `notes/Features/Components/*` and `notes/Pages/Editor` |

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using Microsoft.Playwright;
 using notes.Features.Components.Selection;
 
@@ -12,7 +13,18 @@ namespace notes.Tests.Ui;
 /// </summary>
 public class UiFixture : IAsyncLifetime
 {
-    public NotesAppFactory App { get; } = new();
+    public UiFixture()
+    {
+        App = new NotesAppFactory();
+    }
+
+    /// <param name="clockStart">Where the app's clock starts, instead of the real time.</param>
+    protected UiFixture(DateTimeOffset clockStart)
+    {
+        App = new NotesAppFactory { Time = new FakeTimeProvider(clockStart) };
+    }
+
+    public NotesAppFactory App { get; }
     public string BaseUrl { get; private set; } = "";
     public IBrowser? Browser { get; private set; }
     public string? Unavailable { get; private set; }

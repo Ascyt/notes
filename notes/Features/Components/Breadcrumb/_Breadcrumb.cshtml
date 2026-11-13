@@ -11,11 +11,34 @@
     }
     else
     {
-        <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@(Model.ParentVirtualPath == "" ? "!ArrowUp Backspace" : null)"><i class="fa-regular fa-house fa-xs"></i></a>
+        string? rootKey = Model.ParentVirtualPath == "" ? "!ArrowUp Backspace" : null;
+        @* A directory without history is shown like such an entry of a listing (see _UnopenableEntry): low-emphasis, with a crossed-out
+           calendar, and a link to it as it is now (the history card keeps the time on it, and the page says why it can't be seen as it was),
+           unless it is gone. Each kind has its own element, as Razor writes a data- attribute even when its value is null. *@
+        if (Model.ParentsWithoutHistory.TryGetValue("", out ParentWithoutHistory? rootWithoutHistory))
+        {
+            <a href="/" title="Root. @rootWithoutHistory.Reason" class="text-secondary text-decoration-none d-flex align-items-center" key="@rootKey" data-no-history-parent=""><i class="fa-regular fa-house fa-xs"></i><i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@rootWithoutHistory.Reason"></i></a>
+        }
+        else
+        {
+            <a href="/" title="Root" class="text-decoration-none d-flex align-items-center" key="@rootKey"><i class="fa-regular fa-house fa-xs"></i></a>
+        }
         <span class="text-secondary opacity-50">/</span>
         @foreach ((string name, string virtualPath) in Model.Parents)
         {
-            <a class="text-decoration-none" href="/@virtualPath" key="@(virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null)">@name</a>
+            string? key = virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null;
+            if (!Model.ParentsWithoutHistory.TryGetValue(virtualPath, out ParentWithoutHistory? withoutHistory))
+            {
+                <a class="text-decoration-none" href="/@virtualPath" key="@key">@name</a>
+            }
+            else if (withoutHistory.ExistsNow)
+            {
+                <a class="text-secondary text-decoration-none" href="/@virtualPath" key="@key" title="@withoutHistory.Reason" data-no-history-parent="@virtualPath">@name<i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@withoutHistory.Reason"></i></a>
+            }
+            else
+            {
+                <span class="text-secondary" title="@withoutHistory.Reason" data-no-history-parent="@virtualPath">@name<i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@withoutHistory.Reason"></i></span>
+            }
             <span class="text-secondary opacity-50">/</span>
         }
         <i class="fa-regular fa-s @(Model.IsFile ? "fa-file" : "fa-folder")"></i>

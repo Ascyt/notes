@@ -1,6 +1,6 @@
 # History
 
-The app keeps a history of the notes in a git repository of its own, so that what was changed, and by whom, can be found again. There is no page for it yet: it is for admins with access to the server.
+The app keeps a history of the notes in a git repository of its own, so that what was changed, and by whom, can be found again. Who may see earlier states of the notes in the app, and how, is in the [history specification](../development/history-specification.md); the repository itself is for admins with access to the server.
 
 ## Where it is
 
@@ -15,6 +15,8 @@ git --git-dir=_/history show HEAD~3:plans/plan.md
 
 Only read it this way: the app expects to be the only one that writes to it.
 
+Git refuses a repository whose folders belong to another user than the one it runs as. The app doesn't check this for its own repository, as the notes folder is often mounted with an owner of its own (root, in Docker Desktop). Git itself still does: if it says the folder has "dubious ownership", add `-c safe.directory='*'` after `git` (for that command only).
+
 ## When it commits
 
 Changes are collected and committed when:
@@ -28,7 +30,7 @@ Changes are collected and committed when:
 
 When a file is **saved**, this is decided before it is written: if the save would reach the threshold, or another user changed the file, what was there before is committed, and the save comes into the next commit. Everything else (creating, uploading, renaming, copying, moving, deleting) is committed with the operation when it reaches the threshold, as what it brings can't be told before.
 
-The message of a commit is a keyword that says why it was made, not text: a page that shows the history will turn it into text. Keywords start with `#`, so that text can follow them one day and still be told apart. They are stored in the history, so a keyword never changes once it is released (`CommitKeywords` in the code).
+The message of a commit is a keyword that says why it was made, not text: the list of changes in the app turns it into text (see the [history specification](../development/history-specification.md#the-list-of-changes)). Keywords start with `#`, so that text can follow them one day and still be told apart. They are stored in the history, so a keyword never changes once it is released (`CommitKeywords` in the code).
 
 | Message | Why |
 |---|---|
@@ -44,7 +46,7 @@ The message of a commit is a keyword that says why it was made, not text: a page
 
 ## Who commits
 
-Each commit is by the user who made its changes: their user name, and their email, or their Keycloak id if they have none (git needs something there). When changes of several users are pending, each user gets a commit of their own. What nobody changed through the app (files edited on the server, changes from before the app started, the commits the app makes on its own) is by `_`, with `_` as its email too.
+Each commit is by the user who made its changes: their user name, and their email, or their Keycloak id if they have none (git needs something there). When changes of several users are pending, each user gets a commit of their own. What nobody changed through the app (files edited on the server, changes from before the app started, the commits the app makes on its own) is by `_`, with `_` as its email too. The list of changes in the app shows the user name to those who may see the change, never the email or id.
 
 ## What it keeps
 

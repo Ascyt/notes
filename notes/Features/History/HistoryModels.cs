@@ -62,17 +62,26 @@ public static class CommitKeywords
     /// <summary>The empty commit the history begins with.</summary>
     public const string Init = "#init";
 
+    public const string Idle = "#idle";
+    public const string Threshold = "#threshold";
+    public const string OtherUser = "#other-user";
+    public const string BinaryDeleted = "#binary-deleted";
+    public const string Startup = "#startup";
+    public const string Migration = "#migration";
+    public const string BeforeGitignore = "#before-gitignore";
+    public const string Gitignore = "#gitignore";
+
     public static string Of(CommitReason reason)
         => reason switch
         {
-            CommitReason.Idle => "#idle",
-            CommitReason.Threshold => "#threshold",
-            CommitReason.OtherUser => "#other-user",
-            CommitReason.BinaryDeleted => "#binary-deleted",
-            CommitReason.Startup => "#startup",
-            CommitReason.Migration => "#migration",
-            CommitReason.BeforeGitignore => "#before-gitignore",
-            CommitReason.Gitignore => "#gitignore",
+            CommitReason.Idle => Idle,
+            CommitReason.Threshold => Threshold,
+            CommitReason.OtherUser => OtherUser,
+            CommitReason.BinaryDeleted => BinaryDeleted,
+            CommitReason.Startup => Startup,
+            CommitReason.Migration => Migration,
+            CommitReason.BeforeGitignore => BeforeGitignore,
+            CommitReason.Gitignore => Gitignore,
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
         };
 }

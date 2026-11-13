@@ -14,7 +14,7 @@ The app keeps changing, and so does everything around it. Code, comments and doc
 
 ### 2. Modular and customizable
 
-Each feature is self-contained (see [principle 17](#17-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, texts, which features are there) is configuration, not code. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
+Each feature is self-contained (see [principle 18](#18-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, texts, which features are there) is configuration, not code. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
 
 ## Security
 
@@ -62,55 +62,60 @@ Everything is gray (Bootstrap's secondary styles, low emphasis), unless it is so
 
 ### 10. Nobody is left wondering why
 
-A control that can't be used is disabled, not hidden, and says why (as its tooltip, from `data-disabled-reason`). An error says what went wrong and, where it helps, what can be done about it. (The one thing that is hidden instead of disabled is what someone may not even know exists, see [principle 4](#4-nothing-about-how-the-site-is-run-is-shown-to-users) and the security specification.)
+What a user may not do at all isn't offered to them: someone who may change nothing in a directory doesn't see Upload or Delete there, and someone without the history doesn't see its button. A control that is there but can't be used right now, or not here, is disabled and always says why (as its tooltip, from `data-disabled-reason`): nothing selected yet, nothing to save, one entry in the directory that may not be deleted. Where hiding would make no sense, things are shown and say why they can't be used: an entry that can't be opened is still listed with a lock, as its name is visible anyway (see the security specification). What someone may not even know exists is never shown or named (see [principle 4](#4-nothing-about-how-the-site-is-run-is-shown-to-users)). An error says what went wrong and, where it helps, what can be done about it.
 
 ### 11. Neutral wording
 
 Texts in the app and in the documents are neutral, descriptive and informative. They don't talk to the reader: "The file has unsaved changes" rather than "You have unsaved changes", "Logging in again is needed" rather than "Please log in again". The passive is fine and often the better choice.
 
+### 12. Plain, without fluff
+
+No animations: things appear, move and go away at once, without sliding, fading or growing. The only exception is what shows that something is still going on, such as a spinner. The same goes for other decoration that only makes the interface look busier (shadows that pulse, effects on hovering beyond a change of color, transitions between states): it hides what is going on rather than making it clearer. Something like it may come later, done properly and on purpose, but not by the way.
+
 ## Structure
 
-### 12. Addresses are the notes
+### 13. Addresses are the notes
 
 Every address is a path of the notes (a virtual directory or file), except those that start with `/_/`, which belong to the app itself (`/_/Login`, `/_/About`, …). These are written in PascalCase.
 
-### 13. Another view is not another address
+### 14. Another view is not another address
 
 Different ways to look at the same thing share its address. They are told apart by a query parameter (`?edit`, `?raw`, `?config`) or by a choice kept in the browser (the simple editor, the theme), never by another path.
 
-### 14. Data lives with the notes, not in a database
+### 15. Data lives with the notes, not in a database
 
 Notes are files and folders on disk, and what the app keeps about them lives with them: the configuration of a folder (such as its permissions) in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads, or their history) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
 
 Later, some virtual directories may be stored in physical directories of their own. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root.
 
-### 15. The app serves its own files
+### 16. The app serves its own files
 
 Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with LibMan), never from a CDN at runtime, so the browser only talks to the app and to Keycloak. Content that users put into their notes, such as an image in a Markdown file, may come from anywhere.
 
-### 16. Existing installations keep working
+### 17. Existing installations keep working
 
 A change to a format that is stored raises its version and comes with a migration, as for `.config.json` (see [Configuration](../administration/configuration.md#versions-and-migrations)). Keycloak imports the realm file only once, so a change to `keycloak/notes-realm.json` comes with the steps to make it by hand on a realm imported before (see [Deployment](../administration/deployment.md#a-realm-that-was-imported-before)).
 
 ## Code
 
-### 17. Code that reads easily
+### 18. Code that reads easily
 
-- Names say what something is, without cryptic abbreviations.
-- Few comments, short and simple, that say why, not what.
+- Names say what something is, or what it does: descriptive, and preferably not abstract, without cryptic abbreviations or words that need looking up, and no longer than that takes. `TimesAtWhichEntryCanBeSeen` rather than `OpenTimes`, `CheckWhatDependsOnTheState` rather than `JudgeAt`.
+- Comments are short and simple, and say why rather than what. Code that is hard to follow (a loop that walks a tree, a method that weighs several cases, an algorithm) also gets a short comment for each step, saying what it does, so that it can be read without working it out first.
 - Every view and partial gets its data through a typed viewmodel, not through loose variables or `ViewData`.
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
 - Files stay short. One that grows past around 250 lines is split up along what its parts do (deciding, storing, looking up, …), not into a first and a second half; tests are split by topic, with what they share in a base class. This is a guide, not a limit: a file that clearly reads better in one piece stays one.
+- Folders stay small too: ideally around five files each (a view and its model, `_Card.cshtml` and `_Card.cshtml.cs`, count as one). A part of a feature that has grown files of its own gets a folder of its own inside the feature's, as the list of changes of the history has (`Features/HistoryViewing/Commits`). Again a guide, not a limit.
 - Namespaces always follow the folders: what is in `notes/Pages/Editor/Markdown` is in `notes.Pages.Editor.Markdown`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
-### 18. Few dependencies
+### 19. Few dependencies
 
 Before writing something, look for a built-in ASP.NET feature or an existing library that does it. But every new package, service or container is discussed first: each one has to be kept up to date and trusted.
 
 ## Documentation
 
-### 19. Written for someone new
+### 20. Written for someone new
 
 A feature comes with its documentation in `docs/`, in simple words, so that someone new to the repository can learn what the app is and how it works. The documents form a tree: each topic has an overview (`docs/<topic>.md`) and its details in a folder of the same name (`docs/<topic>/`). The app will show these documents itself, so links between them are relative and stay inside `docs/`, and files elsewhere in the repository are named, not linked.
 
@@ -118,11 +123,11 @@ Examples help more than descriptions. Pictures of the app come from `docs/screen
 
 ## Tests
 
-### 20. Tested, without waiting
+### 21. Tested, without waiting
 
 Every feature gets tests at the level that fits (see [Tests](tests.md)). The integration tests matter most: they test every endpoint as every kind of user, with every kind of attack that applies, much like a penetration test. Time comes from the injected `TimeProvider` wherever a test would otherwise have to wait (a selection that runs out, a background job that runs every hour), so that the test moves a fake clock instead.
 
-### 21. Tests check logic, not wording or looks
+### 22. Tests check logic, not wording or looks
 
 Unit tests check methods, integration tests check endpoints, and UI tests check the scripts of the pages. None of them checks the exact wording of a text or anything about CSS, so that a sentence can be rephrased or a style changed without a test failing. Instead they check:
 

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using notes.Features.Auth;
+using notes.Features.Configuration;
 
 namespace notes.Tests.Common;
 
@@ -34,8 +35,11 @@ public class NotesAppFactory : WebApplicationFactory<Program>
     /// <summary>The notes directory of this app (physical).</summary>
     public string NotesDir { get; }
 
-    /// <summary>The app's clock. Starts at the real time (the files on disk have real times), and only moves when a test moves it.</summary>
-    public FakeTimeProvider Time { get; } = new(DateTimeOffset.UtcNow);
+    /// <summary>
+    /// The app's clock. Starts at the real time (the files on disk have real times), unless whoever makes the app sets another start, and
+    /// only moves when a test moves it.
+    /// </summary>
+    public FakeTimeProvider Time { get; init; } = new(DateTimeOffset.UtcNow);
 
     public NotesTree Tree => new(NotesDir);
 
@@ -55,6 +59,12 @@ public class NotesAppFactory : WebApplicationFactory<Program>
         {
             app.BeforeAccessCheck?.Invoke(user, physicalPath);
             return inner.GetAccess(user, physicalPath, isDirectory);
+        }
+
+        public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, IConfigSnapshot snapshot)
+        {
+            app.BeforeAccessCheck?.Invoke(user, physicalPath);
+            return inner.GetAccess(user, physicalPath, snapshot);
         }
 
         public bool CanManageConfiguration(ClaimsPrincipal user) => inner.CanManageConfiguration(user);

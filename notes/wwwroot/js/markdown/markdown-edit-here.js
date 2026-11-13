@@ -1,12 +1,13 @@
 // The button left of the rendered markdown that opens the editor where the part of the text next to it is written. With a mouse it
 // shows for the part on the line the pointer is on, anywhere across the page: the innermost block (paragraph, list item, heading, …)
 // that MarkdownRenderer marked with where it starts. Otherwise it shows for the part that is tapped or focused.
-// The editor reads that place from the address (#line=…&column=…).
+// The editor reads that place from the address (#line=…&column=…). Whoever can't change the file gets the same button for its
+// source, which the editor then shows read-only.
 (function () {
     const GAP_PX = 4;
 
     const preview = document.getElementById('markdown-preview');
-    const button = document.getElementById('edit-here-button');
+    const button = document.getElementById('edit-here-button') ?? document.getElementById('view-source-here-button');
     const area = button.parentElement; // the text and the button, which is positioned in it
     let currentBlock = null;
     let pointerY = null; // where the mouse is, while it is on the page
@@ -32,7 +33,9 @@
         if (!block || block === currentBlock)
             return;
         currentBlock = block;
-        button.href = '?edit#line=' + encodeURIComponent(block.dataset.sourceLine) + '&column=' + encodeURIComponent(block.dataset.sourceColumn);
+        // Only the place changes: the rest of the address is the page's (in an earlier state it has the state, see _EarlierStateCard)
+        const address = button.getAttribute('href').split('#')[0];
+        button.setAttribute('href', address + '#line=' + encodeURIComponent(block.dataset.sourceLine) + '&column=' + encodeURIComponent(block.dataset.sourceColumn));
         button.hidden = false;
         place();
     }

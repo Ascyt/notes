@@ -213,14 +213,25 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
-    public async Task Whoever_may_not_change_a_note_is_not_offered_to_edit_parts_of_it()
+    public async Task Whoever_may_not_change_a_note_is_offered_to_view_the_source_of_parts_of_it()
     {
+        _ = Tree.File("docs/edit-here.md", EditHereNote);
         IBrowserContext bob = await NewContextAsync(Users.Bob);
         IPage page = await bob.NewPageAsync();
-        _ = await page.GotoAsync("/docs/a.md");
+        ILocator button = page.Locator("#view-source-here-button");
+        _ = await page.GotoAsync("/docs/edit-here.md");
 
         await Assertions.Expect(page.Locator("#markdown-preview")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#edit-here-button")).ToHaveCountAsync(0);
+        await page.Locator("#markdown-preview li").Nth(1).HoverAsync();
+        await Assertions.Expect(button).ToBeVisibleAsync();
+        await Assertions.Expect(button).ToHaveAttributeAsync("href", "?edit#line=6&column=1");
+
+        // The source, read-only, at that place
+        await button.ClickAsync();
+        _ = await page.WaitForFunctionAsync("() => window.editor && typeof window.editor.getValue === 'function'");
+        _ = await page.WaitForFunctionAsync("() => { const p = window.editor.getPosition(); return p.lineNumber === 6 && p.column === 1; }");
+        Assert.True(await page.EvaluateAsync<bool>("() => window.editor.getOption(monaco.editor.EditorOption.readOnly)"));
         await bob.DisposeAsync();
     }
 
@@ -383,19 +394,19 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
-    public async Task Markdown_that_can_not_be_changed_has_no_way_to_the_editor()
+    public async Task Markdown_that_can_not_be_changed_leads_to_its_source_read_only()
     {
         await OpenAsync("/mixed/view.md");
         await Expect(Page.Locator("#markdown-preview")).ToBeVisibleAsync();
         await Expect(Page.Locator("#edit-button")).ToHaveCountAsync(0);
 
         await Page.Keyboard.PressAsync("e");
-        await Task.Delay(300, TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("edit", new Uri(Page.Url).Query);
+        await Expect(Page).ToHaveURLAsync(new Regex("/mixed/view\\.md\\?edit$"));
+        await WaitForEditorAsync();
+        Assert.True(await Page.EvaluateAsync<bool>("() => window.editor.getOption(monaco.editor.EditorOption.readOnly)"));
 
-        await OpenAsync("/mixed/view.md?edit");
+        await Page.Locator("#preview-button").ClickAsync();
         await Expect(Page.Locator("#markdown-preview")).ToBeVisibleAsync();
-        await Expect(Page.Locator("#editor")).ToHaveCountAsync(0);
     }
 
     [Fact]

@@ -1,0 +1,6 @@
+@model notes.Features.HistoryViewing.Changes._ChangeMark
+
+@{
+    (string icon, string color, string label) = Model.Look;
+}
+<i class="fa-solid @icon @color small ms-1" data-change-mark="@Model.Mark.ToString().ToLowerInvariant()" title="@label" aria-label="@label" role="img"></i>

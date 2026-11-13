@@ -60,7 +60,8 @@ public static class MarkdownRenderer
 
     /// <param name="markdown">The text of the file.</param>
     /// <param name="siteHost">The host the page is served from: links to it stay in the tab, links elsewhere open a new one.</param>
-    public static RenderedMarkdown Render(string markdown, string siteHost)
+    /// <param name="rawQuery">What an image of the notes gets as its query, to load its bytes (of the state that is shown).</param>
+    public static RenderedMarkdown Render(string markdown, string siteHost, string rawQuery = "raw")
     {
         MarkdownDocument document = Markdig.Markdown.Parse(markdown, Pipeline);
         SourcePositions positions = new(markdown);
@@ -73,7 +74,7 @@ public static class MarkdownRenderer
             switch (node)
             {
                 case LinkInline link:
-                    link.Url = MarkdownLinks.SafeUrl(link.Url, link.IsImage);
+                    link.Url = MarkdownLinks.SafeUrl(link.Url, link.IsImage, rawQuery);
                     if (!link.IsImage)
                         MarkdownLinks.MarkIfExternal(link, link.Url, siteHost);
                     break;

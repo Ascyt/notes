@@ -105,7 +105,7 @@ public sealed class PrincipalSet
 }
 
 /// <summary>
-/// The permissions one configuration block gives: six lists of principals, and whether what the block says nothing about is decided by the
+/// The permissions one configuration block gives: nine lists of principals, and whether what the block says nothing about is decided by the
 /// block above it. The lists are the spellings of <see cref="Principal.Normalize"/>.
 /// </summary>
 /// <param name="Inherit">Whether, for a principal none of the lists mention, the permissions of the folder (for a folder: the one above it) apply.</param>
@@ -116,12 +116,25 @@ public sealed record PermsBlock(
     IReadOnlySet<string> RwDeny,
     IReadOnlySet<string> CdAllow,
     IReadOnlySet<string> CdCreateOnly,
-    IReadOnlySet<string> CdDeny)
+    IReadOnlySet<string> CdDeny,
+    IReadOnlySet<string> HistoryAllow,
+    IReadOnlySet<string> HistoryExistingOnly,
+    IReadOnlySet<string> HistoryDeny)
 {
     private static readonly IReadOnlySet<string> None = new HashSet<string>();
 
     /// <summary>What a block without any list says: nothing, and the block above decides.</summary>
-    public static PermsBlock Inheriting { get; } = new(true, None, None, None, None, None, None);
+    public static PermsBlock Inheriting { get; } = new(true, None, None, None, None, None, None, None, None, None);
+
+    /// <summary>What the block says about seeing the history for the user, or null if it says nothing about it. Decided like <see cref="DecideRead"/>.</summary>
+    public HistoryAccess? DecideHistory(PrincipalSet user)
+    {
+        if (user.IsAnyOf(HistoryDeny))
+            return HistoryAccess.None;
+        if (user.IsAnyOf(HistoryAllow))
+            return HistoryAccess.ExistingAndDeleted;
+        return user.IsAnyOf(HistoryExistingOnly) ? HistoryAccess.Existing : null;
+    }
 
     /// <summary>
     /// What the block says about reading and writing for the user, or null if it says nothing about them. A deny beats an allow, and an

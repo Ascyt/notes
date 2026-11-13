@@ -18,7 +18,10 @@
 // To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
 // and call preventDefault() to skip the default action:
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
-// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus).
+// When several elements have the same shortcut, one inside the element with `key-scope` that has the focus wins
+// (a sidebar's Escape over the page's), then one that is visible. While a modal is open, only its shortcuts work.
+// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus), and Enter and
+// Space without them are left to a focused button or link (Shift+Enter isn't).
 // Shortcuts are captured before the page (and Monaco) sees them, so they take precedence over those.
 // Escape in a form field (except Monaco) also unfocuses it.
 //
@@ -216,16 +219,20 @@
             return;
 
         const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
-        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button, link or box
+        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button, link or box. Shift+Enter may be one: on a link it
+        // would only open a new window, and a page that gives it a meaning means that instead.
         if (plain && (isEditable(e.target)
-            || ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary, input'))))
+            || (((e.key === 'Enter' && !e.shiftKey) || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary, input'))))
             return;
 
         // The same key may be set on several elements (e.g. Enter confirms whichever dialog or form
-        // is relevant): prefer one that is visible, in DOM order
+        // is relevant, Escape leaves whatever has the focus): prefer one in the area that has the focus
+        // (`key-scope`), then one that is visible, in DOM order
         const candidates = activeElements().filter(el => !el.disabled && el.getAttribute('aria-disabled') !== 'true'
             && parseAll(el.getAttribute('key')).some(combo => matches(combo, e)));
-        const el = candidates.find(isRendered) || candidates[0];
+        const scope = document.activeElement instanceof Element ? document.activeElement.closest('[key-scope]') : null;
+        const el = (scope && candidates.find(candidate => scope.contains(candidate) && isRendered(candidate)))
+            || candidates.find(isRendered) || candidates[0];
         if (!el)
             return;
 

@@ -26,7 +26,10 @@ public sealed class ConfigParserTests
                     "rwDeny":       [],                   // may not read
                     "cdAllow":      ["g:team-a"],         // may create and delete
                     "cdCreateOnly": ["u:alice"],          // may create
-                    "cdDeny":       []                    // may neither
+                    "cdDeny":       [],                   // may neither
+                    "historyAllow": ["g:team-a"],         // may see earlier states, also of what was deleted since
+                    "historyExistingOnly": ["a"],         // may see earlier states of what exists now
+                    "historyDeny":  ["u:bob"]             // may not
                 },
                 "gitignore": false,                       // required: whether the history leaves this folder out
                 "files": [                               // required: one entry per file, kept up to date by the app
@@ -41,6 +44,9 @@ public sealed class ConfigParserTests
         Assert.True(result.IsValid, result.ErrorText);
         Assert.True(result.Value!.Perms.Inherit);
         Assert.Contains("g:team-a", result.Value.Perms.RwAllow);
+        Assert.Contains("g:team-a", result.Value.Perms.HistoryAllow);
+        Assert.Contains("a", result.Value.Perms.HistoryExistingOnly);
+        Assert.Contains("u:bob", result.Value.Perms.HistoryDeny);
         Assert.False(result.Value.FindFile("SECRET.md")!.Perms.Inherit);
         Assert.Null(result.Value.FindFile("other.md"));
     }
@@ -78,6 +84,13 @@ public sealed class ConfigParserTests
     [InlineData("""{ "perms": { "inherit": true, "rwAllow": ["g:a"], "rwDeny": ["g:a"] }, "gitignore": false, "files": [] }""", "exclude each other")]
     [InlineData("""{ "perms": { "inherit": true, "rwReadOnly": ["u:Bob"], "rwDeny": ["u:bob"] }, "gitignore": false, "files": [] }""", "exclude each other")]
     [InlineData("""{ "perms": { "inherit": true, "cdAllow": ["r:x"], "cdCreateOnly": ["r:x"] }, "gitignore": false, "files": [] }""", "exclude each other")]
+    [InlineData("""{ "perms": { "inherit": true, "historyAllow": ["g:a"], "historyDeny": ["g:a"] }, "gitignore": false, "files": [] }""", "exclude each other")]
+    [InlineData("""{ "perms": { "inherit": true, "historyAllow": ["a"], "historyDeny": ["a"] }, "gitignore": false, "files": [] }""", "exclude each other")]
+    [InlineData("""{ "perms": { "inherit": true, "historyAllow": ["l"], "historyExistingOnly": ["l"] }, "gitignore": false, "files": [] }""", "exclude each other")]
+    [InlineData("""{ "perms": { "inherit": true, "historyExistingOnly": ["r:x"], "historyDeny": ["r:x"] }, "gitignore": false, "files": [] }""", "exclude each other")]
+    [InlineData("""{ "perms": { "inherit": true, "historyAllow": "l" }, "gitignore": false, "files": [] }""", "must be an array")]
+    [InlineData("""{ "perms": { "inherit": true, "historyallow": [] }, "gitignore": false, "files": [] }""", "unknown property")]
+    [InlineData("""{ "perms": { "inherit": true, "historyAllow": ["bob"] }, "gitignore": false, "files": [] }""", "is not a principal")]
     [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": {} }""", "must be an array")]
     [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": [ "a.md" ] }""", "must be an object")]
     [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": [ { "name": "a.md" } ] }""", "perms: is required")]
@@ -108,7 +121,10 @@ public sealed class ConfigParserTests
     [InlineData("rwReadOnly")]
     [InlineData("rwDeny")]
     [InlineData("cdDeny")]
-    public void A_may_be_allowed_to_read_or_be_denied(string list)
+    [InlineData("historyAllow")]
+    [InlineData("historyExistingOnly")]
+    [InlineData("historyDeny")]
+    public void A_may_be_allowed_to_read_or_see_the_history_or_be_denied(string list)
         => Assert.True(Folder($$"""{ "perms": { "inherit": true, "{{list}}": ["a"] }, "gitignore": false, "files": [] }""").IsValid);
 
     [Theory]
@@ -118,12 +134,25 @@ public sealed class ConfigParserTests
     [InlineData("cdAllow")]
     [InlineData("cdCreateOnly")]
     [InlineData("cdDeny")]
+    [InlineData("historyAllow")]
+    [InlineData("historyExistingOnly")]
+    [InlineData("historyDeny")]
     public void L_may_be_in_every_list(string list)
         => Assert.True(Folder($$"""{ "perms": { "inherit": true, "{{list}}": ["l"] }, "gitignore": false, "files": [] }""").IsValid);
 
     [Fact]
-    public void A_principal_may_be_in_one_rw_list_and_one_cd_list()
-        => Assert.True(Folder("""{ "perms": { "inherit": true, "rwDeny": ["g:a"], "cdAllow": ["g:a"] }, "gitignore": false, "files": [] }""").IsValid);
+    public void A_principal_may_be_in_one_rw_list_one_cd_list_and_one_history_list()
+        => Assert.True(Folder("""{ "perms": { "inherit": true, "rwDeny": ["g:a"], "cdAllow": ["g:a"], "historyAllow": ["g:a"] }, "gitignore": false, "files": [] }""").IsValid);
+
+    [Fact]
+    public void A_file_entry_may_have_history_lists_of_its_own()
+    {
+        ParseResult<FolderConfig> result = Folder("""{ "perms": { "inherit": true }, "gitignore": false, "files": [ { "name": "f.md", "perms": { "inherit": true, "historyDeny": ["u:Alice"] } } ] }""");
+
+        Assert.True(result.IsValid, result.ErrorText);
+        Assert.Contains("u:alice", result.Value!.FindFile("f.md")!.Perms.HistoryDeny);
+        Assert.True(ConfigParser.ParseFileBody("""{ "perms": { "inherit": true, "historyAllow": ["a"] } }""").IsValid);
+    }
 
     [Fact]
     public void Saving_needs_every_file_entry_to_be_a_file_of_the_folder()

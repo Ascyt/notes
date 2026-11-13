@@ -25,7 +25,8 @@
 }
 
 <p class="small text-secondary mb-2">
-    <i class="fa-solid fa-gear"></i> Configuration of this @kind.
+    @* Only what the configuration is: what each setting means is in the comments of the default (Reset) and in the schema's tooltips *@
+    <i class="fa-solid fa-gear"></i> Configuration of this @kind: who may do what with it.
     @if (Model.IsFile)
     {
         <text>This file's entry in the configuration of its folder, without the name.</text>
@@ -34,7 +35,7 @@
     {
         <text>Everything in this directory has it as well, unless it says otherwise.</text>
     }
-    Principals are <code>u:user</code>, <code>g:group</code> and <code>r:role</code>; admins may always do everything.
+    Admins may always do everything.
 </p>
 
 @if (Model.Warning is not null)

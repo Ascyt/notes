@@ -12,6 +12,29 @@ Above the listing is the path of the directory (the *breadcrumb*): each part of 
 
 An entry with a lock can be seen but not opened: its name is visible, but what is in it isn't, for lack of permission. Hovering it says so.
 
+## Earlier states
+
+Where the permissions allow it, the toolbar has a calendar icon (Alt+H). It opens a dialog to choose a date and time, which lists the times at which the directory or file can be seen as it was; **View** then shows it as it was at that time, read-only, and everything reached from there stays at that time. The address says so with `?before=` and the time, and a card at the bottom of the page says which time is shown; its × (Escape) goes back to now. Files and directories that were deleted, moved or renamed since can be seen as they were too, where the permissions allow it.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![A directory as it was, with the card that says when](../screenshots/history-desktop.png) | ![A directory as it was, on a phone](../screenshots/history-phone.png) |
+| ![The dialog to choose a time](../screenshots/history-dialog-desktop.png) | ![The dialog to choose a time, on a phone](../screenshots/history-dialog-phone.png) |
+
+Left of the calendar is the git icon (H), which lists the changes of the directory or file at the left of the page (on a phone, instead of the page): the commits that changed it (or what is in it), the newest first, each with when and by whom. The arrow keys go through them (up and down) and through the pages (left and right); holding Right Ctrl shows where each one leads. Enter (or a click) shows the entry as that change left it: the address says so with `?commit=`, the card says when the change was made, why and by whom, and the list stays next to it, to go on to the next one. There H moves the focus into the list and back, and the list's × goes back to now. In an earlier state, the list starts at the state that is shown; **Show newer…** at its top adds the newer changes. Elsewhere pressing H again brings the focus back to the list, and once more hides it. Only the changes of what can be seen as it was are listed.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![The list of changes, with the directory as one of them left it](../screenshots/history-changes-desktop.png) | ![The list of changes, on a phone](../screenshots/history-changes-phone.png) |
+
+Next to each change in the list is the compare icon (shown on the line that is pointed at or has the focus, and on the one that is shown; Shift+Enter on a line): it shows what that change did, instead of the state it left (`&changes`, next to `?commit=`). In a directory, only what it changed is listed, marked green (added), yellow (changed) or red (deleted, struck through); a file shows what it was before next to what it became, in the code editor's diff view (inline on a phone), or, for an image or another binary file, the two next to each other. The compare icon in the toolbar (Shift+H) goes from the state a change left to what it changed, and back. As everywhere in the history, only what can be seen as it was is shown: a side of a file that can't be seen says so.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![What a change did to a file, in the diff view](../screenshots/history-commit-changes-desktop.png) | ![What a change did to a file, inline on a phone](../screenshots/history-commit-changes-phone.png) |
+
+Whether an earlier state can be seen is up to the permissions now and at that time (see [Permissions](../administration/permissions.md#what-they-mean)). In a listing of an earlier state, an entry whose history can't be seen has a crossed-out calendar instead of the lock, and so has such a directory in the breadcrumb; an address that can't be shown goes to the entry as it is now, and says why. What the history keeps is committed every few minutes, so the latest changes may not be in it yet (see [History](../administration/history.md#when-it-commits)).
+
 ## Addresses
 
 Every file and directory has an address that is its path, for example `/projects/plan.md`. Such an address can be shared: whoever opens it sees the entry if they may. An address that leads nowhere, and one that leads to something the user may not know about, both show the same "not found" page.

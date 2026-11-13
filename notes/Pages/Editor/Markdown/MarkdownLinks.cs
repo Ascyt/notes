@@ -38,7 +38,8 @@ internal static class MarkdownLinks
     }
 
     /// <summary>The address as it may be used in the page: unchanged if it is harmless, otherwise nothing.</summary>
-    public static string SafeUrl(string? url, bool isImage)
+    /// <param name="rawQuery">What an image of the notes gets as its query, to load its bytes.</param>
+    public static string SafeUrl(string? url, bool isImage, string rawQuery = "raw")
     {
         if (string.IsNullOrEmpty(url))
             return "";
@@ -64,7 +65,7 @@ internal static class MarkdownLinks
         if (isImage && !url.StartsWith("//", StringComparison.Ordinal) && !text.Contains('?'))
         {
             int fragment = url.IndexOf('#');
-            return fragment < 0 ? url + "?raw" : url.Insert(fragment, "?raw");
+            return fragment < 0 ? url + "?" + rawQuery : url.Insert(fragment, "?" + rawQuery);
         }
 
         return url;

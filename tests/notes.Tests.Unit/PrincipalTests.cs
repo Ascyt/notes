@@ -98,8 +98,9 @@ public sealed class PrincipalTests
     // ---- One block
 
     private static PermsBlock Block(string[]? rwAllow = null, string[]? rwReadOnly = null, string[]? rwDeny = null,
-        string[]? cdAllow = null, string[]? cdCreateOnly = null, string[]? cdDeny = null)
-        => new(true, Set(rwAllow ?? []), Set(rwReadOnly ?? []), Set(rwDeny ?? []), Set(cdAllow ?? []), Set(cdCreateOnly ?? []), Set(cdDeny ?? []));
+        string[]? cdAllow = null, string[]? cdCreateOnly = null, string[]? cdDeny = null, string[]? historyAllow = null, string[]? historyExistingOnly = null, string[]? historyDeny = null)
+        => new(true, Set(rwAllow ?? []), Set(rwReadOnly ?? []), Set(rwDeny ?? []), Set(cdAllow ?? []), Set(cdCreateOnly ?? []), Set(cdDeny ?? []),
+            Set(historyAllow ?? []), Set(historyExistingOnly ?? []), Set(historyDeny ?? []));
 
     private static readonly PrincipalSet Alice = PrincipalSet.Of(Principals.User("alice", groups: ["a", "b"]));
 
@@ -115,6 +116,22 @@ public sealed class PrincipalTests
         Assert.Equal(CreateAccess.CreateAndDelete, Block(cdAllow: ["g:a"], cdCreateOnly: ["g:b"]).DecideCreate(Alice));
         Assert.Equal(CreateAccess.Create, Block(cdCreateOnly: ["g:b"]).DecideCreate(Alice));
         Assert.Null(Block(cdDeny: ["g:c"]).DecideCreate(Alice));
+
+        Assert.Equal(HistoryAccess.None, Block(historyAllow: ["g:a"], historyDeny: ["g:b"]).DecideHistory(Alice));
+        Assert.Equal(HistoryAccess.None, Block(historyExistingOnly: ["g:a"], historyDeny: ["g:b"]).DecideHistory(Alice));
+        Assert.Equal(HistoryAccess.ExistingAndDeleted, Block(historyAllow: ["g:a"], historyExistingOnly: ["g:b"]).DecideHistory(Alice));
+        Assert.Equal(HistoryAccess.ExistingAndDeleted, Block(historyAllow: ["u:alice"]).DecideHistory(Alice));
+        Assert.Equal(HistoryAccess.Existing, Block(historyExistingOnly: ["g:b"]).DecideHistory(Alice));
+        Assert.Null(Block(historyAllow: ["g:c"], rwAllow: ["g:a"]).DecideHistory(Alice));
+    }
+
+    [Fact]
+    public void The_history_can_only_be_seen_with_read_access()
+    {
+        Assert.True(new EntryAccessInfo(ReadAccess.Read, CreateAccess.None, HistoryAccess.Existing).CanViewHistory);
+        Assert.True(new EntryAccessInfo(ReadAccess.ReadAndWrite, CreateAccess.None, HistoryAccess.ExistingAndDeleted).CanViewHistory);
+        Assert.False(new EntryAccessInfo(ReadAccess.None, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted).CanViewHistory);
+        Assert.False(new EntryAccessInfo(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete).CanViewHistory);
     }
 
     [Fact]

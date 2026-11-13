@@ -4,6 +4,9 @@
 @using notes.Features.Components.Selection
 @using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
+@using notes.Features.HistoryViewing.Changes
+@using notes.Features.HistoryViewing.Commits
+@using notes.Features.HistoryViewing.Views
 @using notes.Pages.Browse
 @model notes.Pages.Browse.DirectoryView
 
@@ -36,19 +39,34 @@
 
 @{
     // Whoever can't change anything isn't offered the buttons that do (create, upload, delete), instead of seeing them disabled
-    List<ToolbarButton> toolbarButtons = [ToolbarButton.Download(isFile: false)];
+    // The configuration leftmost (only there for those who manage it), then the history (its changes, then the choice of a time), then what moves files in and out
+    List<ToolbarButton> toolbarButtons = [];
+    if (Model.CanConfigure)
+        toolbarButtons.Add(ToolbarButton.Config("directory"));
+    if (Model.HistoryButton.IsShown)
+    {
+        toolbarButtons.Add(ToolbarButton.Commits(Model.HistoryButton.DisabledReason));
+        if (Model.CommitChangesButton is { } commitChanges)
+            toolbarButtons.Add(commitChanges);
+        toolbarButtons.Add(ToolbarButton.History(Model.HistoryButton.DisabledReason));
+    }
+    // The changes of a commit are no state of the directory that could be downloaded
+    if (!Model.ShowsChanges)
+        toolbarButtons.Add(ToolbarButton.Download(isFile: false));
     if (!Model.IsReadOnly)
     {
         toolbarButtons.Add(ToolbarButton.Upload(Model.CreateDeniedReason));
         toolbarButtons.Add(ToolbarButton.Delete("directory", Model.DeleteDeniedReason));
     }
-    // The leftmost of them, but only there for those who manage the configuration
-    if (Model.CanConfigure)
-        toolbarButtons.Insert(0, ToolbarButton.Config("directory"));
 }
 
-<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason }"/>
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason, ParentsWithoutHistory = Model.ParentsWithoutHistory }"/>
 <partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+@if (Model.HistoryButton.CanBeUsed)
+{
+    <partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "directory" }'/>
+    <partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "directory" }'/>
+}
 
 <div>
     <table class="table entry-table">
@@ -74,11 +92,11 @@
             string virtualPath = Model.ToVirtualPath(path);
             if (!Model.Directories[i].CanOpen)
             {
-                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = true, Number = i + 1 }"/>
+                <partial name="/Pages/Browse/_UnopenableEntry.cshtml" model="Model.UnopenableRow(Model.Directories[i], i, isDirectory: true)"/>
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)
@@ -114,11 +132,11 @@
             string virtualPath = Model.ToVirtualPath(path);
             if (!Model.Files[i].CanOpen)
             {
-                <partial name="/Pages/Browse/_LockedEntry.cshtml" model="new _LockedEntry { Name = System.IO.Path.GetFileName(path), IsDirectory = false, Number = i + 1 }"/>
+                <partial name="/Pages/Browse/_UnopenableEntry.cshtml" model="Model.UnopenableRow(Model.Files[i], i, isDirectory: false)"/>
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)

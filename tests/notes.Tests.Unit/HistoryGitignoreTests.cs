@@ -26,6 +26,28 @@ public sealed class HistoryGitignoreTests : HistoryTest
     }
 
     [Fact]
+    public void Whether_an_entry_is_kept_is_what_the_configuration_says_now_for_files_and_directories()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.Config("media/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        HistoryService history = History();
+
+        Assert.True(history.IsKept(Notes.P(""), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/video.bin"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media/other"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/other/clip.md"), isDirectory: false));
+        Assert.True(history.IsKept(Notes.P("media/keep"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("media/keep/notes.md"), isDirectory: false));
+
+        // Kept earlier doesn't count: what the configuration says now decides
+        Notes.Files.Config("docs", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Assert.False(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
+    }
+
+    [Fact]
     public void Files_that_gitignore_leaves_out_later_go_from_the_history_but_stay_on_disk()
     {
         Notes.Files.Config("media", Cfg.Folder(Cfg.Perms()));

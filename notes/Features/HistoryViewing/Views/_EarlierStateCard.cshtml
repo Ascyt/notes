@@ -1,0 +1,64 @@
+@using notes.Features.HistoryViewing.Changes
+@using notes.Features.HistoryViewing.Requests
+@model notes.Features.HistoryViewing.Views._EarlierStateCard
+
+@{
+    string time = EarlierStateTime.Format(Model.Time);
+    string icon = Model.ShowsChanges ? "fa-code-compare" : Model.Shown.IsCommit ? "fa-code-commit" : "fa-calendar";
+    string shownAs = Model.ShowsChanges ? "Changes made on" : Model.Shown.IsCommit ? "Shown as it was on" : "Shown as it was before";
+}
+
+@* Which earlier state the page shows, for as long as it is shown; × (Escape, where nothing else takes it: a dialog, a field, the list of
+   changes while it has the focus) leads to the entry as it is now. For a commit, a second line says what it
+   was and who made it. The script also keeps the state (and that the changes of a commit are shown) on every link of the page that leads
+   to the notes (those of the layout too), so that the state can be browsed like the notes as they are. *@
+<div id="history-card" class="floating-card card shadow" style="border-right: 0.25rem solid var(--bs-primary);"
+     data-parameter="@Model.Shown.Name" data-value="@Model.Shown.Value" data-changes="@(Model.ShowsChanges ? "true" : null)">
+    <div class="card-body d-flex align-items-center gap-2 py-2 px-3">
+        <i class="fa-solid @icon text-primary"></i>
+        <div class="d-flex flex-column" style="min-width: 0;">
+            <span>@shownAs <time id="history-card-time" datetime="@time">@time</time></span>
+            @if (Model.Commit is { } commit)
+            {
+                @* (Who made a commit that no user made in the app is said in italics, as it is no name) *@
+                <span id="history-card-commit" class="small text-secondary text-truncate">@commit.Description · @if (commit.Author is { } author) { <span>@author</span> } else { <i>automatic</i> }</span>
+            }
+        </div>
+        <a id="history-exit" class="btn-close ms-2" href="@Model.BackToNowHref" data-history-exit aria-label="Back to now" title="Back to now" key="Escape"></a>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const COMMIT_PARAMETER = @Json.Serialize(EarlierStateParameter.Commit);
+        const STATE_PARAMETERS = [@Json.Serialize(EarlierStateParameter.Before), COMMIT_PARAMETER];
+        const card = document.getElementById('history-card');
+        const shownState = card.dataset.parameter + '=' + card.dataset.value + (card.dataset.changes ? '&' + @Json.Serialize(CommitChangesRequests.ChangesParameter) : '');
+        const timeElement = document.getElementById('history-card-time');
+        document.getElementById('floating-cards').append(card); // last, so the messages that come in are above it
+
+        // The time in the browser's own time zone (the server only knows UTC); a commit to the second, as it was made
+        timeElement.textContent = new Date(timeElement.dateTime).toLocaleString(undefined,
+            { dateStyle: 'medium', timeStyle: card.dataset.parameter === COMMIT_PARAMETER ? 'medium' : 'short' });
+
+        // Adds the state to a link that leads to a page of the notes. Links within the page (#…), to the app's own pages (/_/…), to other sites,
+        // the way back to now and links that ask for a state already are left as they are.
+        function keepStateOnLink(link) {
+            const href = link.getAttribute('href');
+            if (!href || href.startsWith('#') || link.hasAttribute('data-history-exit'))
+                return;
+            const url = new URL(href, window.location.href);
+            if (url.origin !== window.location.origin || url.pathname.startsWith('/_/') || STATE_PARAMETERS.some(name => url.searchParams.has(name)))
+                return;
+            // Appended as it is (not through URLSearchParams), so that "?download" stays "?download" instead of becoming "?download="
+            url.search = (url.search ? url.search + '&' : '?') + shownState;
+            link.setAttribute('href', url.pathname + url.search + url.hash);
+        }
+
+        // Once the whole page is there, also the parts of it that come after the card
+        document.addEventListener('DOMContentLoaded', function () {
+            for (const link of document.querySelectorAll('a[href]'))
+                keepStateOnLink(link);
+        });
+    })();
+</script>
