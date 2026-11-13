@@ -11,6 +11,7 @@ using notes.Features.Components.Upload;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Features.HistoryViewing.Changes;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.Views;
@@ -46,12 +47,17 @@ public sealed class IndexModel(Config config,
     ISelectionService selectionService,
     HistoryService history,
     EarlierStateRequests earlierStateRequests,
-    EarlierStateViews earlierStateViews) : PageModel
+    EarlierStateViews earlierStateViews,
+    CommitChangesRequests commitChangesRequests,
+    CommitChangesViews commitChangesViews) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
     public DirectoryView? Directory { get; private set; }
     public new FileView? File { get; private set; }
+
+    /// <summary>The changes of a commit to a file (<c>?commit=&amp;changes</c>), instead of the file.</summary>
+    public _FileChanges? FileChanges { get; private set; }
 
     /// <summary>The editor of the configuration of the entry (<c>?config</c>), instead of the entry itself.</summary>
     public ConfigEditorView? ConfigEditor { get; private set; }
@@ -73,6 +79,9 @@ public sealed class IndexModel(Config config,
         // of changes is asked for with the state that is shown, so it goes first.
         if (Request.Query.ContainsKey(_CommitSidebar.CommitListParameter))
             return OnGetCommitsThatChangedEntry();
+        // The changes are those of a commit: without one they are of nothing
+        if (Request.Query.ContainsKey(CommitChangesRequests.ChangesParameter) && !Request.Query.ContainsKey(EarlierStateParameter.Commit))
+            return BadRequest();
         if (EarlierStateParameter.IsIn(Request.Query))
             return await OnGetEarlierStateAsync();
         if (Request.Query.ContainsKey(_HistoryModal.VisibleTimesParameter))
@@ -180,20 +189,55 @@ public sealed class IndexModel(Config config,
             || (Request.Query.ContainsKey(EarlierStateParameter.Before) && Request.Query.ContainsKey(EarlierStateParameter.Commit)))
             return BadRequest();
 
-        switch (earlierStateRequests.AnswerRequestForEarlierState(User, VirtualPath, Request.Query[EarlierStateParameter.Before], Request.Query[EarlierStateParameter.Commit]))
+        // The changes of a commit (they are no state that could be downloaded)
+        string? commit = Request.Query[EarlierStateParameter.Commit];
+        bool showsChanges = Request.Query.ContainsKey(CommitChangesRequests.ChangesParameter);
+        if (showsChanges && Request.Query.ContainsKey("download"))
+            return BadRequest();
+
+        EarlierStateAnswer answer = showsChanges
+            ? commitChangesRequests.AnswerRequestForChanges(User, VirtualPath, commit!)
+            : earlierStateRequests.AnswerRequestForEarlierState(User, VirtualPath, Request.Query[EarlierStateParameter.Before], commit);
+        switch (answer)
         {
             case AnswerWithStatus status:
                 return StatusCode(status.StatusCode);
             case RedirectToNow redirect:
                 EarlierStateNotice.Set(HttpContext, redirect.Notice);
                 return Redirect(AddressOfNow());
+            case RedirectToStateOfCommit redirect:
+                EarlierStateNotice.Set(HttpContext, redirect.Notice);
+                string now = AddressOfNow();
+                return Redirect(now + (now.Contains('?') ? "&" : "?") + EarlierStateParameter.ForCommit(commit!.ToLowerInvariant()).QueryPart);
             case ShowEntryAsItWas shown:
                 // The state is read from until the response is sent (a zip is written while it is sent)
                 Response.RegisterForDispose(shown.State);
                 return await ShowEntryAsItWasAsync(shown);
+            case ShowChangesOfCommit changes:
+                Response.RegisterForDispose(changes.State);
+                if (changes.Previous is not null)
+                    Response.RegisterForDispose(changes.Previous);
+                return await ShowChangesOfCommitAsync(changes);
             default:
                 throw new InvalidOperationException("Unknown answer to a request for an earlier state.");
         }
+    }
+
+    private async Task<IActionResult> ShowChangesOfCommitAsync(ShowChangesOfCommit shown)
+    {
+        PhysicalPath = shown.PhysicalPath;
+
+        // The bytes of a side of the change, for the browser to show it
+        if (Request.Query.ContainsKey("raw"))
+            return CommitChangesRequests.RawBytesOfSide(Response, shown, previous: Request.Query.ContainsKey(CommitChangesRequests.PreviousParameter));
+
+        string addressOfNow = AddressOfNow();
+        EarlierStateCard = earlierStateViews.CreateCard(User, shown.State, shown.Shown, addressOfNow, showsChanges: true);
+        if (shown.IsDirectory)
+            Directory = commitChangesViews.CreateDirectoryView(User, VirtualPath, shown, addressOfNow);
+        else
+            FileChanges = await commitChangesViews.CreateFileChangesAsync(User, VirtualPath, shown, addressOfNow);
+        return Page();
     }
 
     private async Task<IActionResult> ShowEntryAsItWasAsync(ShowEntryAsItWas shown)
@@ -206,9 +250,9 @@ public sealed class IndexModel(Config config,
         if (Request.Query.ContainsKey("download"))
             return earlierStateRequests.DownloadAsItWas(User, VirtualPath, shown);
 
-        // Otherwise its page, in which nothing can be changed (?edit only shows what it shows without)
+        // Otherwise its page, in which nothing can be changed (?edit shows the source of a markdown file, read-only)
         string addressOfNow = AddressOfNow();
-        EarlierStateCard = earlierStateViews.CreateCard(User, shown, addressOfNow);
+        EarlierStateCard = earlierStateViews.CreateCard(User, shown.State, shown.Shown, addressOfNow);
         if (shown.Entry.IsDirectory)
             Directory = earlierStateViews.CreateDirectoryView(User, VirtualPath, shown, addressOfNow);
         else
@@ -249,14 +293,16 @@ public sealed class IndexModel(Config config,
             : Partial("/Features/HistoryViewing/Commits/_CommitList.cshtml", _CommitList.Of(found, shownCommitId));
     }
 
-    /// <summary>The address of this page without <c>?before=</c> and <c>?commit=</c> (the rest of the query as it is): the entry as it is now.</summary>
+    /// <summary>
+    /// The address of this page without <c>?before=</c>, <c>?commit=</c> and what goes with a commit (<c>&amp;changes</c>, <c>&amp;previous</c>;
+    /// the rest of the query as it is): the entry as it is now.
+    /// </summary>
     public string AddressOfNow()
     {
+        string[] stateParameters = [EarlierStateParameter.Before, EarlierStateParameter.Commit, CommitChangesRequests.ChangesParameter, CommitChangesRequests.PreviousParameter];
         // The other parts of the query are kept as they were written (not encoded again), so that only the state goes
         string[] kept = [.. (Request.QueryString.Value ?? "").TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Where(part => part.Split('=')[0] is var name
-                           && !string.Equals(name, EarlierStateParameter.Before, StringComparison.OrdinalIgnoreCase)
-                           && !string.Equals(name, EarlierStateParameter.Commit, StringComparison.OrdinalIgnoreCase))];
+            .Where(part => part.Split('=')[0] is var name && !stateParameters.Contains(name, StringComparer.OrdinalIgnoreCase))];
         return Request.PathBase.ToUriComponent() + Request.Path.ToUriComponent() + (kept.Length > 0 ? "?" + string.Join('&', kept) : "");
     }
 

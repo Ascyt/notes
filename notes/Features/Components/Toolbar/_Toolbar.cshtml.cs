@@ -47,6 +47,10 @@ public sealed record ToolbarButton(
     public static ToolbarButton Edit()
         => new(Id: "edit-button", Icon: "fa-solid fa-pencil", Label: "Edit this file", Key: "e", Href: "?edit");
 
+    /// <summary>In place of <see cref="Edit"/> where the file can't be changed: from the rendered markdown to its source, in the read-only editor.</summary>
+    public static ToolbarButton ViewSource()
+        => new(Id: "view-source-button", Icon: "fa-regular fa-file-code", Label: "View the source of this file", Key: "e", Href: "?edit");
+
     /// <summary>From the editor of a markdown file to what it looks like rendered.</summary>
     public static ToolbarButton Preview()
         => new(Id: "preview-button", Icon: "fa-solid fa-book", Label: "Preview this file", Key: "p", Href: "?");
@@ -109,6 +113,18 @@ public sealed record ToolbarButton(
     /// </summary>
     public static ToolbarButton Commits(string? disabledReason = null)
         => new(Id: "commits-button", Icon: "fa-brands fa-git-alt", Label: "Show the changes", Key: "h", OnClick: "toggleCommitSidebar()", DisabledReason: disabledReason);
+
+    /// <summary>
+    /// In the view of a commit, the way between its state and what it changed of the entry (docs/development/history-specification.md, "The
+    /// changes of a commit"), right of the changes button.
+    /// </summary>
+    /// <param name="href">The address of the other view, with the commit in it (so the card's script leaves it as it is).</param>
+    /// <param name="leadsToChanges">Whether it leads from the state to the changes, or back.</param>
+    /// <param name="disabledReason">Why the other view can't be shown, if it can't.</param>
+    public static ToolbarButton CommitChanges(string href, bool leadsToChanges, string? disabledReason = null)
+        => leadsToChanges
+            ? new(Id: "commit-changes-button", Icon: "fa-solid fa-code-compare", Label: "Show what this commit changed", Key: "+H", Href: href, DisabledReason: disabledReason)
+            : new(Id: "commit-changes-button", Icon: "fa-solid fa-code-commit", Label: "Show the state of this commit", Key: "+H", Href: href, DisabledReason: disabledReason);
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()

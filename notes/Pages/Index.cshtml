@@ -9,7 +9,7 @@
 
 @* Whoever is not logged in may be seeing less than they could, and can't change anything. (After being logged out by the app the notice
    of that, with its login button, is already there.) *@
-@if (User.Identity?.IsAuthenticated != true && (Model.Directory is { CanBrowse: true } || Model.File is not null) && SessionNotice.MessageFor(Model.HttpContext) is null)
+@if (User.Identity?.IsAuthenticated != true && (Model.Directory is { CanBrowse: true } || Model.File is not null || Model.FileChanges is not null) && SessionNotice.MessageFor(Model.HttpContext) is null)
 {
     <partial name="/Features/Auth/_LoginNotice.cshtml" model='new _LoginNotice { ReturnUrl = Model.HttpContext.OriginalPathAndQuery }'/>
 }
@@ -37,6 +37,10 @@ else if (Model.Directory is not null)
 else if (Model.File is not null)
 {
     <partial name="/Pages/Editor/FileView.cshtml" model="Model.File"/>
+}
+else if (Model.FileChanges is not null)
+{
+    <partial name="/Features/HistoryViewing/Changes/_FileChanges.cshtml" model="Model.FileChanges"/>
 }
 
 @if (Model.EarlierStateCard is not null)

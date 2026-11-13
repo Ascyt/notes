@@ -4,6 +4,7 @@
 @using notes.Features.Components.Selection
 @using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
+@using notes.Features.HistoryViewing.Changes
 @using notes.Features.HistoryViewing.Commits
 @using notes.Features.HistoryViewing.Views
 @using notes.Pages.Browse
@@ -45,9 +46,13 @@
     if (Model.HistoryButton.IsShown)
     {
         toolbarButtons.Add(ToolbarButton.Commits(Model.HistoryButton.DisabledReason));
+        if (Model.CommitChangesButton is { } commitChanges)
+            toolbarButtons.Add(commitChanges);
         toolbarButtons.Add(ToolbarButton.History(Model.HistoryButton.DisabledReason));
     }
-    toolbarButtons.Add(ToolbarButton.Download(isFile: false));
+    // The changes of a commit are no state of the directory that could be downloaded
+    if (!Model.ShowsChanges)
+        toolbarButtons.Add(ToolbarButton.Download(isFile: false));
     if (!Model.IsReadOnly)
     {
         toolbarButtons.Add(ToolbarButton.Upload(Model.CreateDeniedReason));
@@ -91,7 +96,7 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)
@@ -131,7 +136,7 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="text-decoration-none" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a></td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)

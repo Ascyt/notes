@@ -165,6 +165,25 @@ public sealed class HistoryUiTests(UiFixture fixture) : UiTest(fixture), IClassF
     }
 
     [Fact]
+    public async Task The_source_of_a_part_of_the_text_is_shown_read_only_at_that_time()
+    {
+        string before = CommitState();
+        await OpenAsync("/docs/a.md?before=" + before);
+        await Expect(Page.Locator("#view-source-button")).ToHaveAttributeAsync("href", "/docs/a.md?edit&before=" + before);
+
+        // The button next to the text gets its place, and keeps the time the page had
+        ILocator button = Page.Locator("#view-source-here-button");
+        await Page.Locator("#markdown-preview p").First.HoverAsync();
+        await Expect(button).ToHaveAttributeAsync("href", "/docs/a.md?edit&before=" + before + "#line=1&column=1");
+
+        await button.ClickAsync();
+        await WaitForEditorAsync();
+        Assert.Contains("before=" + before, Page.Url);
+        await Expect(Page.Locator("#history-card")).ToBeVisibleAsync();
+        Assert.True(await Page.EvaluateAsync<bool>("() => window.editor.getOption(monaco.editor.EditorOption.readOnly)"));
+    }
+
+    [Fact]
     public async Task Escape_leads_back_to_now_unless_a_dialog_is_open()
     {
         string before = CommitState();

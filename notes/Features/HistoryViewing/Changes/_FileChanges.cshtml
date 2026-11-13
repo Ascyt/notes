@@ -1,0 +1,93 @@
+@using notes.Features.Components.Breadcrumb
+@using notes.Features.Components.Toolbar
+@using notes.Features.HistoryViewing.Changes
+@using notes.Features.HistoryViewing.Commits
+@using notes.Features.HistoryViewing.Views
+@using notes.Pages.Editor
+@model notes.Features.HistoryViewing.Changes._FileChanges
+
+@{
+    // Only what reads: the history, the way back to the state of the commit, and for text the zoom of the editor
+    List<ToolbarButton> toolbarButtons = [ToolbarButton.Commits(), Model.CommitChangesButton, ToolbarButton.History()];
+    if (Model.ShowsText)
+    {
+        toolbarButtons.Add(ToolbarButton.ZoomOut());
+        toolbarButtons.Add(ToolbarButton.ZoomIn());
+    }
+    string name = System.IO.Path.GetFileName(Model.VirtualPath);
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath, RenameDisabledReason = EarlierStateViews.CantBeChangedReason, ParentsWithoutHistory = Model.ParentsWithoutHistory }"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+<partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "file" }'/>
+<partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "file" }'/>
+
+@if (Model.ShowsText)
+{
+    <style>
+        #changes-editor {
+            height: 75vh;
+            border: 1px solid var(--bs-border-color);
+        }
+
+        /* Where the focus is, at a glance */
+        #changes-editor:focus-within {
+            border-color: var(--bs-primary);
+        }
+    </style>
+    @* (The diff editor shows which side is which: before the commit at the left or removed, after it at the right or added) *@
+    @if (Model.OneSideNotShownReason is { } reason)
+    {
+        <p id="change-side-not-shown" class="text-secondary small mb-2">@reason</p>
+    }
+    <div id="changes-editor" key="Enter" data-shows-both="@(Model.OneSideNotShownReason is null ? "true" : "false")"></div>
+
+    @* What the script knows about the file. Serialized with < and > escaped, so the contents can't end the script element. *@
+    <script type="application/json" id="file-changes-options">@(Json.Serialize(Model.EditorOptions(Url.Content("~/lib/monaco-editor/min/vs"))))</script>
+    <script src="~/js/editor/editor.js" asp-append-version="true"></script>
+    <script src="~/js/editor/file-changes.js" asp-append-version="true"></script>
+    return;
+}
+
+@* Binary: the two sides next to each other (under each other on a phone), each as the file's page shows it, from its own raw bytes *@
+<div class="row g-3">
+    @foreach ((string side, string title, FileChangeSide shownSide) in new[] { ("before", "Before this commit", Model.Before), ("after", "After this commit", Model.After) })
+    {
+        <section class="col-12 col-md-6" id="change-@side" data-side-kind="@shownSide.KindName">
+            <h2 class="h6 text-secondary">@title</h2>
+            @switch (shownSide)
+            {
+                case { Kind: ChangeSideKind.NotThere }:
+                    <p class="text-muted fst-italic">Not there.</p>
+                    break;
+                case { Kind: ChangeSideKind.NotShown }:
+                    <p class="text-muted fst-italic">Insufficient permissions to see the file as it was.</p>
+                    break;
+                case { IsBinary: false }:
+                    <p class="text-muted">Text (the other side is binary).</p>
+                    break;
+                case { Media: MediaKind.Image }:
+                    <img src="?@shownSide.RawBytesQuery" alt="@name" class="img-fluid" style="max-height: 75vh;"/>
+                    break;
+                case { Media: MediaKind.Video }:
+                    <video src="?@shownSide.RawBytesQuery" controls class="w-100" style="max-height: 75vh;"></video>
+                    break;
+                case { Media: MediaKind.Audio }:
+                    <audio src="?@shownSide.RawBytesQuery" controls class="w-100"></audio>
+                    break;
+                case { Media: MediaKind.Pdf }:
+                    <object data="?@shownSide.RawBytesQuery" type="application/pdf" class="w-100" style="height: 75vh;">
+                        <p class="text-muted">Binary, can't be shown here.</p>
+                    </object>
+                    break;
+                default:
+                    <p class="text-muted">Binary, can't be shown here.</p>
+                    break;
+            }
+            @if (shownSide.IsShown)
+            {
+                <p class="small text-secondary mb-0">@shownSide.FormattedSize</p>
+            }
+        </section>
+    }
+</div>

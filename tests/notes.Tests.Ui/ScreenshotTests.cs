@@ -177,6 +177,24 @@ public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture)
             await Assertions.Expect(page.Locator("#commit-list .commit-line[aria-current]")).ToBeVisibleAsync();
             await Assertions.Expect(page.Locator("#history-card-commit")).ToBeVisibleAsync();
         }, atAppTime: true);
+
+        // What a later commit changed of meeting.md, in the diff editor (last, so that the pictures above don't have it)
+        App.Time.Advance(TimeSpan.FromHours(1));
+        _ = Tree.File("docs/meeting.md", Guide.Replace("2. Open questions", "2. Open questions, and who answers them").Replace("- [ ] Send the summary", "- [x] Send the summary"));
+        history.AfterChange(Users.Alice.ToPrincipal(), [Tree.Physical("docs/meeting.md")], HistoryChangeKind.Change);
+        history.CommitPending(CommitReason.Idle);
+        string changed;
+        using (LibGit2Sharp.Repository repository = new(history.GitDirectory))
+            changed = repository.Head.Tip.Sha;
+        App.Time.Advance(TimeSpan.FromMinutes(10));
+        await CaptureAsync("history-commit-changes", Users.Alice, "/docs/meeting.md?commit=" + changed + "&changes",
+            async page =>
+            {
+                // The differences are worked out, and drawn (on a phone, once the editor has switched to the inline view)
+                _ = await page.WaitForFunctionAsync("() => window.changesEditor && window.changesEditor.getLineChanges()?.length > 0");
+                await Assertions.Expect(page.Locator("#changes-editor .editor.modified .view-lines").GetByText("Meeting notes")).ToBeVisibleAsync();
+            },
+            atAppTime: true);
     }
 
     private static Task WaitForMonacoAsync(IPage page)

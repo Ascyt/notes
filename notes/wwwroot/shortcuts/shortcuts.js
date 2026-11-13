@@ -20,7 +20,8 @@
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
 // When several elements have the same shortcut, one inside the element with `key-scope` that has the focus wins
 // (a sidebar's Escape over the page's), then one that is visible. While a modal is open, only its shortcuts work.
-// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus).
+// A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus), and Enter and
+// Space without them are left to a focused button or link (Shift+Enter isn't).
 // Shortcuts are captured before the page (and Monaco) sees them, so they take precedence over those.
 // Escape in a form field (except Monaco) also unfocuses it.
 //
@@ -218,9 +219,10 @@
             return;
 
         const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
-        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button, link or box
+        // A plain shortcut must not hijack typing, nor Enter/Space on a focused button, link or box. Shift+Enter may be one: on a link it
+        // would only open a new window, and a page that gives it a meaning means that instead.
         if (plain && (isEditable(e.target)
-            || ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary, input'))))
+            || (((e.key === 'Enter' && !e.shiftKey) || e.key === ' ') && e.target instanceof Element && e.target.closest('button, a[href], summary, input'))))
             return;
 
         // The same key may be set on several elements (e.g. Enter confirms whichever dialog or form

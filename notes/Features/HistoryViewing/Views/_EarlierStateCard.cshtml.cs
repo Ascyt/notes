@@ -10,6 +10,9 @@ public class _EarlierStateCard : PageModel
     /// <summary>What in the address says which state is shown, which the card's script keeps on the links of the page.</summary>
     public EarlierStateParameter Shown { get; init; } = EarlierStateParameter.ForTime(DateTimeOffset.UnixEpoch);
 
+    /// <summary>Whether the changes of the commit are shown (<c>&amp;changes</c>) rather than its state, which the links of the page keep too.</summary>
+    public bool ShowsChanges { get; init; }
+
     /// <summary>For <c>?before=</c> the time asked for, for <c>?commit=</c> when the commit was made.</summary>
     public DateTimeOffset Time { get; init; }
 

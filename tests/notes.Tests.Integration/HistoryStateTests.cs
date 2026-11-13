@@ -16,18 +16,40 @@ public sealed class HistoryStateTests(NotesAppFactory app) : HistoryStateTest(ap
         _ = Tree.File("readme.md", "# Changed later");
         _ = CommitNow();
 
-        string body = await BodyOf(await Client.GetAsync(Users.Alice, "/readme.md?edit&" + At(granted)));
+        string body = await BodyOf(await Client.GetAsync(Users.Alice, "/readme.md?" + At(granted)));
 
         Assert.Contains("Readme", body);
         Assert.DoesNotContain("Changed later", body);
         Assert.Contains("id=\"history-card\"", body);
         Assert.Contains("id=\"history-button\"", body);
-        // Nothing that changes anything, though alice may change the file now
+        // Nothing that changes anything, though alice may change the file now: only the ways to its source
         Assert.DoesNotContain("id=\"editor\"", body);
         Assert.DoesNotContain("id=\"edit-button\"", body);
         Assert.DoesNotContain("id=\"edit-here-button\"", body);
+        Assert.Contains("id=\"view-source-button\"", body);
+        Assert.Contains("id=\"view-source-here-button\"", body);
         Assert.DoesNotContain("id=\"delete-button\"", body);
         Assert.DoesNotContain("id=\"config-button\"", body);
+    }
+
+    [Fact]
+    public async Task Edit_shows_the_source_of_an_entry_as_it_was_read_only()
+    {
+        SetRoot(historyAllow: ["g:team"]);
+        DateTimeOffset granted = CommitNow();
+        _ = Tree.File("readme.md", "# Changed later");
+        _ = CommitNow();
+
+        string body = await BodyOf(await Client.GetAsync(Users.Alice, "/readme.md?edit&" + At(granted)));
+
+        Assert.Contains("id=\"editor\"", body);
+        Assert.Contains("\"canWrite\":false", body);
+        Assert.Contains("Readme", body);
+        Assert.DoesNotContain("Changed later", body);
+        Assert.Contains("id=\"history-card\"", body);
+        Assert.DoesNotContain("id=\"markdown-preview\"", body);
+        Assert.DoesNotContain("id=\"save-button\"", body);
+        Assert.DoesNotContain("id=\"delete-button\"", body);
     }
 
     [Fact]

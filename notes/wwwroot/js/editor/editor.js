@@ -8,6 +8,9 @@
 //       onBeforeCreate    function(monaco), called before the editor is made, e.g. to set up a language
 //   })                    returns a promise of the editor
 //
+//   createDiffEditor(element, { basePath, original, modified, language, readOnlyMessage })
+//                         the two texts next to each other (inline where there isn't room), read-only; returns a promise of the diff editor
+//
 // Every editor gets the same keys: Escape leaves it, Alt+Z toggles word wrap, Ctrl+Plus/Minus/0 (and Ctrl+scroll) zoom the editor (not the page) while it is focused.
 //
 // The zoom is shared by all editors of the page, also by text fields that are editors (see bindZoomKeys), and kept in the browser:
@@ -191,10 +194,39 @@
 
         const editor = monaco.editor.create(element, settings);
         bindKeys(editor);
+        followZoom(element, editor);
+        return editor;
+    };
+
+    window.createDiffEditor = async function (element, options) {
+        await loadMonaco(options.basePath);
+
+        const editor = monaco.editor.createDiffEditor(element, {
+            theme: monacoTheme(),
+            readOnly: true,
+            originalEditable: false,
+            readOnlyMessage: { value: options.readOnlyMessage || '' },
+            automaticLayout: true,
+            wordWrap: 'on',
+            useInlineViewWhenSpaceIsLimited: true,
+            fontSize: Math.round(MONACO_FONT_SIZE * window.editorZoom.factor)
+        });
+        editor.setModel({
+            original: monaco.editor.createModel(options.original, options.language),
+            modified: monaco.editor.createModel(options.modified, options.language)
+        });
+        // Each side is an editor of its own, and gets the keys of one
+        bindKeys(editor.getOriginalEditor());
+        bindKeys(editor.getModifiedEditor());
+        followZoom(element, editor);
+        return editor;
+    };
+
+    // The editor's text follows the zoom of the page's editors, and its keys zoom it
+    function followZoom(element, editor) {
         window.editorZoom.bindZoomKeys(element);
         window.editorZoom.onChange(function (factor) {
             editor.updateOptions({ fontSize: Math.round(MONACO_FONT_SIZE * factor) });
         });
-        return editor;
-    };
+    }
 })();

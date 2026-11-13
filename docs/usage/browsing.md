@@ -27,6 +27,12 @@ Left of the calendar is the git icon (H), which lists the changes of the directo
 |---|---|
 | ![The list of changes, with the directory as one of them left it](../screenshots/history-changes-desktop.png) | ![The list of changes, on a phone](../screenshots/history-changes-phone.png) |
 
+Next to each change in the list is the compare icon (shown on the line that is pointed at or has the focus, and on the one that is shown; Shift+Enter on a line): it shows what that change did, instead of the state it left (`&changes`, next to `?commit=`). In a directory, only what it changed is listed, marked green (added), yellow (changed) or red (deleted, struck through); a file shows what it was before next to what it became, in the code editor's diff view (inline on a phone), or, for an image or another binary file, the two next to each other. The compare icon in the toolbar (Shift+H) goes from the state a change left to what it changed, and back. As everywhere in the history, only what can be seen as it was is shown: a side of a file that can't be seen says so.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![What a change did to a file, in the diff view](../screenshots/history-commit-changes-desktop.png) | ![What a change did to a file, inline on a phone](../screenshots/history-commit-changes-phone.png) |
+
 Whether an earlier state can be seen is up to the permissions now and at that time (see [Permissions](../administration/permissions.md#what-they-mean)). In a listing of an earlier state, an entry whose history can't be seen has a crossed-out calendar instead of the lock, and so has such a directory in the breadcrumb; an address that can't be shown goes to the entry as it is now, and says why. What the history keeps is committed every few minutes, so the latest changes may not be in it yet (see [History](../administration/history.md#when-it-commits)).
 
 ## Addresses

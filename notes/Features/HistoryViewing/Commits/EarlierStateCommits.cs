@@ -123,25 +123,4 @@ public sealed class EarlierStateCommits(Config config, EarlierStatePermissions p
     private static CommitSummary Summarize(EarlierState state, bool managesConfiguration)
         => new(state.CommitId, state.CommitTime, CommitDescriptions.Describe(state.CommitMessage, managesConfiguration),
             state.AuthorName == HistoryAuthor.App.Name ? null : state.AuthorName);
-
-    /// <summary>
-    /// Whether the user may see a change to a file: they may see its history now, and it may be seen as it was at the commit (what it became)
-    /// or in the state before (what it was, for what was deleted). What is no entry of the notes never can.
-    /// </summary>
-    private sealed class ChangeVisibility(ClaimsPrincipal user, EarlierStatePermissions permissions)
-    {
-        /// <summary>Now is the same for every commit, so it is asked once per file.</summary>
-        private readonly Dictionary<string, bool> _maySeeHistoryNow = new(StringComparer.OrdinalIgnoreCase);
-
-        public bool CanChangeBeSeen(string gitPath, EarlierState state, EarlierState? previous)
-        {
-            string physicalPath = state.ToPhysicalPath(gitPath);
-            if (!_maySeeHistoryNow.TryGetValue(physicalPath, out bool maySeeNow))
-                _maySeeHistoryNow[physicalPath] = maySeeNow = permissions.MaySeeHistoryOfEntryNow(user, physicalPath);
-
-            return maySeeNow
-                   && (permissions.CheckWhatDependsOnTheState(user, physicalPath, gitPath, state) == EarlierStateVerdict.CanBeSeen
-                       || (previous is not null && permissions.CheckWhatDependsOnTheState(user, physicalPath, gitPath, previous) == EarlierStateVerdict.CanBeSeen));
-        }
-    }
 }

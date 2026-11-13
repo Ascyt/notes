@@ -129,7 +129,7 @@ public sealed class FileServingTests : IDisposable
     }
 
     [Fact]
-    public async Task Only_markdown_has_a_preview_which_whoever_may_not_write_can_not_leave()
+    public async Task Only_markdown_has_a_preview_which_edit_leaves_also_for_whoever_may_not_write()
     {
         async Task<FileView> Open(string name, bool canWrite, bool edit)
         {
@@ -142,7 +142,8 @@ public sealed class FileServingTests : IDisposable
         Assert.True((await Open("a.md", canWrite: true, edit: false)).ShowsPreview);
         Assert.Contains("<h1", (await Open("b.MD", canWrite: true, edit: false)).Preview.Html);
         Assert.False((await Open("c.md", canWrite: true, edit: true)).ShowsPreview);
-        Assert.True((await Open("d.md", canWrite: false, edit: true)).ShowsPreview);
+        Assert.False((await Open("d.md", canWrite: false, edit: true)).ShowsPreview);
+        Assert.True((await Open("h.md", canWrite: false, edit: false)).ShowsPreview);
         Assert.False((await Open("e.txt", canWrite: true, edit: false)).ShowsPreview);
         Assert.False((await Open("f.json", canWrite: false, edit: false)).ShowsPreview);
         Assert.Equal("", (await Open("g.txt", canWrite: true, edit: false)).Preview.Html);

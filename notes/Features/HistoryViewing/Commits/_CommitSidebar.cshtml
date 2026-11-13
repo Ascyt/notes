@@ -11,7 +11,8 @@
    and the button shows or hides it; its shortcut goes through hidden → shown and focused → focused (when the focus went elsewhere) → hidden.
 
    While the focus is in it, the arrow keys are shortcuts (`key`) of what they lead to, so that holding Right Ctrl shows where each goes: up
-   and down to the commit before and after (at the ends: the newer ones, or the next page), left and right to the pages. *@
+   and down to the commit before and after (at the ends: the newer ones, or the next page), left and right to the pages. Shift+Enter is the
+   shortcut of the compare button of the line that has the focus, which opens the changes of its commit. *@
 
 <style>
     .commit-sidebar {
@@ -63,24 +64,51 @@
         }
     }
 
+    .commit-row {
+        display: flex;
+        align-items: center;
+    }
+
     .commit-line {
         display: flex;
+        flex-grow: 1;
+        min-width: 0;
         justify-content: space-between;
         gap: 0.5rem;
-        padding: 0.25rem 1rem;
+        padding: 0.25rem 0.25rem 0.25rem 1rem;
         white-space: nowrap;
         color: var(--bs-body-color);
         text-decoration: none;
     }
 
-    .commit-line:hover, .commit-line:focus {
-        background: var(--bs-secondary-bg);
+    .commit-line:focus {
         outline: none;
     }
 
+    .commit-row:hover, .commit-row:has(> .commit-line:focus) {
+        background: var(--bs-secondary-bg);
+    }
+
     /* The commit that is shown */
-    .commit-line[aria-current] {
+    .commit-row:has(> .commit-line[aria-current]) {
         background: var(--bs-primary-bg-subtle);
+    }
+
+    /* Only on the line that is pointed at, has the focus or is shown; kept in its place otherwise, so that the lines don't shift */
+    .commit-compare {
+        padding: 0.25rem 1rem 0.25rem 0.5rem;
+        visibility: hidden;
+    }
+
+    .commit-row:hover > .commit-compare, .commit-line:focus + .commit-compare, .commit-line[aria-current] + .commit-compare {
+        visibility: visible;
+    }
+
+    /* Nothing is pointed at on a touch screen */
+    @@media (hover: none) {
+        .commit-compare {
+            visibility: visible;
+        }
     }
 
     .commit-time {
@@ -212,6 +240,9 @@
                 give(document.getElementById('commit-show-newer') || newer, 'ArrowUp');
             give(newer, 'ArrowLeft');
             give(older, 'ArrowRight');
+            // Shift+Enter: the changes of the commit of the line (Enter, the link's own, opens its state)
+            if (index >= 0)
+                give(all[index].parentElement.querySelector('.commit-compare'), '+Enter');
             // Escape leaves the sidebar: where it is always shown only the focus goes (the sidebar's own shortcut, shown over the toolbar
             // button), elsewhere it is hidden
             give(isPinned() ? sidebar : hideButton, 'Escape');

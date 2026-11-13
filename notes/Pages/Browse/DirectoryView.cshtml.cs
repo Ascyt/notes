@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
 using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Selection;
+using notes.Features.Components.Toolbar;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
+using notes.Features.HistoryViewing.Changes;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.States;
@@ -29,7 +31,8 @@ public enum ListedKind
 /// <param name="Path">Its physical path.</param>
 /// <param name="Kind">How it is shown. Only an open entry can be opened or selected.</param>
 /// <param name="ExistsNow">In an earlier state: whether there is an entry at its path now, which an entry without history still links to.</param>
-public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = true)
+/// <param name="Mark">In the changes of a commit: what it did to the entry (null for a directory with changes below it, and elsewhere).</param>
+public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = true, ChangeMark? Mark = null)
 {
     public bool CanOpen => Kind == ListedKind.Open;
 }
@@ -58,6 +61,12 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     public EarlierStateParameter? Shown { get; init; }
 
     public bool ShowsEarlierState => Shown is not null;
+
+    /// <summary>Whether it shows the changes of the commit (<c>&amp;changes</c>): only what it changed, marked, and nothing else.</summary>
+    public bool ShowsChanges { get; init; }
+
+    /// <summary>In the view of a commit, the way between its state and its changes (<see cref="ToolbarButton.CommitChanges"/>); otherwise null.</summary>
+    public ToolbarButton? CommitChangesButton { get; init; }
 
     /// <summary>
     /// Whether the page offers selecting entries. It needs the user's own id (the selection is kept under it), so not for someone who is not
@@ -174,6 +183,10 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
             ShowsCheckbox = CanSelect
         };
     }
+
+    /// <summary>The look of the link of an entry: what a commit deleted has its name struck through, as it is gone after it.</summary>
+    public string LinkDecoration(ListedEntry entry)
+        => entry.Mark == ChangeMark.Deleted ? "text-decoration-line-through" : "text-decoration-none";
 
     /// <summary>Shortcut for the entry at <paramref name="index"/>: the modifiers plus 1-9, then 0. Null after the first ten.</summary>
     public static string? NumberKey(int index, string modifiers)

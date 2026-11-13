@@ -11,7 +11,7 @@ public sealed class HistoryConfig
     /// <summary>
     /// How many changed lines (added ones, and removed ones times <see cref="RemovedLineWeight"/>) since the last commit are committed right away.
     /// </summary>
-    public double LineThreshold { get; init; } = 200;
+    public double LineThreshold { get; init; } = 50;
 
     /// <summary>How much a removed line counts towards <see cref="LineThreshold"/>, compared to an added one: what is removed is gone from the notes.</summary>
     public double RemovedLineWeight { get; init; } = 2;

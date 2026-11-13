@@ -129,7 +129,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [Fact]
     public async Task Files_open_in_the_editor_read_only_without_write()
     {
-        // (Markdown that can't be changed has no editor at all, see MarkdownPreviewTests)
+        // (Markdown that can't be changed shows its source read-only at ?edit, see MarkdownPreviewTests)
         Tree.Config("readonly", Cfg.Folder(Cfg.Perms(rwReadOnly: ["g:team"])));
         _ = Tree.File("readonly/view.txt", "text");
         string view = await BodyOf(await Client.GetAsync(Users.Alice, "/readonly/view.txt"));

@@ -4,7 +4,7 @@ namespace notes.Features.HistoryViewing.Requests;
 
 /// <summary>
 /// Why an address with <c>?before=</c> or <c>?commit=</c> was sent to the entry as it is now instead (docs/development/history-specification.md, "Addresses that
-/// can't be shown"). The redirect leaves it in a short-lived cookie, and the page it leads to shows it once, as an error message.
+/// can't be shown"), or the changes of a commit to its state. The redirect leaves it in a short-lived cookie, and the page it leads to shows it once, as an error message.
 /// </summary>
 public static class EarlierStateNotice
 {
@@ -16,6 +16,7 @@ public static class EarlierStateNotice
     public const string DidNotExistThen = "did-not-exist";
     public const string InvalidCommit = "invalid-commit";
     public const string NoSuchCommit = "no-such-commit";
+    public const string NotChangedByCommit = "not-changed";
 
     private const string CookieName = ".notes.history-notice";
 
@@ -34,6 +35,7 @@ public static class EarlierStateNotice
             DidNotExistThen => "This entry was not there at that time.",
             InvalidCommit => "The commit of the earlier state is not a valid commit id.",
             NoSuchCommit => "The history has no such commit.",
+            NotChangedByCommit => "Nothing of this entry was changed by this commit.",
             _ => null
         };
 }

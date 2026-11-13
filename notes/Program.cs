@@ -16,6 +16,7 @@ using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Features.HistoryViewing.Changes;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.States;
@@ -85,6 +86,10 @@ builder.Services.AddSingleton<EarlierStatePermissions>();
 builder.Services.AddSingleton<EarlierStateCommits>();
 builder.Services.AddSingleton<EarlierStateRequests>();
 builder.Services.AddSingleton<EarlierStateViews>();
+// What a commit changed (?commit=&changes)
+builder.Services.AddSingleton<CommitChanges>();
+builder.Services.AddSingleton<CommitChangesRequests>();
+builder.Services.AddSingleton<CommitChangesViews>();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());

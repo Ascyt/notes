@@ -23,6 +23,11 @@ public sealed record RedirectToNow(string Notice) : EarlierStateAnswer;
 /// <summary>An error status: 404 like a missing path, 403 like an unreadable entry.</summary>
 public sealed record AnswerWithStatus(int StatusCode) : EarlierStateAnswer;
 
+/// <summary>The state an address asks for, opened (to be disposed), with what the address points at now.</summary>
+/// <param name="ExistingPath">The physical path of what is there now, or null if nothing is.</param>
+/// <param name="GitPathAsTyped">The path of the address as a git path, spelled as typed.</param>
+public sealed record AskedState(EarlierState State, EarlierStateParameter Asked, string? ExistingPath, string GitPathAsTyped);
+
 /// <summary>
 /// Answers the requests for earlier states of the notes (<c>?before=</c> and <c>?commit=</c>, <c>?history</c> for the times at which an entry
 /// can be seen, <c>?commits</c> for the list of its changes), as docs/development/history-specification.md says. Who may see what is decided by
@@ -37,6 +42,29 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
     /// </summary>
     public EarlierStateAnswer AnswerRequestForEarlierState(ClaimsPrincipal user, string virtualPath, string? beforeText, string? commitText)
     {
+        if (OpenAskedState(user, virtualPath, beforeText, commitText, out AskedState? opened) is { } failure)
+            return failure;
+
+        (EarlierState state, EarlierStateParameter asked, string? existingPath, string gitPath) = opened!;
+        // An entry that is gone now has its path as the history spells it (which may differ in case from the address)
+        string physicalPath = existingPath ?? state.ToPhysicalPath(state.FindEntry(gitPath)?.GitPath ?? gitPath);
+
+        EarlierStateVerdict verdict = permissions.CheckWhetherEntryCanBeSeenAsItWas(user, physicalPath, state);
+        if (verdict == EarlierStateVerdict.CanBeSeen)
+            return new ShowEntryAsItWas(state, state.FindEntry(state.ToGitPath(physicalPath))!, physicalPath, asked);
+
+        state.Dispose();
+        return AnswerForEntryThatCantBeShown(user, existingPath, verdict);
+    }
+
+    /// <summary>
+    /// What every view of an earlier state starts with: whether the address can ask for a state, what is there now is answered as it is now,
+    /// and the state is opened. Returns the answer if it can't be shown, otherwise null with the state (to be disposed by the caller).
+    /// </summary>
+    public EarlierStateAnswer? OpenAskedState(ClaimsPrincipal user, string virtualPath, string? beforeText, string? commitText, out AskedState? opened)
+    {
+        opened = null;
+
         // Which state is asked for, if it can be one at all
         EarlierStateParameter asked;
         if (commitText is not null)
@@ -77,15 +105,13 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
                 // Before the first state there was nothing; a commit that isn't there is about the commit, not the entry
                 : new RedirectToNow(asked.IsCommit ? EarlierStateNotice.NoSuchCommit : EarlierStateNotice.DidNotExistThen);
 
-        // An entry that is gone now has its path as the history spells it (which may differ in case from the address)
-        string gitPath = GitPathAsTyped(virtualPath);
-        string physicalPath = existingPath ?? state.ToPhysicalPath(state.FindEntry(gitPath)?.GitPath ?? gitPath);
+        opened = new AskedState(state, asked, existingPath, GitPathAsTyped(virtualPath));
+        return null;
+    }
 
-        EarlierStateVerdict verdict = permissions.CheckWhetherEntryCanBeSeenAsItWas(user, physicalPath, state);
-        if (verdict == EarlierStateVerdict.CanBeSeen)
-            return new ShowEntryAsItWas(state, state.FindEntry(state.ToGitPath(physicalPath))!, physicalPath, asked);
-
-        state.Dispose();
+    /// <summary>The answer for an entry that may not be seen as it was (the verdict says why), where what is there now is <paramref name="existingPath"/>.</summary>
+    public EarlierStateAnswer AnswerForEntryThatCantBeShown(ClaimsPrincipal user, string? existingPath, EarlierStateVerdict verdict)
+    {
         // Only what is there now (and may be opened) can be gone back to; anything else is answered like a missing path
         if (existingPath is null)
             return new AnswerWithStatus(StatusCodes.Status404NotFound);
@@ -193,7 +219,7 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
     private static string[] NamesOf(string virtualPath)
         => virtualPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
 
-    private static byte[] ReadAllBytes(LibGit2Sharp.Blob blob)
+    public static byte[] ReadAllBytes(LibGit2Sharp.Blob blob)
     {
         using Stream contents = blob.GetContentStream();
         using MemoryStream copy = new();

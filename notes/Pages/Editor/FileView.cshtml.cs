@@ -2,6 +2,7 @@
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Components.Breadcrumb;
+using notes.Features.Components.Toolbar;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.Views;
@@ -50,6 +51,9 @@ public class FileView : PageModel
     /// <summary>In the view of a commit, the sidebar of the list of changes with what it shows from the start; otherwise null (it starts empty).</summary>
     public _CommitSidebar? CommitSidebar { get; init; }
 
+    /// <summary>In the view of a commit, the way to what it changed of the file (<see cref="ToolbarButton.CommitChanges"/>); otherwise null.</summary>
+    public ToolbarButton? CommitChangesButton { get; init; }
+
     /// <summary>In an earlier state: the directories above that can't be seen as they were, for the breadcrumb.</summary>
     public IReadOnlyDictionary<string, ParentWithoutHistory> ParentsWithoutHistory { get; init; } = new Dictionary<string, ParentWithoutHistory>();
 
@@ -75,10 +79,10 @@ public class FileView : PageModel
     public bool IsMarkdown => !IsBinary && Path.GetExtension(VirtualPath).Equals(".md", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Whether the page shows the rendered markdown instead of the editor. That is the default for a markdown file, and all there is for
-    /// whoever may not change it (asking for the editor gets them the preview). Any other text is only ever shown in the editor.
+    /// Whether the page shows the rendered markdown instead of the editor. That is the default for a markdown file; asking for the editor
+    /// shows its source, read-only for whoever may not change it (and in an earlier state). Any other text is only ever shown in the editor.
     /// </summary>
-    public bool ShowsPreview => IsMarkdown && !(EditRequested && CanWrite);
+    public bool ShowsPreview => IsMarkdown && !EditRequested;
 
     /// <summary>The host the page is served from, which links in the rendered markdown lead to without opening a new tab.</summary>
     public string SiteHost { get; init; } = "";
@@ -89,27 +93,29 @@ public class FileView : PageModel
     /// <summary>What a binary file is shown as. <see cref="MediaKind.None"/> if the browser has nothing to show it with.</summary>
     public MediaKind Media { get; private set; }
 
-    public string Language => Path.GetExtension(VirtualPath).ToLowerInvariant() switch
+    public string Language => LanguageOf(VirtualPath);
+
+    /// <summary>How the editor highlights a file of that name.</summary>
+    public static string LanguageOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
         ".md" => "markdown",
         ".json" => "json",
         _ => "plaintext"
     };
 
-    public string FormattedSize
+    public string FormattedSize => FormatSize(Size);
+
+    public static string FormatSize(long bytes)
     {
-        get
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        double size = bytes;
+        int unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
         {
-            string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
-            double size = Size;
-            int unit = 0;
-            while (size >= 1024 && unit < units.Length - 1)
-            {
-                size /= 1024;
-                unit++;
-            }
-            return unit == 0 ? $"{Size} B" : $"{size:0.#} {units[unit]}";
+            size /= 1024;
+            unit++;
         }
+        return unit == 0 ? $"{bytes} B" : $"{size:0.#} {units[unit]}";
     }
 
     public async Task InitAsync()
@@ -134,13 +140,17 @@ public class FileView : PageModel
     private Stream OpenContents()
         => Earlier?.OpenContents() ?? new FileStream(PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
-    /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>
     private async Task<bool> LooksBinaryAsync()
     {
+        await using Stream stream = OpenContents();
+        return await LooksBinaryAsync(stream);
+    }
+
+    /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>
+    public static async Task<bool> LooksBinaryAsync(Stream stream)
+    {
         byte[] buffer = new byte[SniffLength];
-        int length;
-        await using (Stream stream = OpenContents())
-            length = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
+        int length = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
 
         ReadOnlySpan<byte> bytes = buffer.AsSpan(0, length);
         if (bytes.Contains((byte)0))

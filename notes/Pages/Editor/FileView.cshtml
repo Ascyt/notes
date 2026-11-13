@@ -7,7 +7,8 @@
 @model notes.Pages.Editor.FileView
 
 @{
-    // Whoever can't change anything about the file isn't offered the buttons that do (save, edit, delete), instead of seeing them disabled
+    // Whoever can't change anything about the file isn't offered the buttons that do (save, delete), instead of seeing them disabled.
+    // Instead of edit they get the way to the source, which the editor shows read-only.
     List<ToolbarButton> toolbarButtons = [];
     bool isEditing = !Model.IsBinary && !Model.ShowsPreview;
     // Save is for what can be edited. Next to it the way between the two views of a markdown file: the other view is what the button leads to.
@@ -17,8 +18,8 @@
     {
         if (isEditing)
             toolbarButtons.Add(ToolbarButton.Preview());
-        else if (Model.CanWrite)
-            toolbarButtons.Add(ToolbarButton.Edit());
+        else
+            toolbarButtons.Add(Model.CanWrite ? ToolbarButton.Edit() : ToolbarButton.ViewSource());
     }
     if (isEditing)
     {
@@ -32,6 +33,8 @@
     if (Model.HistoryButton.IsShown)
     {
         toolbarButtons.Add(ToolbarButton.Commits(Model.HistoryButton.DisabledReason));
+        if (Model.CommitChangesButton is { } commitChanges)
+            toolbarButtons.Add(commitChanges);
         toolbarButtons.Add(ToolbarButton.History(Model.HistoryButton.DisabledReason));
     }
     // Only what the browser can show has raw bytes to look at (see RawHandler)
@@ -66,7 +69,7 @@
        No padding of its own, as the page's container already has it. *@
     <div class="markdown-frame">
         <div class="container px-0 position-relative">
-            <article id="markdown-preview" class="markdown-body @(Model.CanWrite ? "markdown-edit-gutter" : null)">
+            <article id="markdown-preview" class="markdown-body markdown-edit-gutter">
                 @if (Model.Contents.Length == 0)
                 {
                     <p id="empty-file" class="text-muted">This file is empty.</p>
@@ -76,11 +79,18 @@
                     @Html.Raw(Model.Preview.Html)
                 }
             </article>
+            @* Next to the part of the text that is pointed at or tapped: opens the editor where that part is written (markdown-edit-here.js),
+               read-only for whoever can't change the file *@
             @if (Model.CanWrite)
             {
-                @* Next to the part of the text that is pointed at or tapped: opens the editor where that part is written (markdown-edit-here.js) *@
                 <a id="edit-here-button" class="markdown-edit-here text-body" href="?edit" aria-label="Edit here" title="Edit here" hidden>
                     <i class="fa-solid fa-pencil"></i>
+                </a>
+            }
+            else
+            {
+                <a id="view-source-here-button" class="markdown-edit-here text-body" href="?edit" aria-label="View the source here" title="View the source here" hidden>
+                    <i class="fa-regular fa-file-code"></i>
                 </a>
             }
         </div>
@@ -101,10 +111,7 @@
         <script src="~/js/markdown/markdown.js" asp-append-version="true"></script>
     }
     <script src="~/js/markdown/markdown-print.js" asp-append-version="true"></script>
-    @if (Model.CanWrite)
-    {
-        <script src="~/js/markdown/markdown-edit-here.js" asp-append-version="true"></script>
-    }
+    <script src="~/js/markdown/markdown-edit-here.js" asp-append-version="true"></script>
     @if (!Model.IsReadOnly)
     {
         <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Contents.Length != 0, Kind = "file" }'/>

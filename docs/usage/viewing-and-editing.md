@@ -26,11 +26,11 @@ A link to another site opens in a new tab; a link to the notes stays in the same
 |---|---|
 | ![A rendered Markdown file](../screenshots/markdown-preview-desktop.png) | ![A rendered Markdown file on a phone](../screenshots/markdown-preview-phone.png) |
 
-The pencil icon (or `e`) opens the editor, the book icon (or `p`) goes back to the rendered view. Without permission to change the file, there is only the rendered view.
+The pencil icon (or `e`) opens the editor, the book icon (or `p`) goes back to the rendered view. Without permission to change the file, and in an earlier state of the notes (`?before=`, `?commit=`), the code icon (also `e`) takes the place of the pencil: it opens the source in the editor, read-only.
 
 The PDF icon (or Ctrl+P) saves the rendered file as a PDF: it opens the browser's print dialog, where "Save as PDF" is chosen as the printer. The PDF has only the text, without the page around it, always in the light theme, with the name of the file and the date at the top of every page and the page number at the bottom; the browser suggests the name of the file as the name of the PDF. Browsers that can't replace their own header and footer with these (Firefox, for instance) print theirs at the edge of the paper instead; a message then says that unchecking "Print headers and footers" in the print dialog gives the best result. Math and diagrams are in it as they are shown, and its text can be selected and searched.
 
-Pointing anywhere on the line of a part of the rendered text (a paragraph, a list item, a heading, a code block, …), tapping it on a phone, or moving the focus into it shows a small pencil to its left. It opens the editor with the cursor where that part is written, scrolled to the middle of the editor.
+Pointing anywhere on the line of a part of the rendered text (a paragraph, a list item, a heading, a code block, …), tapping it on a phone, or moving the focus into it shows a small pencil to its left. It opens the editor with the cursor where that part is written, scrolled to the middle of the editor. Where the file can't be changed it is the code icon, and the editor is read-only.
 
 ## The editors
 

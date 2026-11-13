@@ -1,3 +1,4 @@
+@using notes.Features.HistoryViewing.Changes
 @using notes.Features.HistoryViewing.Commits
 @using notes.Features.HistoryViewing.Requests
 @model notes.Features.HistoryViewing.Commits._CommitLines
@@ -12,17 +13,23 @@
 @foreach (CommitSummary commit in Model.Commits)
 {
     string time = EarlierStateTime.Format(commit.Time);
-    <a class="commit-line" href="?@EarlierStateParameter.ForCommit(commit.Id).QueryPart" tabindex="-1" data-commit="@commit.Id"
-       aria-current="@(commit.Id == Model.ShownCommitId ? "true" : null)">
-        <time class="commit-time" datetime="@time">@time</time>
-        @* Who made what no user made in the app is said in italics, as it is no name *@
-        @if (commit.Author is { } author)
-        {
-            <span class="commit-author">@author</span>
-        }
-        else
-        {
-            <i class="commit-author">automatic</i>
-        }
-    </a>
+    string state = EarlierStateParameter.ForCommit(commit.Id).QueryPart;
+    @* The line opens the state of the commit; the compare button next to it (Shift+Enter, given while the line has the focus) its changes *@
+    <div class="commit-row">
+        <a class="commit-line" href="?@state" tabindex="-1" data-commit="@commit.Id"
+           aria-current="@(commit.Id == Model.ShownCommitId ? "true" : null)">
+            <time class="commit-time" datetime="@time">@time</time>
+            @* Who made what no user made in the app is said in italics, as it is no name *@
+            @if (commit.Author is { } author)
+            {
+                <span class="commit-author">@author</span>
+            }
+            else
+            {
+                <i class="commit-author">automatic</i>
+            }
+        </a>
+        <a class="commit-compare link-secondary" href="?@state&@CommitChangesRequests.ChangesParameter" tabindex="-1"
+           aria-label="Show what this commit changed" title="Show what this commit changed"><i class="fa-solid fa-code-compare"></i></a>
+    </div>
 }

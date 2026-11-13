@@ -3,7 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace notes.Tests.Integration;
 
-/// <summary>Markdown files are shown rendered, and only edited when asked for (<c>?edit</c>) by someone who may change them.</summary>
+/// <summary>
+/// Markdown files are shown rendered, and edited when asked for (<c>?edit</c>) by someone who may change them; anyone else gets the source
+/// read-only there.
+/// </summary>
 public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(app)
 {
     [Fact]
@@ -19,8 +22,10 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
         Assert.DoesNotContain("id=\"save-button\"", body);
         Assert.DoesNotContain("id=\"preview-button\"", body);
         Assert.Matches(@"<a id=""edit-button"" href=""\?edit""[^>]* key=""e""", body);
+        Assert.DoesNotContain("id=\"view-source-button\"", body);
         // ...and one that edits where a part of the text is written
         Assert.Contains("id=\"edit-here-button\"", body);
+        Assert.DoesNotContain("id=\"view-source-here-button\"", body);
         Assert.Matches("<h1 [^>]*data-source-line=\"1\"", body);
     }
 
@@ -55,24 +60,35 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
     }
 
     [Fact]
-    public async Task Whoever_may_not_change_a_markdown_file_only_gets_the_preview()
+    public async Task Whoever_may_not_change_a_markdown_file_gets_the_preview_with_ways_to_its_source_instead_of_to_edit()
     {
         // Bob may read docs but not write, mixed/view.md is read-only for alice's team
         foreach ((TestUser user, string path) in new[] { (Users.Bob, "/docs/a.md"), (Users.Alice, "/mixed/view.md") })
         {
-            foreach (string query in new[] { "", "?edit" })
-            {
-                string body = await BodyOf(await Client.GetAsync(user, path + query));
+            string body = await BodyOf(await Client.GetAsync(user, path));
 
-                Assert.Contains("id=\"markdown-preview\"", body);
-                Assert.DoesNotContain("id=\"editor\"", body);
-                Assert.DoesNotContain("id=\"save-button\"", body);
-                Assert.DoesNotContain("id=\"edit-button\"", body);
-                Assert.DoesNotContain("id=\"edit-here-button\"", body);
-                Assert.DoesNotMatch("<script src=\"[^\"]*markdown-edit-here", body);
-                Assert.DoesNotContain("id=\"preview-button\"", body);
-                Assert.DoesNotContain("createEditor(", body);
-            }
+            Assert.Contains("id=\"markdown-preview\"", body);
+            Assert.DoesNotContain("id=\"editor\"", body);
+            Assert.DoesNotContain("id=\"save-button\"", body);
+            Assert.DoesNotContain("id=\"edit-button\"", body);
+            Assert.DoesNotContain("id=\"edit-here-button\"", body);
+            Assert.Matches(@"<a id=""view-source-button"" href=""\?edit""[^>]* key=""e""", body);
+            Assert.Contains("id=\"view-source-here-button\"", body);
+            Assert.Matches("<script src=\"[^\"]*markdown-edit-here", body);
+        }
+    }
+
+    [Fact]
+    public async Task Whoever_may_not_change_a_markdown_file_gets_its_source_read_only_at_edit()
+    {
+        foreach ((TestUser user, string path) in new[] { (Users.Bob, "/docs/a.md"), (Users.Alice, "/mixed/view.md") })
+        {
+            string body = await BodyOf(await Client.GetAsync(user, path + "?edit"));
+
+            Assert.Contains("id=\"editor\"", body);
+            Assert.Contains("\"canWrite\":false", body);
+            Assert.DoesNotContain("id=\"markdown-preview\"", body);
+            Assert.Matches(@"<a id=""preview-button"" href=""\?""[^>]* key=""p""", body);
         }
     }
 
@@ -92,6 +108,7 @@ public sealed class MarkdownPreviewTests(NotesAppFactory app) : IntegrationTest(
                 Assert.DoesNotContain("markdown-body", body);
                 Assert.DoesNotContain("id=\"edit-button\"", body);
                 Assert.DoesNotContain("id=\"edit-here-button\"", body);
+                Assert.DoesNotContain("id=\"view-source-button\"", body);
                 Assert.DoesNotMatch("<script src=\"[^\"]*markdown-edit-here", body);
                 Assert.DoesNotContain("id=\"preview-button\"", body);
             }
