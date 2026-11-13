@@ -188,6 +188,26 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     }
 
     [Fact]
+    public async Task Between_the_items_of_a_list_the_button_stays_with_the_item_above()
+    {
+        // A loose list: the margin of each item's paragraph lies outside the item, and only the list reaches over it
+        _ = Tree.File("docs/loose-list.md", "- one\n\n- two\n\n- three\n");
+        ILocator button = Page.Locator("#edit-here-button");
+        ILocator items = Page.Locator("#markdown-preview li");
+
+        await OpenAsync("/docs/loose-list.md");
+        // The second item, not the first: the list starts on the same line as its first item
+        LocatorBoundingBoxResult secondItem = (await items.Nth(1).BoundingBoxAsync())!;
+        LocatorBoundingBoxResult thirdItem = (await items.Nth(2).BoundingBoxAsync())!;
+        Assert.True(thirdItem.Y > secondItem.Y + secondItem.Height, "there is a gap between the items");
+
+        await Page.Mouse.MoveAsync(secondItem.X + 10, (secondItem.Y + secondItem.Height + thirdItem.Y) / 2);
+        await Expect(button).ToBeVisibleAsync();
+        // The paragraph in the second item, after its "- "
+        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=3&column=3");
+    }
+
+    [Fact]
     public async Task On_a_phone_tapping_a_part_of_the_text_offers_to_edit_it_in_the_simple_editor()
     {
         _ = Tree.File("docs/edit-here.md", EditHereNote);

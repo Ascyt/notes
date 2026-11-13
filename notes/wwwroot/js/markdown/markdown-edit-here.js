@@ -17,16 +17,28 @@
         return block && preview.contains(block) ? block : null;
     }
 
-    // The innermost block that reaches over that height of the screen. Blocks come in document order, so an inner one comes after the
-    // one around it.
+    // The blocks right inside a container (or the preview), not those nested deeper. Blocks without a box (hidden) are left out.
+    function childBlocks(container) {
+        return Array.from(container.querySelectorAll('[data-source-line]')).filter(function (block) {
+            return block.parentElement.closest('[data-source-line], #markdown-preview') === container
+                && block.getBoundingClientRect().height > 0;
+        });
+    }
+
+    // The innermost block on that height of the screen. The space between two blocks (such as the margin of a paragraph in a list
+    // item, which lies outside the item) belongs to the block above it, so the button doesn't jump to the list around them there.
     function blockOnLine(y) {
+        const previewBox = preview.getBoundingClientRect();
+        if (y < previewBox.top || y >= previewBox.bottom)
+            return null;
         let found = null;
-        for (const block of preview.querySelectorAll('[data-source-line]')) {
-            const box = block.getBoundingClientRect();
-            if (y >= box.top && y < box.bottom && (!found || found.contains(block)))
-                found = block;
+        // Step down from the preview: at each level, the last block that starts above the pointer
+        for (let container = preview; ;) {
+            const next = childBlocks(container).filter(block => block.getBoundingClientRect().top <= y).pop();
+            if (!next)
+                return found;
+            found = container = next;
         }
-        return found;
     }
 
     function show(block) {
