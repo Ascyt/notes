@@ -136,6 +136,87 @@ public sealed class HistoryGitignoreTests : HistoryTest
     }
 
     [Fact]
+    public void Git_is_told_to_leave_out_what_is_left_out_and_to_look_into_what_is_kept_in_it()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/other/clip.md", "left out\n");
+        Notes.Files.Config("media/deep/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        Notes.Files.File("media/deep/keep/notes.md", "kept again\n");
+        Notes.Files.Config("docs/raw", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(
+        [
+            "/_/",
+            "/docs/raw/*",
+            "!/docs/raw/.config.json",
+            "/media/*",
+            "!/media/.config.json",
+            "!/media/deep/",
+            "/media/deep/*",
+            "!/media/deep/keep/",
+        ], exclude);
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("media/deep/keep/notes.md", files.Keys);
+        Assert.Contains("media/deep/keep/.config.json", files.Keys);
+        Assert.DoesNotContain("media/other/clip.md", files.Keys);
+    }
+
+    [Fact]
+    public void A_folder_left_out_with_nothing_kept_in_it_is_left_out_whole()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/clips[1]/a.md", "left out\n");
+        Notes.Files.File("media/clips[1]/deeper/b.md", "left out\n");
+        Notes.Files.File("docs/a.md", "kept\n");
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(["/_/", "/media/*", "!/media/.config.json"], exclude);
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("docs/a.md", files.Keys);
+        Assert.Contains("media/.config.json", files.Keys);
+        Assert.DoesNotContain(files.Keys, path => path.StartsWith("media/clips", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_folder_is_named_with_its_wildcards_escaped()
+    {
+        Notes.Files.Config("docs/raw[1]", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("docs/raw[1]/a.md", "left out\n");
+        Notes.Files.File("docs/raw1/a.md", "kept\n");
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(["/_/", "/docs/raw\\[1]/*", "!/docs/raw\\[1]/.config.json"], exclude);
+        // "[1]" as a pattern would have meant "raw1" too
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("docs/raw1/a.md", files.Keys);
+        Assert.DoesNotContain("docs/raw[1]/a.md", files.Keys);
+    }
+
+    [Fact]
+    public void A_folder_kept_again_outside_the_app_is_looked_into_by_the_next_commit()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+
+        Notes.Files.Config("media", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        history.CommitPending(CommitReason.Idle);
+
+        Assert.Equal("a\n", Commits(history)[0].Files["media/a.md"]);
+    }
+
+    [Fact]
     public void A_save_of_a_file_that_is_left_out_never_reaches_the_threshold()
     {
         Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));

@@ -47,6 +47,68 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
         return leftOutNow != leftOutThen;
     }
 
+    /// <summary>
+    /// Patterns for git's exclude file that leave out what this leaves out, so that git doesn't look through it at all (they are only a
+    /// shortcut: what is staged is still decided by <see cref="IsKept(string)"/>). A folder with nothing kept in it or below is left out whole;
+    /// in one that is left out but holds something kept (its configuration, or a subfolder kept again), only what is directly in it is left
+    /// out, and git looks into what is kept. Git can't take back a pattern for something inside a folder it left out, so each folder git has to
+    /// look into is taken back on its own.
+    /// </summary>
+    /// <remarks>Goes through all folders of the notes (not their files).</remarks>
+    public List<string> ExcludePatterns()
+        => PatternsInside(paths.Root, "/", NewKnown()) ?? ["/*"];
+
+    /// <summary>The patterns for what is in the folder, or null if nothing in it or below is kept (then it is left out whole).</summary>
+    /// <param name="pattern">The folder as a pattern (<c>/media/</c>, <c>/</c> for the root).</param>
+    private List<string>? PatternsInside(string folder, string pattern, Dictionary<string, bool> known)
+    {
+        bool leftOut = IsLeftOut(folder, known);
+        bool hasConfig = File.Exists(Path.Combine(folder, PathService.ConfigFileName));
+        bool holdsKept = !leftOut || hasConfig;
+        List<string> patterns = [];
+        if (leftOut)
+            patterns.Add(pattern + "*");
+        if (leftOut && hasConfig)
+            patterns.Add("!" + pattern + EscapeForPattern(PathService.ConfigFileName));
+
+        foreach (string subfolder in SubfoldersOf(folder))
+        {
+            string name = Path.GetFileName(subfolder);
+            // The app's own data is left out by a pattern of its own
+            if (paths.IsRoot(folder) && name == PathService.ReservedName)
+                continue;
+
+            string subfolderPattern = pattern + EscapeForPattern(name) + "/";
+            if (PatternsInside(subfolder, subfolderPattern, known) is not { } inside)
+            {
+                // (In a folder that is left out, it already is by the folder's pattern)
+                if (!leftOut)
+                    patterns.Add(subfolderPattern);
+                continue;
+            }
+
+            holdsKept = true;
+            // Taken back from the folder's pattern, so that git looks into it
+            if (leftOut)
+                patterns.Add("!" + subfolderPattern);
+            patterns.AddRange(inside);
+        }
+
+        return holdsKept ? patterns : null;
+    }
+
+    /// <summary>
+    /// The subfolders as git sees them: hidden ones too, links to folders not (git doesn't follow them). In order, so that the exclude file
+    /// only changes when what is left out does.
+    /// </summary>
+    private static IEnumerable<string> SubfoldersOf(string folder)
+        => Directory.EnumerateDirectories(folder, "*", new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true })
+            .Order(StringComparer.Ordinal);
+
+    /// <summary>A name as it is, not as a pattern: what would be a wildcard (or the escape itself) is escaped.</summary>
+    private static string EscapeForPattern(string name)
+        => string.Concat(name.Select(character => character is '\\' or '*' or '?' or '[' ? "\\" + character : character.ToString()));
+
     private bool IsKept(string path, Dictionary<string, bool> known)
     {
         if (path.Split('/')[0] == PathService.ReservedName)

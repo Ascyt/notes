@@ -4,7 +4,7 @@ What a file shows depends on its kind.
 
 ## Markdown
 
-A Markdown file (`.md`) opens rendered: headings, lists, tables, task lists, code blocks, quotes, links, images and footnotes. HTML written into a note is shown as text, never run. A line break in the text is a line break in the rendered view.
+A Markdown file (`.md`) opens rendered: headings, lists, tables, task lists, code blocks, quotes, links, images and footnotes. HTML written into a note is shown as text, never run. A line break in the text is a line break in the rendered view. A blank line between list items starts a new group of items, a small gap below the one before, instead of spreading the whole list out.
 
 Besides what Markdown always has:
 

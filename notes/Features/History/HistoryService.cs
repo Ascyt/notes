@@ -16,6 +16,8 @@ namespace notes.Features.History;
 /// </list>
 /// A save is decided on before the file is written: what was pending is committed on its own, without the save. Nothing that goes wrong here
 /// fails what the user did: it is logged.
+/// A change in the app only looks at the paths it changes; changes made outside the app elsewhere are found by the next commit, which looks
+/// at all of the notes.
 /// </summary>
 /// <remarks>Everything goes through one lock: the repository can only be used by one thread at a time.</remarks>
 public sealed class HistoryService : IDisposable
@@ -74,9 +76,10 @@ public sealed class HistoryService : IDisposable
         {
             // (One that was never written, as saving it failed, is forgotten)
             _gitignoreChange = null;
-            _repository.Stage();
-            List<string> pending = _repository.PendingPaths();
             List<string> affected = [.. physicalPaths.Select(_paths.ToGitPath)];
+            // Only what is about to change needs to be up to date: whether someone else changed it, and what the save adds to it
+            _repository.Stage(affected);
+            List<string> pending = _repository.PendingPaths();
 
             // What the history keeps is about to change: what is pending goes in first, as it is now (by whoever changed it), so that nothing
             // of it is lost when its files are left out
@@ -135,7 +138,7 @@ public sealed class HistoryService : IDisposable
                 return;
             }
 
-            _repository.Stage();
+            _repository.Stage(affected);
             if (PendingWeight(except: null) >= _settings.LineThreshold)
                 Commit(CommitReason.Threshold);
         });

@@ -13,7 +13,7 @@ git --git-dir=_/history log --stat
 git --git-dir=_/history show HEAD~3:plans/plan.md
 ```
 
-Only read it this way: the app expects to be the only one that writes to it.
+Only read it this way: the app expects to be the only one that writes to it. That includes `_/history/info/exclude`, which the app writes itself from the configurations (see [What it keeps](#what-it-keeps)).
 
 Git refuses a repository whose folders belong to another user than the one it runs as. The app doesn't check this for its own repository, as the notes folder is often mounted with an owner of its own (root, in Docker Desktop). Git itself still does: if it says the folder has "dubious ownership", add `-c safe.directory='*'` after `git` (for that command only).
 
@@ -27,6 +27,8 @@ Changes are collected and committed when:
 - **A binary file that is in the history is deleted.** Binary files have no lines, so they would otherwise wait for the next commit.
 - **A configuration changes what the history keeps** (`gitignore`, see [What it keeps](#what-it-keeps)).
 - **The app starts**, and something changed while it didn't run. When the app has brought the [configuration files](configuration.md#versions-and-migrations) up to date, that is a commit of its own.
+
+Looking through all of the notes can take seconds (a folder mounted into a container answers slowly), so an operation in the app only looks at the files it changes. A file changed outside the app is found by the next commit, which looks at everything, or when a user changes it in the app. Until then, its lines don't count towards the threshold.
 
 When a file is **saved**, this is decided before it is written: if the save would reach the threshold, or another user changed the file, what was there before is committed, and the save comes into the next commit. Everything else (creating, uploading, renaming, copying, moving, deleting) is committed with the operation when it reaches the threshold, as what it brings can't be told before.
 
@@ -58,6 +60,8 @@ When a configuration saved in the app changes what is kept, that is committed ri
 2. Then the configuration is saved and committed (`#gitignore`), by whoever saved it, together with the files that leave the history (or come back, for `"gitignore": false`).
 
 Files that leave the history stay on disk, and their earlier versions stay in the commits that have them: `gitignore` never removes anything from what is already in the history. A configuration changed outside the app takes effect with the next commit, without these two steps.
+
+With every commit, the app writes what is left out into the repository's exclude file (`_/history/info/exclude`), so that git doesn't look through it at all. A directory with nothing kept in it or below is left out whole. In one that is left out but holds something kept (its `.config.json`, or a subdirectory that keeps its files again), git still looks into its subdirectories, but not its files. Finding what is left out goes through every directory of the notes, but not their files.
 
 What is left out is worth thinking about for large binary files (videos, archives): the history keeps every version of every file it keeps, so it grows with each of them.
 

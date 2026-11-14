@@ -90,6 +90,11 @@
   margin-bottom: 0;
 }
 
+/* Items split by a blank line are lists of their own (MarkdownLists): groups of one list, a smaller gap apart than paragraphs */
+.markdown-body :is(ul, ol):has(+ ul, + ol) {
+  margin-bottom: 0.5rem;
+}
+
 .markdown-body ul.contains-task-list {
   padding-left: 1.25rem;
   list-style: none;

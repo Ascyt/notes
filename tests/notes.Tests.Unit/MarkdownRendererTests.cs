@@ -195,6 +195,59 @@ public sealed class MarkdownRendererTests
     public void A_line_break_in_the_text_is_one_in_the_preview()
         => Assert.Contains("one<br />", Render("one\ntwo"));
 
+    [Fact]
+    public void A_blank_line_between_items_starts_another_list_and_both_stay_tight()
+    {
+        string html = Render("- a\n- b\n\n- c\n- d");
+
+        Assert.Equal(2, CountOf("<ul", html));
+        Assert.DoesNotContain("<p", html);
+        Assert.Matches("<li[^>]*>b</li>\\s*</ul>\\s*<ul[^>]*>\\s*<li[^>]*>c</li>", html);
+    }
+
+    [Fact]
+    public void Numbers_go_on_in_the_list_after_a_blank_line()
+    {
+        string html = Render("1. a\n2. b\n\n3. c\n\n4. d");
+
+        Assert.Equal(3, CountOf("<ol", html));
+        Assert.Contains("start=\"3\"", html);
+        Assert.Contains("start=\"4\"", html);
+        Assert.DoesNotContain("<p", html);
+    }
+
+    [Fact]
+    public void Only_a_list_whose_item_holds_a_blank_line_is_loose()
+    {
+        string html = Render("- a\n\n  more of a\n- b\n\n- c\n\n  - inner\n  - inner too");
+
+        // The first list has an item of two paragraphs; the second's item holds a list, without a blank line inside the item between them
+        Assert.Matches("<li[^>]*>\\s*<p[^>]*>a</p>\\s*<p[^>]*>more of a</p>", html);
+        Assert.Matches("<li[^>]*>\\s*<p[^>]*>b</p>", html);
+        Assert.Equal(3, CountOf("<ul", html));
+    }
+
+    [Fact]
+    public void Nested_lists_are_split_on_their_own()
+    {
+        string html = Render("- a\n  - x\n\n  - y\n- b");
+
+        Assert.Equal(3, CountOf("<ul", html));
+        Assert.Matches("<li[^>]*>x</li>\\s*</ul>\\s*<ul[^>]*>\\s*<li[^>]*>y</li>", html);
+    }
+
+    [Fact]
+    public void Each_list_after_a_blank_line_says_where_it_starts()
+    {
+        string html = Render("- a\n\n- b");
+
+        Assert.Matches("<ul[^>]*data-source-line=\"1\"", html);
+        Assert.Matches("<ul[^>]*data-source-line=\"3\"", html);
+    }
+
+    private static int CountOf(string part, string html)
+        => (html.Length - html.Replace(part, "", StringComparison.Ordinal).Length) / part.Length;
+
     [Theory]
     [InlineData("[x](https://example.com)")]
     [InlineData("[x](http://other.notes.example/a)")]

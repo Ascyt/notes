@@ -132,6 +132,17 @@ without two spaces or a backslash at the end.
 
 Text that was ++inserted++ later.
 
+### Groups in Lists
+
+A blank line between items starts a new group, a small gap below the one before. The items stay close together:
+
+- First item
+- Second item
+
+- Third item, in a group of its own
+
+Numbered items keep counting across groups.
+
 ### Lettered and Roman Lists
 
 Lowercase letters:

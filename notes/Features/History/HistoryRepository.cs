@@ -30,25 +30,40 @@ public sealed class HistoryRepository(HistoryPaths paths, KeptFiles kept, TimePr
     /// <summary>Where the repository is (physical).</summary>
     public string GitDirectory { get; } = Path.Combine(paths.Root, PathService.ReservedName, "history");
 
-    /// <summary>Brings the index up to the files on disk, without what is left out.</summary>
-    public void Stage()
+    /// <summary>
+    /// Brings the index up to the files on disk, without what is left out: all of them, or only <paramref name="onlyPaths"/> (git paths, a
+    /// directory standing for everything in it). Looking through all of the notes can take seconds (a mounted folder answers slowly), so a
+    /// change in the app only looks at what it changed; the rest is found when everything is looked at (each commit).
+    /// </summary>
+    public void Stage(IReadOnlyCollection<string>? onlyPaths = null)
     {
         Repository repository = Open();
         Func<string, bool> isKept = kept.ForManyFiles();
+        // (The root stands for everything)
+        bool looksAtAll = onlyPaths is null || onlyPaths.Contains("");
+
+        // What git doesn't need to look through at all, as the configurations say now
+        if (looksAtAll)
+            WriteExclude();
 
         // Files that were kept before and are left out now (their folder's gitignore changed) are no longer kept
-        foreach (string path in repository.Index.Select(entry => entry.Path).Where(path => !isKept(path)).ToList())
+        foreach (string path in repository.Index.Select(entry => entry.Path)
+                     .Where(path => (looksAtAll || onlyPaths!.Any(changed => HistoryPaths.IsAtOrBelow(path, changed))) && !isKept(path)).ToList())
             repository.Index.Remove(path);
 
-        string[] changed =
-        [
-            .. repository.RetrieveStatus(WorkDirectoryStatus)
-                .Where(entry => entry.State is not (FileStatus.Unaltered or FileStatus.Ignored))
-                .Select(entry => entry.FilePath)
-                .Where(isKept)
-        ];
-        if (changed.Length > 0)
-            Commands.Stage(repository, changed);
+        StatusOptions status = looksAtAll ? WorkDirectoryStatus : StatusOf(onlyPaths!);
+        foreach (string path in repository.RetrieveStatus(status)
+                     .Where(entry => entry.State is not (FileStatus.Unaltered or FileStatus.Ignored))
+                     .Select(entry => entry.FilePath)
+                     .Where(isKept))
+        {
+            // One file at a time: staging a list of them (Commands.Stage) would look through all of the notes again
+            if (File.Exists(paths.ToPhysicalPath(path)))
+                repository.Index.Add(path);
+            else
+                repository.Index.Remove(path);
+        }
+
         repository.Index.Write();
     }
 
@@ -158,6 +173,38 @@ public sealed class HistoryRepository(HistoryPaths paths, KeptFiles kept, TimePr
 
         _repository = repository;
         return repository;
+    }
+
+    /// <summary>
+    /// The status of only the paths, taken as they are (no patterns): git then only looks into them, not through all of the notes.
+    /// </summary>
+    private static StatusOptions StatusOf(IEnumerable<string> gitPaths)
+        => new()
+        {
+            Show = WorkDirectoryStatus.Show,
+            IncludeUntracked = WorkDirectoryStatus.IncludeUntracked,
+            RecurseUntrackedDirs = WorkDirectoryStatus.RecurseUntrackedDirs,
+            IncludeIgnored = WorkDirectoryStatus.IncludeIgnored,
+            ExcludeSubmodules = WorkDirectoryStatus.ExcludeSubmodules,
+            DetectRenamesInIndex = WorkDirectoryStatus.DetectRenamesInIndex,
+            DetectRenamesInWorkDir = WorkDirectoryStatus.DetectRenamesInWorkDir,
+            PathSpec = [.. gitPaths],
+            DisablePathSpecMatch = true
+        };
+
+    /// <summary>
+    /// Writes git's exclude file: the app's own data, and what the configurations leave out (<see cref="KeptFiles.ExcludePatterns"/>), so that
+    /// git doesn't look through it. Only written when it changes.
+    /// </summary>
+    private void WriteExclude()
+    {
+        string file = Path.Combine(GitDirectory, "info", "exclude");
+        string text = string.Join('\n', [$"/{PathService.ReservedName}/", .. kept.ExcludePatterns()]) + "\n";
+        if (File.Exists(file) && File.ReadAllText(file) == text)
+            return;
+
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, text);
     }
 
     private static void SetIndexEntry(Repository repository, string path, (ObjectId Id, Mode Mode)? entry)

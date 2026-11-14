@@ -64,6 +64,7 @@ public static class MarkdownRenderer
     public static RenderedMarkdown Render(string markdown, string siteHost, string rawQuery = "raw")
     {
         MarkdownDocument document = Markdig.Markdown.Parse(markdown, Pipeline);
+        MarkdownLists.SplitAtBlankLines(document, markdown);
         SourcePositions positions = new(markdown);
         bool hasMath = false, hasDiagrams = false, hasAbbreviations = false;
         foreach (MarkdownObject node in document.Descendants())
