@@ -146,7 +146,7 @@ public sealed class IndexModel(Config config,
         }
         else if (System.IO.File.Exists(PhysicalPath))
         {
-            TreeAccess inspected = tree.Inspect(User, PhysicalPath);
+            string? deleteDeniedReason = tree.DeleteDeniedReason(User, PhysicalPath);
             File = new FileView
             {
                 VirtualPath = VirtualPath,
@@ -156,8 +156,8 @@ public sealed class IndexModel(Config config,
                 HistoryButton = historyButton,
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
-                DeleteDeniedReason = inspected.DeleteDeniedReason,
-                RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, inspected)
+                DeleteDeniedReason = deleteDeniedReason,
+                RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, deleteDeniedReason)
             };
             await File.InitAsync();
         }

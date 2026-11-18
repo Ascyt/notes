@@ -122,8 +122,7 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
         if (!CanBrowse)
             return;
 
-        // Every entry (and everything inside this directory, for what the page says about deleting it) asks about the same folders:
-        // read their configuration once, not once per entry
+        // Every entry asks about the same folders: read their configuration once, not once per entry
         using IDisposable scope = ConfigReadScope.Begin();
 
         // The listing knows which are directories, so the permissions needn't look at the disk for each entry
@@ -145,14 +144,12 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
             .Select(ToListed(isDirectory: false))
             .Where(entry => entry.CanOpen || seesUnreadable)];
 
-        // The root can't be deleted or renamed anyway, so there is no need to look at all of the notes
         if (IsRoot)
             DeleteDeniedReason = "The root directory can't be deleted.";
         else
         {
-            TreeAccess inspected = tree.Inspect(Viewer, PhysicalPath);
-            DeleteDeniedReason = inspected.DeleteDeniedReason;
-            RenameDeniedReason = tree.RenameDeniedReason(Viewer, PhysicalPath, inspected);
+            DeleteDeniedReason = tree.DeleteDeniedReason(Viewer, PhysicalPath);
+            RenameDeniedReason = tree.RenameDeniedReason(Viewer, PhysicalPath, DeleteDeniedReason);
         }
 
         CreateDeniedReason = tree.CreateDeniedReason(Viewer, PhysicalPath);

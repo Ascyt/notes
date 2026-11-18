@@ -70,7 +70,7 @@ public sealed class CommitChangesViews(NotesLocations locations, IPathService pa
         bool isBinary;
         await using (Stream contents = blob.GetContentStream())
             isBinary = await FileView.LooksBinaryAsync(contents);
-        _ = MediaTypes.TryGet(side.Entry.Name, out _, out MediaKind media);
+        MediaKind media = MediaTypes.KindOf(side.Entry.Name);
         return new FileChangeSide(side.Kind, isBinary, isBinary ? "" : EarlierState.ReadText(blob), isBinary ? media : MediaKind.None,
             FileView.FormatSize(blob.Size), rawBytesQuery);
     }

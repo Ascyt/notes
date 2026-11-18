@@ -12,13 +12,6 @@ namespace notes.Features.Auth;
 /// </param>
 public readonly record struct WalkedEntry(FileSystemInfo Entry, EntryAccessInfo Access, string RelativePath);
 
-/// <summary>What looking at an entry and everything inside it found out.</summary>
-/// <param name="DeleteDeniedReason">Why the entry can't be deleted (or moved away, or renamed) as a whole, for the user; null if it can.</param>
-public sealed record TreeAccess(string? DeleteDeniedReason)
-{
-    public bool CanDelete => DeleteDeniedReason is null;
-}
-
 /// <summary>
 /// Applies <see cref="IEntryAccess"/> to the tree of the notes. The name of an entry is shown to every logged-in user who may read the
 /// directory it is in, whatever the entry's own permissions; its contents (what is in the file, what is in the directory) only to those who
@@ -145,36 +138,12 @@ public sealed class AccessTree(NotesLocations locations, IPathService path, IEnt
     }
 
     /// <summary>
-    /// Looks at the (openable) entry and everything inside it: whether it may be deleted as a whole, which also decides whether it may be
-    /// moved away or renamed. Stops at the first reason it can't. Only for what the page shows; the operations check everything themselves.
+    /// Why the user may not delete the (openable) entry itself, which also keeps them from moving it away or renaming it; null if they may.
+    /// Only a hint for the page, and an optimistic one: what is inside a directory isn't looked at, as walking a large tree for every page
+    /// would make it slow. Deleting, moving and renaming check everything inside themselves, and say why when they can't.
     /// </summary>
-    public TreeAccess Inspect(ClaimsPrincipal user, string physicalPath)
-    {
-        // Every entry inside asks about the same folders: read their configuration once
-        using IDisposable scope = ConfigReadScope.Begin();
-        if (!access.GetAccess(user, physicalPath).CanDelete)
-            return new TreeAccess(NotRemovable(physicalPath));
-        if (!Directory.Exists(physicalPath))
-            return new TreeAccess(null);
-
-        try
-        {
-            foreach (WalkedEntry walked in Walk(user, new DirectoryInfo(physicalPath)))
-            {
-                // What can't be read can't be moved or deleted either: what is in it would go along unseen
-                if (!walked.Access.CanRead)
-                    return new TreeAccess($"No read access to '{Display(walked.Entry.FullName)}'.");
-                if (!walked.Access.CanDelete)
-                    return new TreeAccess(NotRemovable(walked.Entry.FullName));
-            }
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return new TreeAccess("Some of what is inside can't be read by the server.");
-        }
-
-        return new TreeAccess(FixedPlaceReason(user, physicalPath));
-    }
+    public string? DeleteDeniedReason(ClaimsPrincipal user, string physicalPath)
+        => access.GetAccess(user, physicalPath).CanDelete ? null : NotRemovable(physicalPath);
 
     /// <summary>
     /// Why the entry can't be deleted, moved or renamed as it is or holds a bridge, whose place the configuration of the site sets; null if
@@ -202,9 +171,12 @@ public sealed class AccessTree(NotesLocations locations, IPathService path, IEnt
     public string? CreateDeniedReason(ClaimsPrincipal user, string physicalDirectory)
         => access.GetAccess(user, physicalDirectory).CanCreate ? null : "Insufficient permissions to add entries to this directory.";
 
-    /// <summary>Why the user can't rename the (openable) entry that <paramref name="inspected"/> is about, or null if they can. A hint, like <see cref="CreateDeniedReason"/>.</summary>
-    public string? RenameDeniedReason(ClaimsPrincipal user, string physicalPath, TreeAccess inspected)
-        => inspected.DeleteDeniedReason
+    /// <summary>
+    /// Why the user can't rename the (openable) entry, or null if they can, given why they can't delete it (<see cref="DeleteDeniedReason"/>).
+    /// A hint as optimistic as that one.
+    /// </summary>
+    public string? RenameDeniedReason(ClaimsPrincipal user, string physicalPath, string? deleteDeniedReason)
+        => deleteDeniedReason
            ?? (access.GetAccess(user, locations.ParentOf(physicalPath)!).CanCreate
                ? null
                : "Insufficient permissions to add entries to the parent directory.");

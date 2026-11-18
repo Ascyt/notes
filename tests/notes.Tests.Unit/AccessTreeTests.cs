@@ -126,17 +126,15 @@ public sealed class AccessTreeTests : IDisposable
     }
 
     [Fact]
-    public void Inspect_says_why_a_tree_can_not_be_deleted_without_naming_hidden_entries()
+    public void The_hint_for_deleting_is_about_the_entry_itself_not_what_is_inside()
     {
-        // mixed contains closed (unreadable): fails because of closed itself, never because of what is in it
-        TreeAccess mixed = _notes.Tree.Inspect(Alice, _notes.P("mixed"));
-        Assert.False(mixed.CanDelete);
-        Assert.DoesNotContain("hidden.md", mixed.DeleteDeniedReason);
+        // mixed contains closed (unreadable), which only the delete itself finds out about: the page doesn't walk the tree
+        Assert.Null(_notes.Tree.DeleteDeniedReason(Alice, _notes.P("mixed")));
+        Assert.Null(_notes.Tree.DeleteDeniedReason(Alice, _notes.P("docs")));
 
-        Assert.True(_notes.Tree.Inspect(Alice, _notes.P("docs")).CanDelete);
-        Assert.False(_notes.Tree.Inspect(Alice, _notes.P("mixed/keep.md")).CanDelete);
-        Assert.False(_notes.Tree.Inspect(Alice, _notes.P("drop/existing.md")).CanDelete);
-        Assert.Contains("'drop'", _notes.Tree.Inspect(Alice, _notes.P("drop")).DeleteDeniedReason);
+        Assert.NotNull(_notes.Tree.DeleteDeniedReason(Alice, _notes.P("mixed/keep.md")));
+        Assert.NotNull(_notes.Tree.DeleteDeniedReason(Alice, _notes.P("drop/existing.md")));
+        Assert.Contains("'drop'", _notes.Tree.DeleteDeniedReason(Alice, _notes.P("drop")));
     }
 
     [Fact]
@@ -148,8 +146,8 @@ public sealed class AccessTreeTests : IDisposable
         Assert.NotNull(_notes.Tree.CreateDeniedReason(Users.Bob.ToPrincipal(), _notes.P("docs")));
 
         string item = _notes.P("shelf/item.md");
-        Assert.NotNull(_notes.Tree.RenameDeniedReason(Alice, item, _notes.Tree.Inspect(Alice, item)));
+        Assert.NotNull(_notes.Tree.RenameDeniedReason(Alice, item, _notes.Tree.DeleteDeniedReason(Alice, item)));
         string a = _notes.P("docs/a.md");
-        Assert.Null(_notes.Tree.RenameDeniedReason(Alice, a, _notes.Tree.Inspect(Alice, a)));
+        Assert.Null(_notes.Tree.RenameDeniedReason(Alice, a, _notes.Tree.DeleteDeniedReason(Alice, a)));
     }
 }

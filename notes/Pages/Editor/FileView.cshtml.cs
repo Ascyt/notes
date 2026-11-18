@@ -125,8 +125,7 @@ public class FileView : PageModel
         if (await LooksBinaryAsync())
         {
             IsBinary = true;
-            _ = MediaTypes.TryGet(PhysicalPath, out _, out MediaKind kind);
-            Media = kind;
+            Media = MediaTypes.KindOf(PhysicalPath);
             return;
         }
 

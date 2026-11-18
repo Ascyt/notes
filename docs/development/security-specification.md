@@ -118,7 +118,7 @@ A [bridge](../administration/bridges.md) is a directory of the notes kept in a p
 | View a directory listing | `GET /dir` | Directory openable (otherwise 403; 404 if not known) | Listed by name, with a lock and a tooltip. They can't be opened or selected. Not listed at all for anonymous users. |
 | View a file (preview, editor, media) | `GET /file` | File openable. A `.md` file is shown rendered. Any other text file is shown in the editor, which is read-only without `Write`, and Save is disabled. | — |
 | Edit a markdown file | `GET /file.md?edit` | As viewing it. Without `Write`, `?edit` shows its source in the editor, read-only, like any other text file; the ways into the editor (the toolbar's and the one next to each part of the text) are then ways to view the source (`#view-source-button`, `#view-source-here-button`) instead of to edit it. | — |
-| Raw bytes of a media file | `GET /file?raw` | File openable | — |
+| Raw bytes of a media file | `GET /file?raw` | File openable. An image the browser can't show is converted first; it is only ever read as the format its extension names, never as what its contents claim to be. | — |
 | Download a file | `GET /file?download` | File openable | — |
 | Download a directory (zip) | `GET /dir?download` | Directory openable. Each entry is checked as the zip reaches it. | Left out, together with what is in them |
 | Save a file | `POST /file` (body) | File known + `ReadAndWrite` on it | — |
@@ -143,7 +143,7 @@ Notes on the table:
 
 - **Every request** first resolves the address to a known entry, or answers 404 (`IndexModel`). Each operation's own checks come on top of that.
 - **Copy, move, delete and rename are checked completely before anything is changed** (`TransferPlanner`). A copy then copies exactly the entries that were checked: nothing unreadable, and nothing that appeared later.
-- **The UI leaves out what the permissions don't allow at all, and disables the rest of what they don't allow, saying why** (see rule 7 below). This covers the selection card and the Delete, Rename, Upload, Create, Save and history controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again.
+- **The UI leaves out what the permissions don't allow at all, and disables the rest of what they don't allow, saying why** (see rule 7 below). This covers the selection card and the Delete, Rename, Upload, Create, Save and history controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again. For deleting, renaming and moving, the UI only looks at the entries themselves, not at what is inside a directory: walking a large tree for every page would make it slow. That is checked when it is done, and a refusal names what is in the way.
 
 ### Pages outside the notes
 
@@ -182,7 +182,7 @@ What the history does never decides whether an operation is allowed, and never f
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
 5. **Show unreadable entries by name and kind only.** Show no other attribute.
 6. **Lock structure changes.** If the feature adds, removes or renames entries, hold the `StructureLock` from the permission check until the change is done.
-7. **Don't leave the user guessing in the UI.** What the user may not do at all isn't offered. A control that is there but can't be used here or now is disabled, with the reason as its tooltip, and never left to fail. A disabled control's reason only names what the user may know (the configuration, for instance, only for those who manage it). The server checks again regardless.
+7. **Don't leave the user guessing in the UI.** What the user may not do at all isn't offered. A control that is there but can't be used here or now is disabled, with the reason as its tooltip, and never left to fail, unless finding that out would mean walking a whole tree (see above): then it fails with the reason. A disabled control's reason only names what the user may know (the configuration, for instance, only for those who manage it). The server checks again regardless.
 8. **Record the feature here.** Add it to [Operations](#operations) (or to [Pages outside the notes](#pages-outside-the-notes)). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
 
 ## Where it is implemented

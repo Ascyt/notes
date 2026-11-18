@@ -53,6 +53,8 @@ A file that may be read but not changed opens in the editor as read-only, and th
 
 Images, videos, audio files and PDFs are shown on the file's page by the browser. The image icon shows the file on its own, as the browser would (`?raw`).
 
+Images that browsers can't show themselves are converted for showing: photos of phones (HEIC/HEIF) and cameras (RAW files such as CR2, NEF, ARW or DNG), JPEG XL, JPEG 2000, TIFF, Photoshop and GIMP files, and many older formats. They are shown as JPEG, or as PNG where they are transparent; only the first page or layer is shown (the merged image of a Photoshop file). Downloading them still gives the file as it is. A file that isn't the image its name says can't be shown.
+
 ![An image](../screenshots/image-desktop.png)
 
 Other files that aren't text can't be shown, and only be downloaded.

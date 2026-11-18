@@ -1,15 +1,27 @@
+using System.Security.Cryptography;
+using ImageMagick;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
+using notes.Features.ImageConversion;
 
 namespace notes.Pages.Editor;
 
-/// <summary>Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page.</summary>
-public sealed class RawHandler
+/// <summary>
+/// Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page. An image the browser can't show is converted
+/// into one it can first (see <see cref="ConvertedImageFormats"/>); downloading it still gives the file as it is.
+/// </summary>
+public sealed class RawHandler(ILogger<RawHandler> logger)
 {
     public IActionResult Handle(HttpResponse response, string physicalPath)
     {
-        if (!File.Exists(physicalPath) || !TryPrepare(response, physicalPath, out string contentType))
+        if (!File.Exists(physicalPath))
             return new NotFoundResult();
 
+        if (ConvertedImageFormats.TryGet(physicalPath, out MagickFormat format))
+            return Converted(response, physicalPath, ReadAllBytes(physicalPath), format, logger);
+
+        if (!TryPrepare(response, physicalPath, out string contentType))
+            return new NotFoundResult();
         return new PhysicalFileResult(physicalPath, contentType)
         {
             EnableRangeProcessing = true // seeking in videos and audio
@@ -18,9 +30,14 @@ public sealed class RawHandler
 
     /// <summary>The same for contents that aren't a file on disk (a file as an earlier state has it). <paramref name="name"/> says what type it is.</summary>
     public static IActionResult HandleContents(HttpResponse response, string name, byte[] contents)
-        => TryPrepare(response, name, out string contentType)
+    {
+        if (ConvertedImageFormats.TryGet(name, out MagickFormat format))
+            return Converted(response, name, contents, format, response.HttpContext.RequestServices.GetRequiredService<ILogger<RawHandler>>());
+
+        return TryPrepare(response, name, out string contentType)
             ? new FileContentResult(contents, contentType) { EnableRangeProcessing = true }
             : new NotFoundResult();
+    }
 
     /// <summary>The type the browser is told, from the name; false for what the browser isn't to show (see <see cref="MediaTypes"/>).</summary>
     private static bool TryPrepare(HttpResponse response, string name, out string contentType)
@@ -28,8 +45,45 @@ public sealed class RawHandler
         if (!MediaTypes.TryGet(name, out contentType, out _))
             return false;
 
-        // The browser must not second-guess the type, e.g. by treating a renamed HTML file as a page of this site
-        response.Headers.XContentTypeOptions = "nosniff";
+        ForbidSniffing(response);
         return true;
+    }
+
+    /// <summary>
+    /// The image converted for the browser. Converting takes a while, so the answer is tagged with a hash of the contents it was made from:
+    /// the browser asks again with it and gets a 304 without converting while the file is unchanged. Contents that can't be read as the
+    /// image their name says answer 422, which the page shows as a file that can't be viewed.
+    /// </summary>
+    private static IActionResult Converted(HttpResponse response, string name, byte[] contents, MagickFormat format, ILogger logger)
+    {
+        ForbidSniffing(response);
+
+        EntityTagHeaderValue tag = new('"' + Convert.ToHexString(SHA256.HashData(contents)) + '"');
+        if (response.HttpContext.Request.GetTypedHeaders().IfNoneMatch.Any(asked => asked.Compare(tag, useStrongComparison: false)))
+            return new StatusCodeResult(StatusCodes.Status304NotModified);
+
+        ConvertedImage image;
+        try
+        {
+            image = ImageForBrowser.Convert(contents, format);
+        }
+        catch (MagickException exception)
+        {
+            logger.LogWarning(exception, "{Name} could not be converted for the browser as {Format}.", name, format);
+            return new UnprocessableEntityResult();
+        }
+        return new FileContentResult(image.Contents, image.ContentType) { EntityTag = tag };
+    }
+
+    // The browser must not second-guess the type, e.g. by treating a renamed HTML file as a page of this site
+    private static void ForbidSniffing(HttpResponse response) => response.Headers.XContentTypeOptions = "nosniff";
+
+    /// <summary>The whole file, also while something else has it open for writing.</summary>
+    private static byte[] ReadAllBytes(string physicalPath)
+    {
+        using FileStream stream = new(physicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using MemoryStream contents = new();
+        stream.CopyTo(contents);
+        return contents.ToArray();
     }
 }

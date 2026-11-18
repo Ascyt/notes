@@ -27,9 +27,12 @@ public sealed class NotesClient(NotesAppFactory app)
     public Task<HttpResponseMessage> DeleteAsync(TestUser user, string url, bool antiforgery = true)
         => SendAsync(user, HttpMethod.Delete, url, null, antiforgery);
 
-    public async Task<HttpResponseMessage> SendAsync(TestUser user, HttpMethod method, string url, HttpContent? content = null, bool antiforgery = true)
+    public async Task<HttpResponseMessage> SendAsync(TestUser user, HttpMethod method, string url, HttpContent? content = null, bool antiforgery = true,
+        IReadOnlyDictionary<string, string>? headers = null)
     {
         using HttpRequestMessage request = new(method, url) { Content = content };
+        foreach ((string name, string value) in headers ?? new Dictionary<string, string>())
+            request.Headers.Add(name, value);
         if (user.ToHeader() is { } header)
             request.Headers.Add(TestUser.HeaderName, header);
         if (antiforgery && method != HttpMethod.Get && method != HttpMethod.Head)
