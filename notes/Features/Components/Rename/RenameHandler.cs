@@ -9,17 +9,17 @@ using notes.Features.History;
 namespace notes.Features.Components.Rename;
 
 /// <summary>
-/// Answers <c>?rename=&lt;name&gt;</c>: renames the file or directory and returns where it is now. Renaming is moving within the same
-/// directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
+/// Answers <c>?rename=&lt;name&gt;</c>: renames the file or directory and returns where it is now (as an address). Renaming is moving within
+/// the same directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
 public sealed class RenameHandler(NotesLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history)
 {
-    public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath, string newName)
+    public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath, string requestedName)
     {
         if (virtualPath == "")
             return new BadRequestObjectResult("Cannot rename the root directory.");
-        if (!path.IsValidName(newName))
-            return new BadRequestObjectResult("Invalid name.");
+        if (NewNames.Check(requestedName, out string newName) is { } invalid)
+            return new BadRequestObjectResult(invalid);
 
         using (await structureLock.EnterAsync())
         {
@@ -28,13 +28,15 @@ public sealed class RenameHandler(NotesLocations locations, IPathService path, T
                 return new NotFoundObjectResult("Path not found.");
 
             // (A bridge is never renamed, the planner refuses it, but where it is mounted is what the directory above has)
-            string newPhysicalPath = Path.Combine(locations.ParentOf(physicalPath)!, newName);
+            string directory = locations.ParentOf(physicalPath)!;
+            string newPhysicalPath = Path.Combine(directory, newName);
             // Differing only in case is the same entry, so that is allowed. (The user can see all names in the directory: they can see this entry.)
             if (!locations.IsFree(newPhysicalPath) && !string.Equals(newPhysicalPath, physicalPath, StringComparison.OrdinalIgnoreCase))
                 return new ConflictObjectResult("A file or directory with that name already exists.");
 
             try
             {
+                // (Also checks the length of the new path of everything in the tree)
                 planner.CheckRename(user, physicalPath, newPhysicalPath);
             }
             catch (TransferException e)
@@ -44,19 +46,37 @@ public sealed class RenameHandler(NotesLocations locations, IPathService path, T
 
             string[] changed = isDirectory
                 ? [physicalPath, newPhysicalPath]
-                : [physicalPath, newPhysicalPath, Path.Combine(Path.GetDirectoryName(physicalPath)!, PathService.ConfigFileName)];
+                : [physicalPath, newPhysicalPath, Path.Combine(directory, PathService.ConfigFileName)];
             history.BeforeChange(user, changed);
             if (isDirectory)
+                // (Its own configuration file is in it, and goes along in the same step)
                 Directory.Move(physicalPath, newPhysicalPath);
             else
-            {
-                File.Move(physicalPath, newPhysicalPath);
-                // The entry of the file goes with it (for a directory, its own configuration file is in it, and goes along)
-                configs.FileRenamed(Path.GetDirectoryName(physicalPath)!, Path.GetFileName(physicalPath), newName);
-            }
+                RenameFile(directory, physicalPath, newPhysicalPath);
             history.AfterChange(user, changed, HistoryChangeKind.Change);
 
-            return new ContentResult { Content = "/" + path.ToVirtualPath(newPhysicalPath) };
+            return new ContentResult { Content = VirtualPaths.ToAddress(path.ToVirtualPath(newPhysicalPath)) };
         }
+    }
+
+    /// <summary>Renames the file with its entry in the configuration of the folder, so that it has its own permissions all the time.</summary>
+    private void RenameFile(string directory, string physicalPath, string newPhysicalPath)
+    {
+        string oldName = Path.GetFileName(physicalPath);
+        string newName = Path.GetFileName(newPhysicalPath);
+        configs.FileRenaming(directory, oldName, newName);
+        try
+        {
+            File.Move(physicalPath, newPhysicalPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The entry made for the new name must not stay behind for a file that isn't there: a later one of that name would get it
+            if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase))
+                configs.FileRemoved(directory, newName);
+            throw;
+        }
+
+        configs.FileRenamed(directory, oldName, newName);
     }
 }

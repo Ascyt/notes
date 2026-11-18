@@ -10,7 +10,7 @@ namespace notes.Pages.Editor;
 /// Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page. An image the browser can't show is converted
 /// into one it can first (see <see cref="ConvertedImageFormats"/>); downloading it still gives the file as it is.
 /// </summary>
-public sealed class RawHandler(ILogger<RawHandler> logger)
+public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
 {
     public IActionResult Handle(HttpResponse response, string physicalPath)
     {
@@ -18,7 +18,12 @@ public sealed class RawHandler(ILogger<RawHandler> logger)
             return new NotFoundResult();
 
         if (ConvertedImageFormats.TryGet(physicalPath, out MagickFormat format))
+        {
+            // Converting reads all of it into memory first
+            if (new FileInfo(physicalPath).Length > config.Limits.MaxConvertedImageBytes)
+                return new UnprocessableEntityResult();
             return Converted(response, physicalPath, ReadAllBytes(physicalPath), format, logger);
+        }
 
         if (!TryPrepare(response, physicalPath, out string contentType))
             return new NotFoundResult();
@@ -32,7 +37,11 @@ public sealed class RawHandler(ILogger<RawHandler> logger)
     public static IActionResult HandleContents(HttpResponse response, string name, byte[] contents)
     {
         if (ConvertedImageFormats.TryGet(name, out MagickFormat format))
+        {
+            if (contents.Length > response.HttpContext.RequestServices.GetRequiredService<Config>().Limits.MaxConvertedImageBytes)
+                return new UnprocessableEntityResult();
             return Converted(response, name, contents, format, response.HttpContext.RequestServices.GetRequiredService<ILogger<RawHandler>>());
+        }
 
         return TryPrepare(response, name, out string contentType)
             ? new FileContentResult(contents, contentType) { EnableRangeProcessing = true }
@@ -52,7 +61,7 @@ public sealed class RawHandler(ILogger<RawHandler> logger)
     /// <summary>
     /// The image converted for the browser. Converting takes a while, so the answer is tagged with a hash of the contents it was made from:
     /// the browser asks again with it and gets a 304 without converting while the file is unchanged. Contents that can't be read as the
-    /// image their name says answer 422, which the page shows as a file that can't be viewed.
+    /// image their name says answer 422, which the page shows as a file that can't be viewed, as do images too large to be converted.
     /// </summary>
     private static IActionResult Converted(HttpResponse response, string name, byte[] contents, MagickFormat format, ILogger logger)
     {

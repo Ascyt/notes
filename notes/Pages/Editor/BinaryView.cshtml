@@ -2,7 +2,9 @@
 @using notes.Pages.Editor
 @model notes.Pages.Editor.FileView
 @{
-    string message = $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the download button above.";
+    string message = Model.IsTooLarge
+        ? $"This file is too large ({Model.FormattedSize}) to be shown here (text is shown up to {FileView.FormatSize(Model.MaxTextBytes)}). It may be downloaded using the download button above."
+        : $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the download button above.";
     string name = System.IO.Path.GetFileName(Model.VirtualPath);
 }
 

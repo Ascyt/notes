@@ -4,19 +4,25 @@ using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
+using notes.Pages.Editor;
 
 namespace notes.Features.Components.Upload;
 
 public interface IUploadService
 {
-    /// <summary>Starts an upload for the user and returns its id, which only that user can continue.</summary>
+    /// <summary>
+    /// Starts an upload for the user and returns its id, which only that user can continue. Throws an <see cref="UploadRefusedException"/> if
+    /// the user has as many unfinished uploads as they may have (<see cref="LimitsConfig.MaxUploadsInProgressPerUser"/>).
+    /// </summary>
     string StartUpload(string userId);
 
     /// <summary>
     /// Writes one chunk of the user's upload at <paramref name="offset"/>. Returns null if the user has no such upload or the
     /// chunk doesn't continue where the previous one ended, otherwise "" or, after the last chunk, the virtual path of the
     /// finished file (renamed to "name (n).ext" if the name was taken). <paramref name="mayCreate"/> is asked for the physical path the
-    /// finished file is about to get; if it says no, the upload is discarded and an <see cref="AccessDeniedException"/> thrown.
+    /// finished file is about to get; if it says no, the upload is discarded and an <see cref="AccessDeniedException"/> thrown. What breaks the
+    /// limits (<see cref="LimitsConfig.MaxUploadBytes"/>, the length of the name and path the file gets) discards the upload too, and throws an
+    /// <see cref="UploadRefusedException"/>, as does a chunk sent while another one of the same upload is still being written.
     /// </summary>
     Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body, Func<string, bool> mayCreate);
 
@@ -27,7 +33,13 @@ public interface IUploadService
     int DeleteStaleUploads(TimeSpan maxAge);
 }
 
-public sealed class UploadService(NotesLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs, TimeProvider time) : IUploadService
+/// <summary>Why an upload can't go on, with the status and the message for the user.</summary>
+public sealed class UploadRefusedException(int statusCode, string message) : Exception(message)
+{
+    public int StatusCode { get; } = statusCode;
+}
+
+public sealed class UploadService(NotesLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs, LimitsConfig limits, TimeProvider time) : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -35,6 +47,10 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
         // written to an upload that this user started (a made-up or someone else's id finds nothing)
         string userDirectory = UserTempDirectory(userId);
         _ = Directory.CreateDirectory(userDirectory);
+        // Each one is a file on disk until it is finished or cleared as stale. (Two requests at once may get one more in: a bound, not a quota.)
+        if (Directory.EnumerateFiles(userDirectory).Count() >= limits.MaxUploadsInProgressPerUser)
+            throw new UploadRefusedException(StatusCodes.Status429TooManyRequests,
+                $"There are already {limits.MaxUploadsInProgressPerUser} unfinished uploads. They have to be finished, or are discarded an hour after their last part arrived.");
 
         Guid uploadId = Guid.NewGuid();
         using (FileStream temp = new(Path.Combine(userDirectory, TempName(uploadId)), FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -56,6 +72,11 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
             // Never started, or cleared as stale (see DeleteStaleUploads)
             return null;
         }
+        catch (IOException) when (File.Exists(tempPath))
+        {
+            // Open for another chunk of it, which is still being written: chunks come one after the other
+            throw new UploadRefusedException(StatusCodes.Status409Conflict, "Another part of this upload is still being written.");
+        }
 
         await using (temp)
         {
@@ -65,9 +86,16 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
 
             temp.SetLength(offset);
             temp.Position = offset;
-            await body.CopyToAsync(temp);
+            bool fits = await CopyAtMostAsync(body, temp, limits.MaxUploadBytes - offset);
             await temp.FlushAsync();
             SetLastWriteTimeToNow(temp);
+            if (!fits)
+            {
+                temp.SetLength(0);
+                await temp.DisposeAsync();
+                File.Delete(tempPath);
+                throw new UploadRefusedException(StatusCodes.Status413PayloadTooLarge, $"The file is too large to be uploaded (at most {FileView.FormatSize(limits.MaxUploadBytes)}).");
+            }
         }
 
         if (!isLast)
@@ -83,9 +111,26 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
             if (!File.Exists(tempPath))
                 return null;
 
+            // Checked again now that nothing can change it: the directory may have gone while the chunks arrived
+            if (!Directory.Exists(physicalDirectory))
+            {
+                File.Delete(tempPath);
+                throw new UploadRefusedException(StatusCodes.Status404NotFound, "The directory was renamed, moved or deleted while the file was uploaded.");
+            }
+
             for (int n = 1; ; n++)
             {
                 string finalPath = Path.Combine(physicalDirectory, finalName);
+                // The number that makes it free may make it too long (the name the user gave was checked before)
+                string? tooLong = Encoding.UTF8.GetByteCount(finalName) > NewNames.MaxNameBytes
+                    ? $"'{name}' is taken in this directory, and the free name with a number added would be too long (at most {NewNames.MaxNameBytes} bytes)."
+                    : limits.IsTooLong(locations.ToVirtualPath(finalPath)) ? limits.PathTooLongMessage(path.ToVirtualPath(finalPath)) : null;
+                if (tooLong is not null)
+                {
+                    File.Delete(tempPath);
+                    throw new UploadRefusedException(StatusCodes.Status400BadRequest, tooLong);
+                }
+
                 if (locations.IsFree(finalPath))
                 {
                     if (!mayCreate(finalPath))
@@ -204,6 +249,23 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
         => userId.Length is > 0 and <= 64 && userId.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')
             ? userId
             : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(userId)));
+
+    /// <summary>Copies at most <paramref name="maxBytes"/>; false if the source has more (what was copied is then of no use).</summary>
+    private static async Task<bool> CopyAtMostAsync(Stream source, Stream destination, long maxBytes)
+    {
+        byte[] buffer = new byte[81920];
+        long copied = 0;
+        int read;
+        while ((read = await source.ReadAsync(buffer)) > 0)
+        {
+            copied += read;
+            if (copied > maxBytes)
+                return false;
+            await destination.WriteAsync(buffer.AsMemory(0, read));
+        }
+
+        return true;
+    }
 
     private static string TempName(Guid uploadId)
         => uploadId.ToString("N") + ".part";

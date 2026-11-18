@@ -10,7 +10,7 @@ The plus below the subdirectories creates a subdirectory (`n`), the one below th
 
 The upload icon (or Alt+PageUp) picks files to upload into the directory, and so does dropping files onto the page. A list of the files shows first, then the progress. Files of any size can be uploaded: they are sent in parts.
 
-If a name is taken, the uploaded file gets a number: `plan.md` becomes `plan (1).md`. If a file can't be uploaded, it stays in the list with the reason, to be tried again.
+If a name is taken (also in another case: `Plan.md` is the same name as `plan.md`), the uploaded file gets a number: `plan.md` becomes `plan (1).md`. If a file can't be uploaded, it stays in the list with the reason, to be tried again.
 
 ## Renaming
 

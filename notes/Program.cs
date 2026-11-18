@@ -17,6 +17,8 @@ using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
 using notes.Features.History;
+using notes.Extensions;
+using notes.Features.ImageConversion;
 using notes.Features.HistoryViewing.Changes;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
@@ -29,6 +31,9 @@ using notes.Pages.Editor;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 Config config = builder.Configuration.GetSection("Config").Get<Config>()!;
+// How large what users send may be (docs/development/user-input.md); limits that make no sense don't let the app start
+config.Limits.Check();
+ImageForBrowser.LimitPixels(config.Limits.MaxConvertedImagePixels);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -45,6 +50,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 builder.Services.AddSingleton(config);
+builder.Services.AddSingleton(config.Limits);
 // The one clock of the app (selection lifetime, stale uploads, session renewal, names of new entries), so that tests can replace it
 builder.Services.AddSingleton(TimeProvider.System);
 // Where the notes are on disk: the root and the bridges (docs/administration/bridges.md). A configuration that isn't valid stops the app here.
@@ -131,6 +137,7 @@ if (app.Services.GetRequiredService<FolderConfigStore>().MigrateAll() > 0)
 
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();
+app.UseSecurityHeaders();
 // Once shut down, the app answers nothing but that
 app.UseKillSwitch();
 

@@ -15,7 +15,7 @@ public sealed class UploadServiceTests : IDisposable
 
     public UploadServiceTests()
     {
-        _uploads = new UploadService(_notes.Locations, _notes.Paths, new StructureLock(), _notes.Store, _time);
+        _uploads = new UploadService(_notes.Locations, _notes.Paths, new StructureLock(), _notes.Store, new LimitsConfig(), _time);
         _ = _notes.Files.Dir("dir");
     }
 

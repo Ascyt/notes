@@ -72,6 +72,9 @@ public sealed class IndexModel(Config config,
 
     public async Task<IActionResult> OnGetAsync()
     {
+        if (HasRepeatedParameter)
+            return BadRequest();
+
         VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
         // No body, so the error page is shown instead
         if (VirtualPath.StartsWith("_/"))
@@ -151,6 +154,7 @@ public sealed class IndexModel(Config config,
             {
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
+                MaxTextBytes = config.Limits.MaxTextBytes,
                 CanWrite = access.CanWrite,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
@@ -294,9 +298,14 @@ public sealed class IndexModel(Config config,
     private IActionResult OnGetCommitsThatChangedEntry()
     {
         int page = int.TryParse(Request.Query[_CommitSidebar.PageParameter], out int asked) && asked >= 1 ? asked : 1;
-        EarlierStateParameter? shown = Request.Query[EarlierStateParameter.Commit].FirstOrDefault() is { } commit
+        string? commit = Request.Query[EarlierStateParameter.Commit].FirstOrDefault();
+        string? before = Request.Query[EarlierStateParameter.Before].FirstOrDefault();
+        // The page asks with the state it shows, which is a valid one (otherwise it would have been sent to now)
+        if ((commit is not null && !EarlierStateParameter.IsCommitId(commit)) || (commit is null && before is not null && !EarlierStateTime.TryParse(before, out _)))
+            return BadRequest();
+        EarlierStateParameter? shown = commit is not null
             ? EarlierStateParameter.ForCommit(commit.ToLowerInvariant())
-            : Request.Query[EarlierStateParameter.Before].FirstOrDefault() is { } before ? new EarlierStateParameter(EarlierStateParameter.Before, before) : null;
+            : before is not null ? new EarlierStateParameter(EarlierStateParameter.Before, before) : null;
         bool newer = Request.Query.ContainsKey(_CommitSidebar.NewerParameter);
         if (earlierStateRequests.CommitsThatChangedEntry(User, VirtualPath, shown, page, newer) is not { } found)
             return NotFound();
@@ -322,6 +331,9 @@ public sealed class IndexModel(Config config,
 
     public async Task<IActionResult> OnPostAsync()
     {
+        if (HasRepeatedParameter)
+            return BadRequest(RepeatedParameterMessage);
+
         // An earlier state can't be changed, by anyone (the same answer whatever the path, so it tells nothing about it)
         if (EarlierStateParameter.IsIn(Request.Query))
             return BadRequest(EarlierStateViews.CantBeChangedReason);
@@ -358,6 +370,9 @@ public sealed class IndexModel(Config config,
 
     public async Task<IActionResult> OnDeleteAsync()
     {
+        if (HasRepeatedParameter)
+            return BadRequest(RepeatedParameterMessage);
+
         if (EarlierStateParameter.IsIn(Request.Query))
             return BadRequest(EarlierStateViews.CantBeChangedReason);
 
@@ -367,6 +382,14 @@ public sealed class IndexModel(Config config,
 
         return await deleteHandler.HandleAsync(User, VirtualPath, PhysicalPath);
     }
+
+    private const string RepeatedParameterMessage = "A parameter of the address is given more than once.";
+
+    /// <summary>
+    /// Whether a parameter of the query is there more than once (<c>?rename=a&amp;rename=b</c>). Nothing the pages ask for does that, and it
+    /// would be read as the values joined by a comma ("a,b"), which is a valid name: such a request is refused instead of guessed at.
+    /// </summary>
+    private bool HasRepeatedParameter => Request.Query.Any(parameter => parameter.Value.Count > 1);
 
     /// <summary>
     /// Finds the entry a POST or DELETE is for. Returns the answer if there is none the user may know of. Whether they may read it (and

@@ -11,7 +11,7 @@ using notes.Pages.Editor;
 namespace notes.Features.HistoryViewing.Changes;
 
 /// <summary>The pages of the changes of a commit (<c>?commit=&amp;changes</c>): what it changed in a directory, or the two sides of a file.</summary>
-public sealed class CommitChangesViews(NotesLocations locations, IPathService path, AccessTree tree, CommitChanges changes, EarlierStateViews views)
+public sealed class CommitChangesViews(Config config, NotesLocations locations, IPathService path, AccessTree tree, CommitChanges changes, EarlierStateViews views)
 {
     /// <param name="addressOfNow">The address of the entry as it is now, which the sidebar leads back to.</param>
     public DirectoryView CreateDirectoryView(ClaimsPrincipal user, string virtualPath, ShowChangesOfCommit shown, string addressOfNow)
@@ -44,8 +44,8 @@ public sealed class CommitChangesViews(NotesLocations locations, IPathService pa
         return new _FileChanges
         {
             VirtualPath = virtualPath,
-            Before = await DescribeSideAsync(shown.Before, rawBytesQuery + "&" + CommitChangesRequests.PreviousParameter),
-            After = await DescribeSideAsync(shown.After, rawBytesQuery),
+            Before = await DescribeSideAsync(shown.Before, rawBytesQuery + "&" + CommitChangesRequests.PreviousParameter, config.Limits.MaxTextBytes),
+            After = await DescribeSideAsync(shown.After, rawBytesQuery, config.Limits.MaxTextBytes),
             CommitSidebar = views.CommitViewSidebar(user, shown.State, shown.PhysicalPath, shown.Shown, "file", addressOfNow),
             CommitChangesButton = WayToState(shown, "file"),
             ParentsWithoutHistory = views.ParentsWithoutHistory(user, shown.StateShown, shown.PhysicalPath)
@@ -62,14 +62,15 @@ public sealed class CommitChangesViews(NotesLocations locations, IPathService pa
         });
 
     /// <summary>What the page shows of a side: whether it is text (and the text), or what the browser shows it as.</summary>
-    private static async Task<FileChangeSide> DescribeSideAsync(ChangeSide side, string rawBytesQuery)
+    /// <remarks>Text larger than <paramref name="maxTextBytes"/> is shown like binary contents: it isn't read into the page.</remarks>
+    private static async Task<FileChangeSide> DescribeSideAsync(ChangeSide side, string rawBytesQuery, int maxTextBytes)
     {
         if (side.Entry?.Blob is not { } blob)
             return new FileChangeSide(side.Kind, IsBinary: false, "", MediaKind.None, "", rawBytesQuery);
 
         bool isBinary;
         await using (Stream contents = blob.GetContentStream())
-            isBinary = await FileView.LooksBinaryAsync(contents);
+            isBinary = blob.Size > maxTextBytes || await FileView.LooksBinaryAsync(contents);
         MediaKind media = MediaTypes.KindOf(side.Entry.Name);
         return new FileChangeSide(side.Kind, isBinary, isBinary ? "" : EarlierState.ReadText(blob), isBinary ? media : MediaKind.None,
             FileView.FormatSize(blob.Size), rawBytesQuery);

@@ -123,8 +123,8 @@ A [bridge](../administration/bridges.md) is a directory of the notes kept in a p
 | Download a directory (zip) | `GET /dir?download` | Directory openable. Each entry is checked as the zip reaches it. | Left out, together with what is in them |
 | Save a file | `POST /file` (body) | File known + `ReadAndWrite` on it | — |
 | Create a file or subdirectory | `POST /dir?create=file\|directory` | Directory openable + `Create` on the new path | — |
-| Upload | `POST /dir?upload=…` | Directory openable + `Create` on the final path of each file. This is checked with every chunk for the requested name, and again for the name the file actually gets. | — |
-| Rename | `POST /entry?rename=name` | Entry known, not the root, no [bridge](#bridges) in the tree. `Read` and `CreateAndDelete` on the whole tree, and `Create` on the new path of every entry in the tree. Links are refused. | Fails (403, names the unreadable entry) |
+| Upload | `POST /dir?upload=…` | The name is one a [new entry](user-input.md#names-of-new-entries) may have. Directory openable + `Create` on the final path of each file. This is checked with every chunk for the requested name, and again for the name the file actually gets. | — |
+| Rename | `POST /entry?rename=name` | The name is one a [new entry](user-input.md#names-of-new-entries) may have. Entry known, not the root, no [bridge](#bridges) in the tree. `Read` and `CreateAndDelete` on the whole tree, and `Create` on the new path of every entry in the tree. Links are refused. | Fails (403, names the unreadable entry) |
 | Delete | `DELETE /entry` or `POST /dir?transfer=delete` | Entry known, not the root, no [bridge](#bridges) in the tree. `Read` and `CreateAndDelete` on the whole tree. All or nothing. | Fails (403, names the unreadable entry) |
 | Select / unselect | `POST /?selection=add\|remove\|clear` | Selecting: entry openable. Entries that can't be selected are skipped silently. Unselecting needs nothing. | — |
 | Read the selection | `GET /?selection` | Root openable | — |
@@ -165,7 +165,9 @@ What the history does never decides whether an operation is allowed, and never f
 
 ## Concurrency
 
-- **One lock for structure changes.** Every operation that adds, removes or renames entries holds the single `StructureLock` while it checks permissions and acts on them: create, upload (only while placing the finished file), rename, delete, copy and move. Nothing can appear inside a directory between a move or delete checking it and moving or deleting it. Saving changes no entries and doesn't take the lock.
+- **One lock for changes.** Every operation that adds, removes or renames entries holds the single `StructureLock` while it checks permissions and acts on them: create, upload (only while placing the finished file), rename, delete, copy and move. Nothing can appear inside a directory between a move or delete checking it and moving or deleting it. Saving a file and saving a configuration hold it too, so that what they checked can't be renamed, moved or deleted before they write (a save never makes a file where one was).
+- **Nothing is seen half done.** Reading takes no lock, so every change is made so that a reader sees the state before or after it: deletes, copies and moves are single renames into and out of the app's data, a configuration is replaced in one step, and a renamed file has the entry of its new name before it is renamed. How, in detail, is in [User input](user-input.md#concurrency).
+- **Names are the same in any case,** also where the file system tells cases apart: a new entry never gets the name of another in another case, which would share (and, when deleted, take away) its permissions.
 - **Changes made outside the app are not covered.** This includes files edited on the server directly, and permissions that change while an operation runs. Such an operation acts on what it checked at its start.
 - **Single process only.** The lock and the selections live in the memory of one process. Running several instances would need a distributed lock and store.
 
@@ -183,7 +185,8 @@ What the history does never decides whether an operation is allowed, and never f
 5. **Show unreadable entries by name and kind only.** Show no other attribute.
 6. **Lock structure changes.** If the feature adds, removes or renames entries, hold the `StructureLock` from the permission check until the change is done.
 7. **Don't leave the user guessing in the UI.** What the user may not do at all isn't offered. A control that is there but can't be used here or now is disabled, with the reason as its tooltip, and never left to fail, unless finding that out would mean walking a whole tree (see above): then it fails with the reason. A disabled control's reason only names what the user may know (the configuration, for instance, only for those who manage it). The server checks again regardless.
-8. **Record the feature here.** Add it to [Operations](#operations) (or to [Pages outside the notes](#pages-outside-the-notes)). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
+8. **Check what is sent** as [User input](user-input.md#rules-for-new-features) says: what each value may be, how large, and again under the lock.
+9. **Record the feature here.** Add it to [Operations](#operations) (or to [Pages outside the notes](#pages-outside-the-notes)). If it reveals anything new, add that to [What a user may learn](#what-a-user-may-learn).
 
 ## Where it is implemented
 

@@ -72,8 +72,16 @@ public class FileView : PageModel
     /// <summary>Whether the address asked for the editor (<c>?edit</c>). Only a markdown file has anything else to show.</summary>
     public bool EditRequested { get; init; }
 
+    /// <summary>The largest text that is shown (<see cref="notes.Features.Helpers.LimitsConfig.MaxTextBytes"/>).</summary>
+    public int MaxTextBytes { get; init; } = new notes.Features.Helpers.LimitsConfig().MaxTextBytes;
+
     public string Contents { get; private set; } = "";
+
+    /// <summary>Whether the file is shown as one whose contents can't be read as text: it is binary, or text too large to be shown (<see cref="IsTooLarge"/>).</summary>
     public bool IsBinary { get; private set; }
+
+    /// <summary>Whether the file is text, but larger than <see cref="MaxTextBytes"/>: reading it into the page would take the server's memory.</summary>
+    public bool IsTooLarge { get; private set; }
 
     /// <summary>Whether the file is markdown, which is shown rendered unless it is being edited.</summary>
     public bool IsMarkdown => !IsBinary && Path.GetExtension(VirtualPath).Equals(".md", StringComparison.OrdinalIgnoreCase);
@@ -122,9 +130,11 @@ public class FileView : PageModel
     {
         Size = Earlier?.Size ?? new FileInfo(PhysicalPath).Length;
 
-        if (await LooksBinaryAsync())
+        bool looksBinary = await LooksBinaryAsync();
+        if (looksBinary || Size > MaxTextBytes)
         {
             IsBinary = true;
+            IsTooLarge = !looksBinary;
             Media = MediaTypes.KindOf(PhysicalPath);
             return;
         }

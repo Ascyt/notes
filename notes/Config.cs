@@ -1,5 +1,6 @@
 ﻿using notes.Features.Auth;
 using notes.Features.Bridges;
+using notes.Features.Helpers;
 using notes.Features.History;
 
 namespace notes;
@@ -22,4 +23,6 @@ public sealed class Config
     public HistoryConfig History { get; init; } = new();
     /// <summary>Virtual directories of the notes kept in physical directories of their own, see <see cref="NotesLocations"/>.</summary>
     public BridgeConfig[] Bridges { get; init; } = [];
+    /// <summary>How large what users send and make may be, see <see cref="LimitsConfig"/>.</summary>
+    public LimitsConfig Limits { get; init; } = new();
 }

@@ -11,7 +11,7 @@ namespace notes.Features.Components.Upload;
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
 /// or proxies cap the file size. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
-public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, HistoryService history)
+public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history)
 {
     public async Task<IActionResult> HandleAsync(HttpRequest request, ClaimsPrincipal user, string physicalPath, string upload)
     {
@@ -28,7 +28,16 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
             return Forbidden("Login required to upload files.");
 
         if (upload == "start")
-            return new ContentResult { Content = uploadService.StartUpload(userId) };
+        {
+            try
+            {
+                return new ContentResult { Content = uploadService.StartUpload(userId) };
+            }
+            catch (UploadRefusedException e)
+            {
+                return new ObjectResult(e.Message) { StatusCode = e.StatusCode };
+            }
+        }
 
         if (!Guid.TryParse(upload, out Guid uploadId))
             return new BadRequestObjectResult("Invalid upload id.");
@@ -39,17 +48,18 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
             return new OkResult();
         }
 
-        string name = request.Query["name"].ToString();
-        if (!path.IsValidName(name))
-            return new BadRequestObjectResult("Invalid file name.");
+        if (NewNames.Check(request.Query["name"].ToString(), out string name) is { } invalid)
+            return new BadRequestObjectResult(invalid);
         if (!long.TryParse(request.Query["offset"], out long offset) || offset < 0)
             return new BadRequestObjectResult("Invalid offset.");
 
         // Asked early (with every chunk) so that a file that can't be put here isn't uploaded in vain, and once more for the name the
-        // finished file actually gets
-        bool MayCreate(string physical) => tree.GetAccess(user, physical).CanCreate;
+        // finished file actually gets, under the lock (the directory may have changed since this chunk was checked)
+        bool MayCreate(string physical) => tree.GetAccess(user, physicalPath).CanRead && tree.GetAccess(user, physical).CanCreate;
         if (!MayCreate(Path.Combine(physicalPath, name)))
             return Forbidden($"Insufficient permissions to create '{name}' here.");
+        if (limits.IsTooLong(path.ToVirtualPath(Path.Combine(physicalPath, name))))
+            return new BadRequestObjectResult(limits.PathTooLongMessage(path.ToVirtualPath(Path.Combine(physicalPath, name))));
 
         string? result;
         try
@@ -59,6 +69,10 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         catch (AccessDeniedException e)
         {
             return Forbidden(e.Message);
+        }
+        catch (UploadRefusedException e)
+        {
+            return new ObjectResult(e.Message) { StatusCode = e.StatusCode };
         }
 
         if (result is null)

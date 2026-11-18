@@ -14,7 +14,7 @@ using notes.Pages.Editor;
 namespace notes.Features.HistoryViewing.Views;
 
 /// <summary>The pages of an entry as an earlier state has it (<c>?before=</c>): its listing or its file, with nothing in them that changes anything.</summary>
-public sealed class EarlierStateViews(NotesLocations locations, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateCommits commits,
+public sealed class EarlierStateViews(Config config, NotesLocations locations, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateCommits commits,
     CommitChanges changes)
 {
     /// <summary>Why nothing can be changed in an earlier state, which the controls that would change something say.</summary>
@@ -54,6 +54,7 @@ public sealed class EarlierStateViews(NotesLocations locations, IPathService pat
         {
             VirtualPath = virtualPath,
             PhysicalPath = shown.PhysicalPath,
+            MaxTextBytes = config.Limits.MaxTextBytes,
             Earlier = new EarlierFile(shown.Shown, blob.Size, () => blob.GetContentStream()),
             HistoryButton = HistoryButtonState.Usable,
             CommitSidebar = CommitViewSidebar(user, shown.State, shown.PhysicalPath, shown.Shown, "file", addressOfNow),

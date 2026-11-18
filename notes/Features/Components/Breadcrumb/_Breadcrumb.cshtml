@@ -29,11 +29,11 @@
             string? key = virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null;
             if (!Model.ParentsWithoutHistory.TryGetValue(virtualPath, out ParentWithoutHistory? withoutHistory))
             {
-                <a class="text-decoration-none" href="/@virtualPath" key="@key">@name</a>
+                <a class="text-decoration-none" href="@VirtualPaths.ToAddress(virtualPath)" key="@key">@name</a>
             }
             else if (withoutHistory.ExistsNow)
             {
-                <a class="text-secondary text-decoration-none" href="/@virtualPath" key="@key" title="@withoutHistory.Reason" data-no-history-parent="@virtualPath">@name<i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@withoutHistory.Reason"></i></a>
+                <a class="text-secondary text-decoration-none" href="@VirtualPaths.ToAddress(virtualPath)" key="@key" title="@withoutHistory.Reason" data-no-history-parent="@virtualPath">@name<i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@withoutHistory.Reason"></i></a>
             }
             else
             {

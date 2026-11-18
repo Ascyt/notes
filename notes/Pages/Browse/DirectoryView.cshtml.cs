@@ -171,7 +171,7 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
     public _UnopenableEntry UnopenableRow(ListedEntry entry, int index, bool isDirectory)
     {
         // An entry without history leads to the entry as it is now, whose page says why; one that is gone now leads nowhere, nor does a locked one
-        string? href = entry.Kind == ListedKind.NoHistory && entry.ExistsNow ? "/" + ToVirtualPath(entry.Path) : null;
+        string? href = entry.Kind == ListedKind.NoHistory && entry.ExistsNow ? VirtualPaths.ToAddress(ToVirtualPath(entry.Path)) : null;
         return new _UnopenableEntry
         {
             Name = NameOf(entry.Path),

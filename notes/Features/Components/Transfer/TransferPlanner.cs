@@ -17,7 +17,7 @@ namespace notes.Features.Components.Transfer;
 /// What is inside what, and which directory an entry is in, is asked of <see cref="NotesLocations"/>: across a bridge, the physical paths don't
 /// say it. A copy may go from one physical directory to another; anything that would take a bridge away from its place is refused.
 /// </remarks>
-public sealed class TransferPlanner(NotesLocations locations, IPathService path, AccessTree tree)
+public sealed class TransferPlanner(Config config, NotesLocations locations, IPathService path, AccessTree tree)
 {
     public TransferPlan Plan(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
     {
@@ -199,5 +199,9 @@ public sealed class TransferPlanner(NotesLocations locations, IPathService path,
         // ...and what is copied, moved or renamed comes into existence where it goes
         if (destination is not null && !tree.GetAccess(user, destination).CanCreate)
             throw new TransferException(StatusCodes.Status403Forbidden, $"Insufficient permissions to create '{tree.Display(destination)}'.");
+
+        // ...at an address that stays usable
+        if (destination is not null && config.Limits.IsTooLong(locations.ToVirtualPath(destination)))
+            throw new TransferException(StatusCodes.Status400BadRequest, config.Limits.PathTooLongMessage(tree.Display(destination)));
     }
 }

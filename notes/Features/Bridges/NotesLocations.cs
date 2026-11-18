@@ -181,9 +181,46 @@ public sealed class NotesLocations
     public bool IsSameOrInside(string inner, string outer)
         => IsSameOrInsideVirtual(ToVirtualPath(inner), ToVirtualPath(outer));
 
-    /// <summary>Whether a new entry may be put at the path: nothing is there on disk, and it is not where a bridge is mounted.</summary>
+    /// <summary>
+    /// Whether a new entry may be put at the path: nothing is there on disk under that name in any case, and it is not where a bridge is mounted.
+    /// Names are the same in any case throughout the notes (paths are found ignoring it, and so are the entries of the configuration), also on a
+    /// file system that tells cases apart: there, "Secret.md" next to "secret.md" would share its permissions, and deleting it would take them away.
+    /// </summary>
     public bool IsFree(string physicalPath)
-        => !Path.Exists(physicalPath) && !IsHiddenByBridge(physicalPath);
+        => !Path.Exists(physicalPath) && !IsHiddenByBridge(physicalPath) && !HasEntryNamedInAnyCase(Path.GetDirectoryName(physicalPath)!, Path.GetFileName(physicalPath));
+
+    /// <summary>Whether the directory has an entry of the name, in any case. If it can't be told, it counts as taken.</summary>
+    private static bool HasEntryNamedInAnyCase(string directory, string name)
+    {
+        bool Matches(string pattern)
+        {
+            EnumerationOptions options = new() { AttributesToSkip = 0, IgnoreInaccessible = false, MatchType = MatchType.Simple, MatchCasing = MatchCasing.CaseInsensitive };
+            return new DirectoryInfo(directory).EnumerateFileSystemInfos(pattern, options).Any(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        try
+        {
+            // The name as a pattern (one with * or ? in it matches more than itself, hence the comparison); everything for a name the
+            // enumeration refuses as a pattern
+            try
+            {
+                return Matches(name);
+            }
+            catch (ArgumentException)
+            {
+                return Matches("*");
+            }
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Nothing can be put there, which whoever tries finds out
+            return false;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
 
     /// <summary>
     /// The folder for temporary files of the <paramref name="kind"/> in the location the path is in, so that they are on the same volume as

@@ -14,15 +14,38 @@ public static class ImageForBrowser
     /// <summary>The largest width and height that is read, so that a small file claiming a huge image can't take up all memory.</summary>
     private const uint LargestSide = 30_000;
 
+    /// <summary>
+    /// How many images are converted at once: converting takes a processor (or several) for a while, so many requests at once would leave
+    /// nothing for anything else. The rest wait.
+    /// </summary>
+    private static readonly SemaphoreSlim Converting = new(Math.Max(1, Environment.ProcessorCount / 2));
+
     static ImageForBrowser()
     {
         ResourceLimits.Width = LargestSide;
         ResourceLimits.Height = LargestSide;
     }
 
+    /// <summary>Sets how many pixels an image may have to be converted (<see cref="notes.Features.Helpers.LimitsConfig.MaxConvertedImagePixels"/>). Once, at startup.</summary>
+    public static void LimitPixels(ulong maxPixels)
+        => ResourceLimits.Area = maxPixels;
+
     /// <summary>The image the contents are, read as <paramref name="format"/>, in a format the browser shows.</summary>
     /// <exception cref="MagickException">The contents aren't an image of that format, or one that can be read.</exception>
     public static ConvertedImage Convert(byte[] contents, MagickFormat format)
+    {
+        Converting.Wait();
+        try
+        {
+            return ConvertNow(contents, format);
+        }
+        finally
+        {
+            _ = Converting.Release();
+        }
+    }
+
+    private static ConvertedImage ConvertNow(byte[] contents, MagickFormat format)
     {
         // Only the first frame: the merged image of a PSD, the first page of a TIFF
         MagickReadSettings settings = new() { Format = format, FrameIndex = 0, FrameCount = 1 };

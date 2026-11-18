@@ -23,6 +23,9 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
 
     private readonly ConcurrentDictionary<string, Cached> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>How many times a configuration file was written by the app, so that a read knows whether a write came in between.</summary>
+    private long _writes;
+
     private static string ConfigPathOf(string physicalDirectory)
         => Path.Combine(physicalDirectory, PathService.ConfigFileName);
 
@@ -54,8 +57,12 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
         if (_cache.TryGetValue(physicalDirectory, out Cached? cached) && cached.LastWriteUtc == file.LastWriteTimeUtc && cached.Length == file.Length)
             return cached.State;
 
+        // A write between looking at the file and reading it could leave what was read cached as what the new file says (which may have the
+        // same time and length): only what no write overtook is kept
+        long writesBefore = Interlocked.Read(ref _writes);
         FolderConfigState loaded = Load(path, physicalDirectory);
-        _cache[physicalDirectory] = new Cached(file.LastWriteTimeUtc, file.Length, loaded);
+        if (Interlocked.Read(ref _writes) == writesBefore)
+            _cache[physicalDirectory] = new Cached(file.LastWriteTimeUtc, file.Length, loaded);
         return loaded;
     }
 
@@ -169,6 +176,8 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
             throw;
         }
 
+        // (After the file is in place: a read that began before it may have read the old one)
+        _ = Interlocked.Increment(ref _writes);
         _ = _cache.TryRemove(Path.TrimEndingDirectorySeparator(physicalDirectory), out _);
     }
 
@@ -185,6 +194,23 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
     /// <summary>A file was created in the folder (or came into it): it gets an entry that changes nothing, unless it has one already.</summary>
     public void FileAdded(string physicalDirectory, string name)
         => Update(physicalDirectory, "add", text => ConfigText.AddFile(text, name));
+
+    /// <summary>
+    /// A file is about to be renamed: its new name gets an entry like the old one before the file is moved, and <see cref="FileRenamed"/>
+    /// removes the old one after. Reading doesn't wait for the <see cref="StructureLock"/>, so otherwise the file would, for a moment, be
+    /// under its new name without its own entry, with the permissions of the folder, which may give more. A name that only changes in case
+    /// needs nothing: one entry is for both spellings.
+    /// </summary>
+    public void FileRenaming(string physicalDirectory, string oldName, string newName)
+    {
+        if (string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Without an entry of its own the file has the folder's permissions, under either name: an entry the new name has (left over) goes
+        Update(physicalDirectory, "prepare the renaming of", text => ConfigText.GetFileBody(text, oldName) is { } body
+            ? ConfigText.SetFileBody(text, newName, body)
+            : ConfigText.RemoveFile(text, newName));
+    }
 
     public void FileRenamed(string physicalDirectory, string oldName, string newName)
         => Update(physicalDirectory, "rename", text => ConfigText.RenameFile(text, oldName, newName));
