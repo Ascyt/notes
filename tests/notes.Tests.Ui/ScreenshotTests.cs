@@ -123,7 +123,12 @@ public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture)
 
     [Fact]
     public Task Configuration_editor()
-        => CaptureAsync("configuration", Users.Admin, "/docs?config", WaitForMonacoAsync);
+        => CaptureAsync("configuration", Users.Admin, "/docs?config", async page =>
+        {
+            await WaitForMonacoAsync(page);
+            // The notes of the tests are in a new temporary folder every time: an example path, so that the picture stays the same
+            _ = await page.EvaluateAsync("() => document.querySelector('#config-physical-path code').textContent = '/data/notes/docs'");
+        });
 
     [Fact]
     public Task Not_logged_in()

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Toolbar;
 using notes.Features.Helpers;
 using notes.Features.HistoryViewing.States;
@@ -10,13 +11,13 @@ using notes.Pages.Editor;
 namespace notes.Features.HistoryViewing.Changes;
 
 /// <summary>The pages of the changes of a commit (<c>?commit=&amp;changes</c>): what it changed in a directory, or the two sides of a file.</summary>
-public sealed class CommitChangesViews(Config config, IPathService path, AccessTree tree, CommitChanges changes, EarlierStateViews views)
+public sealed class CommitChangesViews(NotesLocations locations, IPathService path, AccessTree tree, CommitChanges changes, EarlierStateViews views)
 {
     /// <param name="addressOfNow">The address of the entry as it is now, which the sidebar leads back to.</param>
     public DirectoryView CreateDirectoryView(ClaimsPrincipal user, string virtualPath, ShowChangesOfCommit shown, string addressOfNow)
     {
         string gitPath = (shown.After.Entry ?? shown.Before.Entry)!.GitPath;
-        DirectoryView directory = new(config, path, tree)
+        DirectoryView directory = new(locations, path, tree)
         {
             VirtualPath = virtualPath,
             PhysicalPath = shown.PhysicalPath,

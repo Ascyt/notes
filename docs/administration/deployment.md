@@ -11,7 +11,7 @@ browser --HTTPS--> Cloudflare --tunnel--> cloudflared --> caddy --> notes     (N
 
 1. **Cloudflare tunnel:** the domain is on Cloudflare, with a tunnel (Zero Trust > Networks > Tunnels > Cloudflared > Docker). Its token is needed in step 3.
 2. **Hostnames:** the tunnel gets two public hostnames, both with service `HTTP` and URL `caddy:80`: the one of the notes (e.g. `notes.example.com`) and the one of Keycloak (e.g. `auth.example.com`). Cloudflare creates their DNS records.
-3. **Settings:** `.env.example` is copied to `.env` and filled in (`NOTES_HOST`, `AUTH_HOST`, `CLOUDFLARE_TUNNEL_TOKEN`, secrets).
+3. **Settings:** `.env.example` is copied to `.env` and filled in (`NOTES_HOST`, `AUTH_HOST`, `CLOUDFLARE_TUNNEL_TOKEN`, secrets). What only this site has beyond that, such as [bridges](bridges.md) and the folders they need, goes into `compose.override.yaml` (from `compose.override.example.yaml`). Neither file is part of the repository.
 4. **Start:** `docker compose up -d --build`
 5. **Keycloak's admin console** is not reachable through the proxy, only at <http://localhost:8080/admin> on the host. Because the public hostname is fixed, the master realm needs to use the local address once (the console would otherwise load parts of itself from the blocked public URL):
 
@@ -35,5 +35,5 @@ The realm file (`keycloak/notes-realm.json`) is only imported when the realm doe
 ## Running it
 
 - Notes live in `NOTES_DIR` (default `./data/notes`). On Linux the folder must be writable by uid 1654.
-- A backup consists of `NOTES_DIR` and the `keycloak-db-data` volume (`docker compose exec keycloak-db pg_dump -U keycloak keycloak`). The notes folder holds everything of the app besides the logins: the notes, their configuration, and the app's own data in `_`, their [history](history.md) among it.
+- A backup consists of `NOTES_DIR` and the `keycloak-db-data` volume (`docker compose exec keycloak-db pg_dump -U keycloak keycloak`). The notes folder holds everything of the app besides the logins: the notes, their configuration, and the app's own data in `_`, their [history](history.md) among it. The physical folder of each [bridge](bridges.md) is part of the backup too, as it is not inside the notes folder.
 - Anything but the notes realm on `AUTH_HOST` answers 404 in Caddy. Cloudflare rules (WAF, rate limiting) add to that and are not part of this repository.

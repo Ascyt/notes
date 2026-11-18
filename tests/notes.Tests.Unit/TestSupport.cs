@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Logging.Abstractions;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
@@ -16,14 +17,18 @@ public sealed class TempNotes : IDisposable
         _ = Directory.CreateDirectory(Root);
         Config = new Config { Dir = Root, Version = Cfg.Version, Auth = new AuthConfig { Authority = "https://auth.invalid", ClientId = "c", ClientSecret = "s" } };
         Migrator = new ConfigMigrator(ConfigVersions.Parse(Config.Version), ConfigMigrations.All, NullLogger<ConfigMigrator>.Instance);
-        Store = new FolderConfigStore(Config, Migrator, NullLogger<FolderConfigStore>.Instance);
-        Access = new EntryAccess(Config, Store);
-        Tree = new AccessTree(Config, new PathService(), Access);
+        Locations = new NotesLocations(Config);
+        Paths = new PathService(Locations);
+        Store = new FolderConfigStore(Locations, Migrator, NullLogger<FolderConfigStore>.Instance);
+        Access = new EntryAccess(Locations, Store);
+        Tree = new AccessTree(Locations, Paths, Access);
         Files = new NotesTree(Root);
     }
 
     public string Root { get; }
     public Config Config { get; }
+    public NotesLocations Locations { get; }
+    public PathService Paths { get; }
     public ConfigMigrator Migrator { get; }
     public FolderConfigStore Store { get; }
     public EntryAccess Access { get; }

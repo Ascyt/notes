@@ -5,15 +5,17 @@ namespace notes.Tests.Unit;
 public sealed class PathServiceTests : IDisposable
 {
     private readonly TempNotes _notes = new();
-    private readonly PathService _paths = new();
+    private readonly PathService _paths;
+
+    public PathServiceTests() => _paths = _notes.Paths;
 
     public void Dispose() => _notes.Dispose();
 
     /// <summary>The path as <see cref="PathService.ToPhysicalPath"/> finds it, after checking that <see cref="PathService.FindEntries"/> finds the same.</summary>
     private string? Find(string virtualPath)
     {
-        string? physical = _paths.ToPhysicalPath(_notes.Root, virtualPath);
-        Assert.Equal(physical, _paths.FindEntries(_notes.Root, [virtualPath])[0]?.FullName);
+        string? physical = _paths.ToPhysicalPath(virtualPath);
+        Assert.Equal(physical, _paths.FindEntries([virtualPath])[0]?.FullName);
         return physical;
     }
 
@@ -144,9 +146,9 @@ public sealed class PathServiceTests : IDisposable
 
         string[] paths = ["dir/file.MD", "missing.md", "Dir/img3.png", "", "Dir/../dir2/x[1].md", "dir2/x[1].md", "DIR/sub/DEEP.md",
             "Dir/File.md/nothing", "dir/img19.png", "_/temp", "Dir/img3.png"];
-        IReadOnlyList<FileSystemInfo?> found = _paths.FindEntries(_notes.Root, paths);
+        IReadOnlyList<FileSystemInfo?> found = _paths.FindEntries(paths);
 
-        Assert.Equal(paths.Select(p => _paths.ToPhysicalPath(_notes.Root, p)), found.Select(entry => entry?.FullName));
+        Assert.Equal(paths.Select(p => _paths.ToPhysicalPath(p)), found.Select(entry => entry?.FullName));
         Assert.Equal(_notes.P("Dir/img3.png"), found[2]?.FullName);
         Assert.IsType<DirectoryInfo>(found[3]);
         Assert.IsType<FileInfo>(found[6]);
@@ -180,7 +182,7 @@ public sealed class PathServiceTests : IDisposable
     [Fact]
     public void Virtual_paths_use_slashes()
     {
-        Assert.Equal("a/b.md", _paths.ToVirtualPath(_notes.Root, _notes.P("a/b.md")));
-        Assert.Equal(".", _paths.ToVirtualPath(_notes.Root, _notes.Root));
+        Assert.Equal("a/b.md", _paths.ToVirtualPath(_notes.P("a/b.md")));
+        Assert.Equal(".", _paths.ToVirtualPath(_notes.Root));
     }
 }

@@ -6,6 +6,8 @@ The app keeps a history of the notes in a git repository of its own, so that wha
 
 The repository is `_/history` in the notes folder, next to the app's other data in `_`. It is a bare repository whose work tree is the notes folder, so nothing of it (no `.git`) appears among the notes, and `_` itself is never part of the history. It is made when the app first starts, beginning with an empty commit. It is part of the notes folder, so it is part of every backup of it (see [Deployment](deployment.md#running-it)), and it moves along when the folder does.
 
+A [bridge](bridges.md) keeps its directory in a folder of its own, and has a history of its own there: `_/history` in its physical folder, which works the same way (see [Bridges](bridges.md#its-history)).
+
 Git itself can read it, from the notes folder:
 
 ```sh
@@ -71,7 +73,7 @@ In `appsettings.json` (or the environment, e.g. `Config__History__IdleMinutes`):
 
 | Setting | Default | |
 |---|---|---|
-| `Config:History:Enabled` | `true` | Whether there is a history at all. |
+| `Config:History:Enabled` | `true` | Whether the notes folder has a history at all. A [bridge](bridges.md#its-history) has a setting of its own. |
 | `Config:History:IdleMinutes` | `10` | Minutes without a change after which what is pending is committed. |
 | `Config:History:LineThreshold` | `200` | Changed lines after which what is pending is committed at once. |
 | `Config:History:RemovedLineWeight` | `2` | How much a removed line counts, compared to an added one. |

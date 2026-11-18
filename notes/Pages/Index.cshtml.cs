@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Create;
 using notes.Features.Components.Delete;
 using notes.Features.Components.Download;
@@ -32,6 +33,7 @@ namespace notes.Pages;
 /// Everything beyond that is up to the feature, see docs/development/security-specification.md.
 /// </remarks>
 public sealed class IndexModel(Config config,
+    NotesLocations locations,
     IPathService path,
     AccessTree tree,
     ConfigHandler configHandler,
@@ -87,7 +89,7 @@ public sealed class IndexModel(Config config,
         if (Request.Query.ContainsKey(_HistoryModal.VisibleTimesParameter))
             return OnGetTimesAtWhichEntryCanBeSeen();
 
-        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        string? physicalPath = path.ToPhysicalPath(VirtualPath);
         if (physicalPath is null || !System.IO.Path.Exists(physicalPath))
             return NotFound();
 
@@ -130,7 +132,7 @@ public sealed class IndexModel(Config config,
         if (isDirectory)
         {
             string? userId = SelectionHandler.UserIdOf(User);
-            Directory = new DirectoryView(config, path, tree)
+            Directory = new DirectoryView(locations, path, tree)
             {
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
@@ -172,6 +174,18 @@ public sealed class IndexModel(Config config,
     {
         if (!config.History.Enabled || !access.CanViewHistory)
             return HistoryButtonState.Hidden;
+
+        // The history of a bridge is recorded in a repository of its own, which can't be viewed yet. Bridges are how the site is run, so
+        // everyone else sees no sign of one: for them, there is no history here, as without the permission.
+        NotesLocation? location = locations.LocationOf(PhysicalPath);
+        if (location is not { IsRoot: true })
+        {
+            return tree.CanManageConfiguration(User)
+                ? new HistoryButtonState(IsShown: true, location?.KeepsHistory == true
+                    ? "This is in a bridge (Config:Bridges), whose history is recorded but can't be viewed in the app yet."
+                    : "This is in a bridge (Config:Bridges) without a history (History:Enabled is false).")
+                : HistoryButtonState.Hidden;
+        }
 
         if (history.IsKept(PhysicalPath, isDirectory))
             return HistoryButtonState.Usable;
@@ -364,7 +378,7 @@ public sealed class IndexModel(Config config,
         if (VirtualPath.StartsWith("_/"))
             return NotFound("Page not found.");
 
-        string? physicalPath = path.ToPhysicalPath(config.Dir, VirtualPath);
+        string? physicalPath = path.ToPhysicalPath(VirtualPath);
         if (physicalPath is null || !tree.IsKnown(User, physicalPath))
             return NotFound("Path not found.");
 

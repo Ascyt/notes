@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.Permissions;
@@ -110,9 +111,9 @@ public interface IEntryAccess
 /// Decides from the configuration file of each folder (docs/administration/permissions.md). Admins may do anything; for everyone else the permissions
 /// come from the nearest entries that say anything about them, looking at the file's own entry first, then at its folder, then at the folders
 /// above it, going up only past entries with <c>inherit: true</c> (the first one with <c>inherit: false</c> is the last one looked at). What nothing says anything about is denied, and so is everything under a folder whose
-/// configuration is invalid.
+/// configuration is invalid. The folders above are those of the notes: above a bridge comes the directory it is mounted in.
 /// </summary>
-public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntryAccess
+public sealed class EntryAccess(NotesLocations locations, FolderConfigStore store) : IEntryAccess
 {
     private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
 
@@ -136,14 +137,13 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
             return Everything;
 
         string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir));
-        // The configuration files themselves are for admins only
+        // The configuration files themselves are for admins only, and what isn't part of the notes (also what a bridge hides) is for nobody else
         if (string.Equals(Path.GetFileName(path), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)
-            || !IsSameOrInside(path, root))
+            || !locations.IsInNotes(path))
             return EntryAccessInfo.None;
 
         PrincipalSet principals = PrincipalSet.Of(user);
-        if (FindLayers(path, root, configOf, isDirectory(path)) is not { } layers)
+        if (FindLayers(path, configOf, isDirectory(path)) is not { } layers)
             return EntryAccessInfo.None;
 
         // Each level is decided by the first layer that says anything about the user
@@ -157,7 +157,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
     /// The permissions that apply to the path, the most specific first: the entry of the file (a directory has none, its own folder is
     /// its entry), then the folder and each folder above it, stopping after the first one with <c>inherit: false</c>. Null if one of those is invalid.
     /// </summary>
-    private static List<PermsBlock>? FindLayers(string path, string root, Func<string, FolderConfigState> configOf, bool isDirectory)
+    private List<PermsBlock>? FindLayers(string path, Func<string, FolderConfigState> configOf, bool isDirectory)
     {
         List<PermsBlock> layers = [];
         string folder = path;
@@ -165,7 +165,7 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
         // A directory is its own folder. Any other path (a file, or one that doesn't exist yet) has the entry its folder has for its name.
         if (!isDirectory)
         {
-            folder = Path.GetDirectoryName(path)!;
+            folder = locations.ParentOf(path)!;
             FolderConfigState parent = configOf(folder);
             if (parent.IsInvalid)
                 return null;
@@ -191,15 +191,12 @@ public sealed class EntryAccess(Config config, FolderConfigStore store) : IEntry
                     return layers;
             }
 
-            if (string.Equals(folder, root, StringComparison.OrdinalIgnoreCase) || Path.GetDirectoryName(folder) is not { } above)
+            // Up to the root of the notes, across the bridges
+            if (locations.ParentOf(folder) is not { } above)
                 return layers;
             folder = above;
         }
     }
-
-    private static bool IsSameOrInside(string child, string parent)
-        => string.Equals(child, parent, StringComparison.OrdinalIgnoreCase)
-           || child.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Ends an operation that the user may not do. The message is shown to them, so it must not name anything inside a directory they may not read.</summary>

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using LibGit2Sharp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using notes.Features.Bridges;
 using notes.Features.History;
 
 namespace notes.Tests.Unit;
@@ -42,7 +43,7 @@ public abstract class HistoryTest : IDisposable
             Auth = Notes.Config.Auth,
             History = new HistoryConfig { Enabled = enabled, IdleMinutes = 10, LineThreshold = 10, RemovedLineWeight = 2 }
         };
-        HistoryService service = new(config, Notes.Store, Time, NullLogger<HistoryService>.Instance);
+        HistoryService service = new(config, new NotesLocations(config), Notes.Store, Time, NullLogger<HistoryService>.Instance);
         _services.Add(service);
         return service;
     }

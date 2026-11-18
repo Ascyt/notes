@@ -7,6 +7,9 @@ public class ConfigEditorView : PageModel
 {
     public string VirtualPath { get; init; } = "";
 
+    /// <summary>Where the entry is on disk (also in a bridge). Only those who manage the configuration see this page, and they may know how the site is run.</summary>
+    public string PhysicalPath { get; init; } = "";
+
     /// <summary>Whether it is the configuration of a file (otherwise of a folder).</summary>
     public bool IsFile { get; init; }
 

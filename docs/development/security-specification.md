@@ -99,6 +99,15 @@ Listings must never show more about an unreadable entry than its name and kind. 
 
 Apart from the notes, nobody but admins learns anything about how the site is run: physical paths, host names, configuration, stack traces, or why the site is down. The source code is public, so how the app works is no secret; these details of the installation are.
 
+### Bridges
+
+A [bridge](../administration/bridges.md) is a directory of the notes kept in a physical folder of its own. For the permissions it is a directory like any other: it is known, openable or hidden as any directory at its virtual path would be, and its configuration starts from that of the directory it is mounted in. On top of that:
+
+- **Nobody but admins learns that a directory is a bridge.** Its listing, its pages and its downloads look like those of any directory. Where something can't be done because of a bridge, everyone else is told what a missing permission would tell them, about the entry they asked for (never about a bridge inside it). Admins are told that it is a bridge, and see the physical path of every entry on the configuration page.
+- **A bridge stays where it is.** Deleting, moving or renaming a bridge, or a directory that holds one at any depth, fails (403), also for admins. It is checked last, once everything else about the tree has been checked (so `Read` on everything inside it), so the reason never names what is inside an unreadable directory.
+- **A bridge can't be left.** Paths are found from the root one name at a time, and a bridge is entered only by its virtual name, so nothing leads from a bridge into its physical folder's surroundings, into the folder of another bridge, or into the app's data (`_`) of a bridge.
+- **What a bridge hides is no part of the notes.** Whatever is on disk where a bridge is mounted (in the folder of the directory above) is answered like a missing path, gets no permissions, isn't listed, walked or kept in the history, and its name is taken (by the bridge).
+
 ## Operations
 
 "Known" and "openable" are as defined above. "The tree" means the entry and everything inside it, at any depth. The root directory can never be renamed or deleted.
@@ -115,12 +124,12 @@ Apart from the notes, nobody but admins learns anything about how the site is ru
 | Save a file | `POST /file` (body) | File known + `ReadAndWrite` on it | — |
 | Create a file or subdirectory | `POST /dir?create=file\|directory` | Directory openable + `Create` on the new path | — |
 | Upload | `POST /dir?upload=…` | Directory openable + `Create` on the final path of each file. This is checked with every chunk for the requested name, and again for the name the file actually gets. | — |
-| Rename | `POST /entry?rename=name` | Entry known, not the root. `Read` and `CreateAndDelete` on the whole tree, and `Create` on the new path of every entry in the tree. Links are refused. | Fails (403, names the unreadable entry) |
-| Delete | `DELETE /entry` or `POST /dir?transfer=delete` | Entry known, not the root. `Read` and `CreateAndDelete` on the whole tree. All or nothing. | Fails (403, names the unreadable entry) |
+| Rename | `POST /entry?rename=name` | Entry known, not the root, no [bridge](#bridges) in the tree. `Read` and `CreateAndDelete` on the whole tree, and `Create` on the new path of every entry in the tree. Links are refused. | Fails (403, names the unreadable entry) |
+| Delete | `DELETE /entry` or `POST /dir?transfer=delete` | Entry known, not the root, no [bridge](#bridges) in the tree. `Read` and `CreateAndDelete` on the whole tree. All or nothing. | Fails (403, names the unreadable entry) |
 | Select / unselect | `POST /?selection=add\|remove\|clear` | Selecting: entry openable. Entries that can't be selected are skipped silently. Unselecting needs nothing. | — |
 | Read the selection | `GET /?selection` | Root openable | — |
 | Copy the selection here | `POST /dir?transfer=copy` | Target directory openable. Every selected entry openable. `Create` on the destination path of every copied entry. Links are refused. | Left out. The success answer and its message say so. |
-| Move the selection here | `POST /dir?transfer=move` | As for copy, plus `CreateAndDelete` on every source tree | Fails (403, names the unreadable entry) |
+| Move the selection here | `POST /dir?transfer=move` | As for copy, plus `CreateAndDelete` on every source tree, and no [bridge](#bridges) in any of them | Fails (403, names the unreadable entry) |
 | See the permissions of an entry | `GET /entry?config` | Entry known, and the user may manage permissions (otherwise 404, like a missing path) | — |
 | Change the permissions of an entry | `POST /entry?config` (body) | As above. The text is checked completely first; invalid text changes nothing (400). | — |
 | Choose an earlier state | the changes button and the history button of the toolbar | Entry openable + `CanViewHistory` on it now, the history is enabled and keeps the entry (`gitignore`). Admins see it disabled, with the reason, where the history doesn't keep the entry; nobody else sees it at all. | — |
@@ -189,6 +198,7 @@ What the history does never decides whether an operation is allowed, and never f
 | The configuration page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
 | Keeping groups and roles current, notice after a forced logout | `notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
 | Resolving every request to a known entry | `notes/Pages/Index.cshtml.cs` |
+| Where the notes are on disk (the root and the bridges), going from an entry to its directory and to what is in a directory | `notes/Features/Bridges/NotesLocations.cs`, through `notes/Features/Helpers/PathService.cs` for virtual paths |
 | Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_UnopenableEntry.cshtml` |
 | Copy, move, delete, rename checks | `notes/Features/Components/Transfer/TransferPlanner.cs` |
 | Structure lock | `notes/Features/Helpers/StructureLock.cs` |

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Caching.Memory;
 using notes;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Create;
 using notes.Features.Components.Delete;
 using notes.Features.Components.Download;
@@ -46,6 +47,8 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddSingleton(config);
 // The one clock of the app (selection lifetime, stale uploads, session renewal, names of new entries), so that tests can replace it
 builder.Services.AddSingleton(TimeProvider.System);
+// Where the notes are on disk: the root and the bridges (docs/administration/bridges.md). A configuration that isn't valid stops the app here.
+builder.Services.AddSingleton(new NotesLocations(config));
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IZipService, ZipService>();
 builder.Services.AddSingleton<IUploadService, UploadService>();
@@ -106,6 +109,13 @@ if (!Directory.Exists(dir))
     app.Logger.LogInformation("Created directory: {dir}", dir);
 }
 app.Logger.LogInformation("In working dir: {dir}", dir);
+
+// The bridges need their directories on disk (and the app doesn't start without them), before anything uses the notes
+NotesLocations locations = app.Services.GetRequiredService<NotesLocations>();
+IPathService paths = app.Services.GetRequiredService<IPathService>();
+locations.CheckOnDisk(paths.ToPhysicalPath, app.Logger);
+foreach (NotesLocation bridge in locations.Bridges)
+    app.Logger.LogInformation("Bridge: /{virtual} is in {physical}", bridge.VirtualPath, bridge.PhysicalPath);
 
 // Git refuses a repository whose folders belong to another user, so that it never trusts one someone else put there. The history is the
 // app's own, where the app is configured to keep it, and the notes folder is often mounted with an owner of its own (root, in Docker Desktop).

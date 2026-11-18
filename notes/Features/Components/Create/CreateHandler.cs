@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 using notes.Features.History;
@@ -8,7 +9,7 @@ using notes.Features.History;
 namespace notes.Features.Components.Create;
 
 /// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it (a file to its editor).</summary>
-public sealed class CreateHandler(Config config, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, HistoryService history, TimeProvider time)
+public sealed class CreateHandler(NotesLocations locations, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, HistoryService history, TimeProvider time)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string physicalDirectory, string create)
     {
@@ -28,7 +29,7 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
         {
             // A name that is taken is skipped (the user can see all names in the directory)
             string name = baseName + extension;
-            for (int n = 1; Path.Exists(Path.Combine(physicalDirectory, name)); n++)
+            for (int n = 1; !locations.IsFree(Path.Combine(physicalDirectory, name)); n++)
                 name = $"{baseName}_{n}{extension}";
 
             string newPhysicalPath = Path.Combine(physicalDirectory, name);
@@ -48,7 +49,7 @@ public sealed class CreateHandler(Config config, IPathService path, AccessTree t
             history.AfterChange(user, changed, HistoryChangeKind.Change);
 
             // A new file is there to be written: it opens in the editor, not as the (empty) preview of a markdown file
-            return new RedirectResult("/" + path.ToVirtualPath(config.Dir, newPhysicalPath) + (isFile ? "?edit" : ""));
+            return new RedirectResult("/" + path.ToVirtualPath(newPhysicalPath) + (isFile ? "?edit" : ""));
         }
     }
 }

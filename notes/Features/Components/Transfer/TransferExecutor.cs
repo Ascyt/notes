@@ -1,36 +1,42 @@
-using notes.Features.Helpers;
+using notes.Features.Bridges;
 
 namespace notes.Features.Components.Transfer;
 
 /// <summary>
 /// The second stage of a transfer: does what the <see cref="TransferPlanner"/> found out, as a transaction.
 /// <list type="number">
-/// <item>Copy: everything is copied into a staging folder next to the notes (same volume), so a failure here only means deleting the staging folder.</item>
-/// <item>Commit: the copies are renamed into the target directory. Only then, for a move, are the originals renamed into the staging folder, so
-/// there is always a complete copy of everything and a failure can be rolled back by renames. The staging folder is deleted last.</item>
+/// <item>Copy: everything is copied into a staging folder in the app's data of the target's location (the root or a bridge, so the same volume),
+/// so a failure here only means deleting the staging folder. This is the one step that may cross from one volume to another.</item>
+/// <item>Commit: the copies are renamed into the target directory. Only then, for a move, are the originals renamed into a staging folder of
+/// their own location, so there is always a complete copy of everything and a failure can be rolled back by renames. The staging folders are deleted last.</item>
 /// </list>
 /// A delete skips the copy and the commit: renaming the originals into the staging folder makes them all disappear at once, and can still be undone.
 /// Failures are thrown as <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/>, after everything has been undone.
 /// </summary>
-public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> logger)
+public sealed class TransferExecutor(NotesLocations locations, ILogger<TransferExecutor> logger)
 {
     /// <param name="reportProgress">Told how much is done (0 to 1) as it goes.</param>
     public void Execute(TransferKind kind, string physicalTarget, List<TransferItem> items, Action<double> reportProgress)
     {
-        string staging = Path.Combine(Path.GetFullPath(config.Dir), PathService.ReservedName, "temp", "transfer", Guid.NewGuid().ToString("N"));
-        string stagedCopies = Path.Combine(staging, "copies");
-        string trash = Path.Combine(staging, "originals");
+        // One staging folder in each location the transfer touches: renames only work within a volume
+        string id = Guid.NewGuid().ToString("N");
+        string StagingFor(string physicalPath) => Path.Combine(locations.TempDirectoryFor(physicalPath, "transfer"), id);
+        string stagedCopies = Path.Combine(StagingFor(physicalTarget), "copies");
+        string[] trashOf = [.. items.Select((item, i) => Path.Combine(StagingFor(item.Source), "originals", i.ToString()))];
+        string[] stagings = [.. items.Select(item => StagingFor(item.Source)).Append(StagingFor(physicalTarget)).Distinct(StringComparer.OrdinalIgnoreCase)];
         bool keepStaging = false;
 
         try
         {
-            _ = Directory.CreateDirectory(stagedCopies);
-            _ = Directory.CreateDirectory(trash);
+            if (kind != TransferKind.Delete)
+                _ = Directory.CreateDirectory(stagedCopies);
+            foreach (string trash in trashOf)
+                _ = Directory.CreateDirectory(Path.GetDirectoryName(trash)!);
 
             if (kind == TransferKind.Delete)
-                TrashOriginals(items, trash, kind, reportProgress);
+                TrashOriginals(items, trashOf, kind, reportProgress);
             else
-                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trash, reportProgress);
+                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trashOf, reportProgress);
         }
         catch (TransferException e) when (e.KeepsStaging)
         {
@@ -41,11 +47,12 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
         {
             // What is left is the staging copies after a failure, or the originals after a move or delete. Failing to remove them doesn't fail the transfer.
             if (!keepStaging)
-                DeleteStaging(staging);
+                foreach (string staging in stagings)
+                    DeleteStaging(staging);
         }
     }
 
-    private void CopyAndCommit(TransferKind kind, string physicalTarget, List<TransferItem> items, string stagedCopies, string trash, Action<double> reportProgress)
+    private void CopyAndCommit(TransferKind kind, string physicalTarget, List<TransferItem> items, string stagedCopies, string[] trashOf, Action<double> reportProgress)
     {
         // Copying is what takes time (the rest is renames), so the progress is how much of it is done
         long totalWork = items.Sum(item => item.IsDirectory
@@ -74,7 +81,7 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
 
             // ...and, for a move, take the originals away
             if (kind == TransferKind.Move)
-                TrashOriginals(items, trash, kind, _ => { });
+                TrashOriginals(items, trashOf, kind, _ => { });
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -88,15 +95,18 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
         }
     }
 
-    /// <summary>Renames the originals into the trash folder. If one can't be (e.g. it is open elsewhere), the ones already renamed are put back and the exception is rethrown.</summary>
-    private void TrashOriginals(List<TransferItem> items, string trash, TransferKind kind, Action<double> reportProgress)
+    /// <summary>
+    /// Renames the originals into the trash folders (<paramref name="trashOf"/>, one path for each, in its own location). If one can't be
+    /// (e.g. it is open elsewhere), the ones already renamed are put back and the exception is rethrown.
+    /// </summary>
+    private void TrashOriginals(List<TransferItem> items, string[] trashOf, TransferKind kind, Action<double> reportProgress)
     {
         List<int> trashed = [];
         try
         {
             for (int i = 0; i < items.Count; i++)
             {
-                MoveEntry(items[i].Source, Path.Combine(trash, i.ToString()), items[i].IsDirectory);
+                MoveEntry(items[i].Source, trashOf[i], items[i].IsDirectory);
                 trashed.Add(i);
                 reportProgress((double)trashed.Count / items.Count);
             }
@@ -107,13 +117,13 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
             {
                 try
                 {
-                    MoveEntry(Path.Combine(trash, i.ToString()), items[i].Source, items[i].IsDirectory);
+                    MoveEntry(trashOf[i], items[i].Source, items[i].IsDirectory);
                 }
                 catch (Exception restoreError) when (restoreError is IOException or UnauthorizedAccessException)
                 {
                     // Extremely unlikely (a rename just worked the other way round). For a move the copies stay in place, so nothing is lost
                     // either way, and the staging folder is kept for whoever has to sort it out.
-                    logger.LogCritical(restoreError, "Could not put {source} back from {trash}", items[i].Source, trash);
+                    logger.LogCritical(restoreError, "Could not put {source} back from {trash}", items[i].Source, trashOf[i]);
                     throw new TransferException(StatusCodes.Status500InternalServerError,
                         kind == TransferKind.Delete
                             ? "The deletion failed and could not be fully undone. Entries that could not be put back are kept on the server (an admin finds where in its log)."
@@ -154,7 +164,7 @@ public sealed class TransferExecutor(Config config, ILogger<TransferExecutor> lo
         copied(WorkOf(item.Source, isDirectory: true));
         foreach (InsideEntry entry in item.Contents)
         {
-            string entryDestination = Path.Combine(destination, Path.GetRelativePath(item.Source, entry.Path));
+            string entryDestination = Path.Combine(destination, entry.RelativePath);
             if (entry.IsDirectory)
                 _ = Directory.CreateDirectory(entryDestination);
             else

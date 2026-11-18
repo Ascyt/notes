@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using notes.Features.Bridges;
 using notes.Features.Components.Transfer;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
@@ -11,7 +12,7 @@ namespace notes.Features.Components.Rename;
 /// Answers <c>?rename=&lt;name&gt;</c>: renames the file or directory and returns where it is now. Renaming is moving within the same
 /// directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
-public sealed class RenameHandler(Config config, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history)
+public sealed class RenameHandler(NotesLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history)
 {
     public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath, string newName)
     {
@@ -26,9 +27,10 @@ public sealed class RenameHandler(Config config, IPathService path, TransferPlan
             if (!isDirectory && !File.Exists(physicalPath))
                 return new NotFoundObjectResult("Path not found.");
 
-            string newPhysicalPath = Path.Combine(Path.GetDirectoryName(physicalPath)!, newName);
+            // (A bridge is never renamed, the planner refuses it, but where it is mounted is what the directory above has)
+            string newPhysicalPath = Path.Combine(locations.ParentOf(physicalPath)!, newName);
             // Differing only in case is the same entry, so that is allowed. (The user can see all names in the directory: they can see this entry.)
-            if (Path.Exists(newPhysicalPath) && !string.Equals(newPhysicalPath, physicalPath, StringComparison.OrdinalIgnoreCase))
+            if (!locations.IsFree(newPhysicalPath) && !string.Equals(newPhysicalPath, physicalPath, StringComparison.OrdinalIgnoreCase))
                 return new ConflictObjectResult("A file or directory with that name already exists.");
 
             try
@@ -54,7 +56,7 @@ public sealed class RenameHandler(Config config, IPathService path, TransferPlan
             }
             history.AfterChange(user, changed, HistoryChangeKind.Change);
 
-            return new ContentResult { Content = "/" + path.ToVirtualPath(config.Dir, newPhysicalPath) };
+            return new ContentResult { Content = "/" + path.ToVirtualPath(newPhysicalPath) };
         }
     }
 }

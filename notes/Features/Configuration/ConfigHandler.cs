@@ -35,6 +35,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             return new ConfigEditorView
             {
                 VirtualPath = virtualPath,
+                PhysicalPath = physicalPath,
                 IsFile = true,
                 Contents = body ?? ConfigText.DefaultFileBody(),
                 DefaultContents = ConfigText.DefaultFileBody(),
@@ -47,6 +48,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         return new ConfigEditorView
         {
             VirtualPath = virtualPath,
+            PhysicalPath = physicalPath,
             IsFile = false,
             Contents = saved ?? defaultText,
             DefaultContents = defaultText,

@@ -46,6 +46,7 @@
 
 @Html.AntiForgeryToken()
 <div id="editor" style="height: 65vh; border: 1px solid var(--bs-border-color);" key="Enter"></div>
+<p id="config-physical-path" class="small text-secondary mt-2 mb-0 text-break"><i class="fa-solid fa-hard-drive"></i> On disk: <code>@Model.PhysicalPath</code></p>
 
 <script src="~/js/editor/editor.js" asp-append-version="true"></script>
 <script>

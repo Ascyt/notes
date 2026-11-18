@@ -1,11 +1,16 @@
 using System.Security.Claims;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 
 namespace notes.Features.Auth;
 
 /// <summary>An entry met while walking a directory, with what the user may do with it.</summary>
-public readonly record struct WalkedEntry(FileSystemInfo Entry, EntryAccessInfo Access);
+/// <param name="RelativePath">
+/// Where it is in the directory that is walked, by the names of the notes (with the system's separator): across a bridge, its physical
+/// path doesn't say that.
+/// </param>
+public readonly record struct WalkedEntry(FileSystemInfo Entry, EntryAccessInfo Access, string RelativePath);
 
 /// <summary>What looking at an entry and everything inside it found out.</summary>
 /// <param name="DeleteDeniedReason">Why the entry can't be deleted (or moved away, or renamed) as a whole, for the user; null if it can.</param>
@@ -21,7 +26,7 @@ public sealed record TreeAccess(string? DeleteDeniedReason)
 /// Anonymous users are the exception: for them, what they may not read is hidden as well (see <see cref="SeesUnreadableNames"/>).
 /// All walks over the notes that depend on the user go through here.
 /// </summary>
-public sealed class AccessTree(Config config, IPathService path, IEntryAccess access)
+public sealed class AccessTree(NotesLocations locations, IPathService path, IEntryAccess access)
 {
     /// <summary>Hidden and system files are part of a directory like any other, and a failure to read a directory must not go unnoticed.</summary>
     private static readonly EnumerationOptions WalkOptions = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
@@ -51,22 +56,17 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// answered like something that doesn't exist. The root itself is always known.
     /// </summary>
     public bool IsKnown(ClaimsPrincipal user, string physicalPath)
-    {
-        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
-        bool isRoot = string.Equals(full, Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir)), StringComparison.OrdinalIgnoreCase);
-        return CheckAncestors(user, physicalPath, includingSelf: !isRoot && !SeesUnreadableNames(user), existing: null);
-    }
+        => CheckAncestors(user, physicalPath, includingSelf: !IsRoot(physicalPath) && !SeesUnreadableNames(user), existing: null);
 
     /// <summary>
     /// <see cref="IsKnown(ClaimsPrincipal, string)"/> for an entry that was just found on disk (e.g. by <see cref="IPathService.FindEntries"/>):
     /// everything above it is a directory, so the permissions needn't look at the disk for any of them.
     /// </summary>
     public bool IsKnown(ClaimsPrincipal user, FileSystemInfo existing)
-    {
-        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(existing.FullName));
-        bool isRoot = string.Equals(full, Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir)), StringComparison.OrdinalIgnoreCase);
-        return CheckAncestors(user, existing.FullName, includingSelf: !isRoot && !SeesUnreadableNames(user), existing);
-    }
+        => CheckAncestors(user, existing.FullName, includingSelf: !IsRoot(existing.FullName) && !SeesUnreadableNames(user), existing);
+
+    private bool IsRoot(string physicalPath)
+        => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath)), locations.Root.PhysicalPath, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether the user may open the entry (see what is in it): it is <see cref="IsKnown(ClaimsPrincipal, string)">known</see>, and they may read it.</summary>
     public bool CanOpen(ClaimsPrincipal user, string physicalPath)
@@ -82,20 +82,21 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// </param>
     private bool CheckAncestors(ClaimsPrincipal user, string physicalPath, bool includingSelf, FileSystemInfo? existing)
     {
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Dir));
         string? current = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
-        if (!IsSameOrInside(current, root))
+        // What a bridge hides is no part of the notes either
+        if (!locations.IsInNotes(current))
             return false;
 
         bool isSelf = true;
         if (!includingSelf)
         {
-            if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
+            if (IsRoot(current))
                 return true;
-            current = Path.GetDirectoryName(current);
+            current = locations.ParentOf(current);
             isSelf = false;
         }
 
+        // Up to the root, across the bridges (above one is the directory it is mounted in)
         while (current is not null)
         {
             EntryAccessInfo info = existing is null ? access.GetAccess(user, current)
@@ -103,9 +104,9 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
             if (!info.CanRead)
                 return false;
             isSelf = false;
-            if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
+            if (IsRoot(current))
                 return true;
-            current = Path.GetDirectoryName(current);
+            current = locations.ParentOf(current);
         }
 
         return false;
@@ -114,30 +115,31 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// <summary>
     /// Everything inside the directory, depth first, each directory before what is in it. Entries the user may not read are returned (their
     /// names are no secret) but not entered, unless the user doesn't <see cref="SeesUnreadableNames">see such names</see>: then they are left
-    /// out. Links are not entered either (they could lead out of the notes or in circles). The configuration files
-    /// (<see cref="PathService.ConfigFileName"/>) are only there for those who may manage permissions: for everyone else they don't exist,
-    /// so a copy or a download leaves them out.
+    /// out. Links are not entered either (they could lead out of the notes or in circles). The bridges mounted in a directory are part of it,
+    /// and what they hide is not. The configuration files (<see cref="PathService.ConfigFileName"/>) are only there for those who may manage
+    /// permissions: for everyone else they don't exist, so a copy or a download leaves them out.
     /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/> if a directory can't be read.
     /// </summary>
     public IEnumerable<WalkedEntry> Walk(ClaimsPrincipal user, DirectoryInfo directory)
+        => Walk(user, directory, "", access.CanManageConfiguration(user), SeesUnreadableNames(user));
+
+    private IEnumerable<WalkedEntry> Walk(ClaimsPrincipal user, DirectoryInfo directory, string relativePath, bool seesConfigs, bool seesUnreadable)
     {
-        bool seesConfigs = access.CanManageConfiguration(user);
-        bool seesUnreadable = SeesUnreadableNames(user);
-        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", WalkOptions))
+        foreach ((FileSystemInfo entry, string name) in locations.ListDirectory(directory, WalkOptions))
         {
-            // The folder for globally saved data is never part of the notes (only the root has one)
-            if (entry is DirectoryInfo && entry.Name == PathService.ReservedName)
+            // The folder of the app's own data (of the root, or of a bridge) is never part of the notes
+            if (entry is DirectoryInfo && name == PathService.ReservedName)
                 continue;
-            if (!seesConfigs && entry is FileInfo && string.Equals(entry.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+            if (!seesConfigs && entry is FileInfo && string.Equals(name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName, entry is DirectoryInfo));
+            WalkedEntry walked = new(entry, access.GetAccess(user, entry.FullName, entry is DirectoryInfo), Path.Combine(relativePath, name));
             if (!walked.Access.CanRead && !seesUnreadable)
                 continue;
             yield return walked;
 
             if (walked.Access.CanRead && entry is DirectoryInfo subdirectory && !PathService.IsLink(subdirectory))
-                foreach (WalkedEntry inner in Walk(user, subdirectory))
+                foreach (WalkedEntry inner in Walk(user, subdirectory, walked.RelativePath, seesConfigs, seesUnreadable))
                     yield return inner;
         }
     }
@@ -171,7 +173,22 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
             return new TreeAccess("Some of what is inside can't be read by the server.");
         }
 
-        return new TreeAccess(null);
+        return new TreeAccess(FixedPlaceReason(user, physicalPath));
+    }
+
+    /// <summary>
+    /// Why the entry can't be deleted, moved or renamed as it is or holds a bridge, whose place the configuration of the site sets; null if
+    /// it isn't and doesn't. Bridges are how the site is run: only those who manage the configuration are told so, everyone else is told
+    /// what a missing permission would tell them, about the entry itself. Only to be asked once everything inside the entry is known to be
+    /// readable.
+    /// </summary>
+    public string? FixedPlaceReason(ClaimsPrincipal user, string physicalPath)
+    {
+        if (locations.BridgesAtOrBelow(physicalPath).FirstOrDefault() is not { } bridge)
+            return null;
+        return access.CanManageConfiguration(user)
+            ? $"'{bridge.VirtualPath}' is a bridge (Config:Bridges), so it can't be deleted, moved or renamed."
+            : NotRemovable(physicalPath);
     }
 
     private string NotRemovable(string physicalPath)
@@ -188,15 +205,11 @@ public sealed class AccessTree(Config config, IPathService path, IEntryAccess ac
     /// <summary>Why the user can't rename the (openable) entry that <paramref name="inspected"/> is about, or null if they can. A hint, like <see cref="CreateDeniedReason"/>.</summary>
     public string? RenameDeniedReason(ClaimsPrincipal user, string physicalPath, TreeAccess inspected)
         => inspected.DeleteDeniedReason
-           ?? (access.GetAccess(user, Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(physicalPath))!).CanCreate
+           ?? (access.GetAccess(user, locations.ParentOf(physicalPath)!).CanCreate
                ? null
                : "Insufficient permissions to add entries to the parent directory.");
 
     /// <summary>The path as the user sees it: relative to the root, with "/".</summary>
     public string Display(string physicalPath)
-        => path.ToVirtualPath(config.Dir, physicalPath);
-
-    private static bool IsSameOrInside(string child, string parent)
-        => string.Equals(child, parent, StringComparison.OrdinalIgnoreCase)
-           || child.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        => path.ToVirtualPath(physicalPath);
 }

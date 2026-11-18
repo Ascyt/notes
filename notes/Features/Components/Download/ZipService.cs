@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using notes.Features.Bridges;
 using notes.Features.Helpers;
 
 namespace notes.Features.Components.Download;
@@ -23,6 +24,9 @@ public interface IZipService
 
 public sealed class ZipService : IZipService
 {
+    /// <summary>As the listing has it: hidden and system entries are entries like any other, and a directory that can't be read must not look empty.</summary>
+    private static readonly EnumerationOptions ListOptions = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
+
     public async Task WriteZipAsync(ZipFolderEntry folder, Stream output, CancellationToken cancellationToken)
     {
         DeferredWriteStream target = new(output);
@@ -34,18 +38,22 @@ public sealed class ZipService : IZipService
     }
 
     /// <summary>
-    /// A directory on disk, for <see cref="WriteZipAsync"/>. Only entries that <paramref name="include"/> agrees to go into the zip (and only
-    /// directories it agrees to are looked into), each asked for when the zip gets to it. Links and the folder of the app's own data never do.
+    /// A directory of the notes on disk, for <see cref="WriteZipAsync"/>, with the bridges mounted in it (<see cref="NotesLocations.ListDirectory"/>).
+    /// Only entries that <paramref name="include"/> agrees to go into the zip (and only directories it agrees to are looked into), each asked for
+    /// when the zip gets to it. Links and the folder of the app's own data never do.
     /// </summary>
-    public static ZipFolderEntry FolderOnDisk(string physicalDirectory, Func<FileSystemInfo, bool> include)
-        => new(Path.GetFileName(physicalDirectory), () => new DirectoryInfo(physicalDirectory).EnumerateFileSystemInfos()
+    public static ZipFolderEntry FolderOnDisk(NotesLocations locations, string physicalDirectory, Func<FileSystemInfo, bool> include)
+        => FolderOnDisk(locations, physicalDirectory, locations.NameOf(physicalDirectory), include);
+
+    private static ZipFolderEntry FolderOnDisk(NotesLocations locations, string physicalDirectory, string name, Func<FileSystemInfo, bool> include)
+        => new(name, () => locations.ListDirectory(new DirectoryInfo(physicalDirectory), ListOptions)
             // Same rules as the listing and the path service: nothing that is a link (it could point out of the notes), no reserved folder
-            .Where(entry => !PathService.IsLink(entry) && !(entry is DirectoryInfo && entry.Name == PathService.ReservedName) && include(entry))
-            .Select(entry => entry is DirectoryInfo directory
-                ? FolderOnDisk(directory.FullName, include)
-                : (ZipEntry)new ZipFileEntry(entry.Name, entry.LastWriteTime,
+            .Where(child => !PathService.IsLink(child.Entry) && !(child.Entry is DirectoryInfo && child.Name == PathService.ReservedName) && include(child.Entry))
+            .Select(child => child.Entry is DirectoryInfo directory
+                ? FolderOnDisk(locations, directory.FullName, child.Name, include)
+                : (ZipEntry)new ZipFileEntry(child.Name, child.Entry.LastWriteTime,
                     // A note being edited at the moment is still read
-                    () => new FileStream(entry.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 81920, useAsync: true))));
+                    () => new FileStream(child.Entry.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 81920, useAsync: true))));
 
     /// <param name="prefix">Zip path of the folder: "" for the top level, otherwise ending in "/".</param>
     private static async Task AddFolderAsync(ZipArchive zip, ZipFolderEntry folder, string prefix, CancellationToken cancellationToken)

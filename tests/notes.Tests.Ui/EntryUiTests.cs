@@ -190,7 +190,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     [Fact]
     public async Task Between_the_items_of_a_list_the_button_stays_with_the_item_above()
     {
-        // A loose list: the margin of each item's paragraph lies outside the item, and only the list reaches over it
+        // Items apart by blank lines are lists of their own (MarkdownLists): the gap between two items is the margin of the list above
         _ = Tree.File("docs/loose-list.md", "- one\n\n- two\n\n- three\n");
         ILocator button = Page.Locator("#edit-here-button");
         ILocator items = Page.Locator("#markdown-preview li");
@@ -203,8 +203,8 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
 
         await Page.Mouse.MoveAsync(secondItem.X + 10, (secondItem.Y + secondItem.Height + thirdItem.Y) / 2);
         await Expect(button).ToBeVisibleAsync();
-        // The paragraph in the second item, after its "- "
-        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=3&column=3");
+        // The second item, as when it is pointed at itself (it holds no paragraph of its own)
+        await Expect(button).ToHaveAttributeAsync("href", "?edit#line=3&column=1");
     }
 
     [Fact]

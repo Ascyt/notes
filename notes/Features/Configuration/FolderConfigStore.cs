@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using notes.Features.Bridges;
 using notes.Features.Configuration.Migrations;
 using notes.Features.Helpers;
 
@@ -16,7 +17,7 @@ namespace notes.Features.Configuration;
 /// gives out is brought up to date, in memory. What is on disk is brought up to date by <see cref="MigrateAll"/> when the app starts, and by
 /// any write (reads don't write: they don't hold the lock).
 /// </remarks>
-public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, ILogger<FolderConfigStore> logger)
+public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator migrator, ILogger<FolderConfigStore> logger)
 {
     private sealed record Cached(DateTime LastWriteUtc, long Length, FolderConfigState State);
 
@@ -102,8 +103,11 @@ public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, IL
     /// </summary>
     /// <returns>How many files were rewritten.</returns>
     public int MigrateAll()
+        => locations.All.Sum(location => MigrateAllIn(location.PhysicalPath));
+
+    /// <summary><see cref="MigrateAll"/> for the physical directory of one location (the root, or a bridge).</summary>
+    private int MigrateAllIn(string root)
     {
-        string root = Path.GetFullPath(config.Dir);
         EnumerationOptions options = new()
         {
             RecurseSubdirectories = true,
@@ -118,8 +122,8 @@ public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, IL
         foreach (string path in Directory.EnumerateFiles(root, PathService.ConfigFileName, options).ToList())
         {
             string directory = Path.GetDirectoryName(path)!;
-            // The folder for globally saved data is no part of the notes
-            if (Path.GetRelativePath(root, directory).Split(Path.DirectorySeparatorChar)[0] == PathService.ReservedName)
+            // The folder of the app's own data is no part of the notes, nor is what a bridge hides
+            if (Path.GetRelativePath(root, directory).Split(Path.DirectorySeparatorChar)[0] == PathService.ReservedName || locations.IsHiddenByBridge(directory))
                 continue;
 
             try
@@ -150,8 +154,9 @@ public sealed class FolderConfigStore(Config config, ConfigMigrator migrator, IL
     /// </summary>
     public void WriteText(string physicalDirectory, string text)
     {
-        // Written next to the notes, where no listing shows it, and moved over the file (same volume, so it is a rename)
-        string temp = Path.Combine(Path.GetFullPath(config.Dir), PathService.ReservedName, "temp", "config", Guid.NewGuid().ToString("N"));
+        // Written into the app's data of its location (the root or a bridge), where no listing shows it, and moved over the file (same
+        // volume, so it is a rename)
+        string temp = Path.Combine(locations.TempDirectoryFor(physicalDirectory, "config"), Guid.NewGuid().ToString("N"));
         _ = Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
         File.WriteAllText(temp, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         try

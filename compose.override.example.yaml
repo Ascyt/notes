@@ -1,0 +1,14 @@
+# Copy to compose.override.yaml and adapt. Docker Compose reads it together with compose.yaml; it is git-ignored, so what only this
+# site has stays out of the repository. Secrets go into .env instead (see .env.example).
+
+services:
+  notes:
+    environment:
+      # Bridges: directories of the notes kept in folders of their own (docs/administration/bridges.md). Physical is the path inside the
+      # container, where the folder is mounted below. More bridges go on with __1__, __2__, ...
+      Config__Bridges__0__Virtual: /hdd
+      Config__Bridges__0__Physical: /bridges/hdd
+      # Config__Bridges__0__History__Enabled: "false"
+    volumes:
+      # The folder on this machine (on Linux writable by uid 1654, like the notes folder)
+      - /mnt/hdd/notes:/bridges/hdd

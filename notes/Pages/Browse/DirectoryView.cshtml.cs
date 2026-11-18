@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Selection;
 using notes.Features.Components.Toolbar;
@@ -37,7 +38,7 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     public bool CanOpen => Kind == ListedKind.Open;
 }
 
-public class DirectoryView(Config config, IPathService path, AccessTree tree) : PageModel
+public class DirectoryView(NotesLocations locations, IPathService path, AccessTree tree) : PageModel
 {
     public string VirtualPath { get; init; } = "";
     public string PhysicalPath { get; init; } = "";
@@ -130,15 +131,17 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
         // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames)
         bool seesUnreadable = tree.SeesUnreadableNames(Viewer);
 
-        Directories = [..Directory.GetDirectories(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(directory => Path.GetFileName(directory) != PathService.ReservedName)
-            .OrderByDescending(directory => Path.GetFileName(directory), StringComparer.OrdinalIgnoreCase)
+        // With the bridges mounted here, which are directories like any other, and without what they hide
+        NotesChild[] children = [.. locations.ListDirectory(new DirectoryInfo(PhysicalPath), ListOptions)];
+        Directories = [..children.Where(child => child.Entry is DirectoryInfo && child.Name != PathService.ReservedName)
+            .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: true))
             .Where(entry => entry.CanOpen || seesUnreadable)];
         // The configuration file is not a note: it is changed through the configuration page, and never listed
-        Files = [..Directory.GetFiles(PhysicalPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(file => !string.Equals(Path.GetFileName(file), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase)
+        Files = [..children.Where(child => child.Entry is FileInfo && !string.Equals(child.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: false))
             .Where(entry => entry.CanOpen || seesUnreadable)];
 
@@ -161,7 +164,7 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
     /// </summary>
     public void InitFromEarlierState(IEnumerable<(ListedEntry Entry, bool IsDirectory)> entries)
     {
-        (ListedEntry Entry, bool IsDirectory)[] all = [.. entries.OrderByDescending(listed => Path.GetFileName(listed.Entry.Path), StringComparer.OrdinalIgnoreCase)];
+        (ListedEntry Entry, bool IsDirectory)[] all = [.. entries.OrderByDescending(listed => NameOf(listed.Entry.Path), StringComparer.OrdinalIgnoreCase)];
         Directories = [.. all.Where(listed => listed.IsDirectory).Select(listed => listed.Entry)];
         Files = [.. all.Where(listed => !listed.IsDirectory).Select(listed => listed.Entry)];
         DeleteDeniedReason = RenameDeniedReason = CreateDeniedReason = EarlierStateViews.CantBeChangedReason;
@@ -174,7 +177,7 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
         string? href = entry.Kind == ListedKind.NoHistory && entry.ExistsNow ? "/" + ToVirtualPath(entry.Path) : null;
         return new _UnopenableEntry
         {
-            Name = Path.GetFileName(entry.Path),
+            Name = NameOf(entry.Path),
             IsDirectory = isDirectory,
             Kind = entry.Kind,
             Number = index + 1,
@@ -193,5 +196,12 @@ public class DirectoryView(Config config, IPathService path, AccessTree tree) : 
         => index < 10 ? modifiers + (index + 1) % 10 : null;
 
     public string ToVirtualPath(string s)
-        => path.ToVirtualPath(config.Dir, s);
+        => path.ToVirtualPath(s);
+
+    /// <summary>The name of the entry (physical path) in the notes, which for a bridge is not that of its physical directory.</summary>
+    public string NameOf(string physicalPath)
+        => locations.NameOf(physicalPath);
+
+    /// <summary>Hidden and system entries are entries like any other.</summary>
+    private static readonly EnumerationOptions ListOptions = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
 }

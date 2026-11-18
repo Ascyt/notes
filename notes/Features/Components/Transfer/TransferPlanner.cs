@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 
@@ -12,7 +13,11 @@ namespace notes.Features.Components.Transfer;
 /// is done with its result, so that nothing it didn't see can appear in the meantime.
 /// </summary>
 /// <remarks>The permissions each kind needs are specified in docs/development/security-specification.md.</remarks>
-public sealed class TransferPlanner(Config config, IPathService path, AccessTree tree)
+/// <remarks>
+/// What is inside what, and which directory an entry is in, is asked of <see cref="NotesLocations"/>: across a bridge, the physical paths don't
+/// say it. A copy may go from one physical directory to another; anything that would take a bridge away from its place is refused.
+/// </remarks>
+public sealed class TransferPlanner(NotesLocations locations, IPathService path, AccessTree tree)
 {
     public TransferPlan Plan(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths)
     {
@@ -23,7 +28,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
 
         // Something inside a selected directory travels with it, so it is not an entry of its own
         List<TransferItem> selected = ResolveEntries(user, virtualPaths);
-        List<TransferItem> items = [..selected.Where(item => !selected.Any(other => other.IsDirectory && TransferPaths.IsInside(item.Source, other.Source)))];
+        List<TransferItem> items = [..selected.Where(item => !selected.Any(other => other.IsDirectory && IsInside(item.Source, other.Source)))];
 
         if (kind != TransferKind.Delete)
             items = CheckAgainstTarget(kind, physicalTarget, items);
@@ -51,6 +56,10 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
         _ = CheckTree(user, TransferKind.Move, "rename", new TransferItem(source, Path.GetFileName(destination), Directory.Exists(source)), destination, ref leftOutUnreadable);
     }
 
+    /// <summary>Whether <paramref name="inner"/> is somewhere below <paramref name="outer"/> in the notes (also across bridges).</summary>
+    private bool IsInside(string inner, string outer)
+        => !TransferPaths.IsSame(inner, outer) && locations.IsSameOrInside(inner, outer);
+
     private static string Verb(TransferKind kind)
         => kind.ToString().ToLowerInvariant();
 
@@ -71,7 +80,7 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
     private List<TransferItem> ResolveEntries(ClaimsPrincipal user, IReadOnlyList<string> virtualPaths)
     {
         // Found all together: the selected entries are mostly in the same directory, which is then listed once instead of once per entry
-        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(config.Dir, virtualPaths);
+        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(virtualPaths);
         List<TransferItem> entries = [];
         for (int i = 0; i < virtualPaths.Count; i++)
         {
@@ -80,7 +89,8 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
             if (virtualPaths[i] == "" || found[i] is not { } entry || !tree.IsKnown(user, entry))
                 throw new TransferException(StatusCodes.Status409Conflict, $"'{virtualPaths[i]}' no longer exists.");
 
-            entries.Add(new TransferItem(entry.FullName, entry.Name, entry is DirectoryInfo));
+            // (A bridge has the name of the notes, not that of its physical directory)
+            entries.Add(new TransferItem(entry.FullName, locations.NameOf(entry.FullName), entry is DirectoryInfo));
         }
 
         return entries;
@@ -90,27 +100,27 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
     /// Makes sure the entries can go into the target directory: not into themselves, not all of them already there, no name clashes.
     /// Returns the entries that actually have to be transferred (when moving, those already in the target directory stay where they are).
     /// </summary>
-    private static List<TransferItem> CheckAgainstTarget(TransferKind kind, string physicalTarget, List<TransferItem> items)
+    private List<TransferItem> CheckAgainstTarget(TransferKind kind, string physicalTarget, List<TransferItem> items)
     {
         foreach (TransferItem item in items)
         {
-            if (item.IsDirectory && (TransferPaths.IsSame(item.Source, physicalTarget) || TransferPaths.IsInside(physicalTarget, item.Source)))
+            if (item.IsDirectory && locations.IsSameOrInside(physicalTarget, item.Source))
                 throw new TransferException(StatusCodes.Status400BadRequest, $"Cannot {Verb(kind)} '{item.Name}' into itself.");
         }
 
-        if (items.All(item => TransferPaths.IsSame(Path.GetDirectoryName(item.Source)!, physicalTarget)))
+        if (items.All(item => TransferPaths.IsSame(locations.ParentOf(item.Source)!, physicalTarget)))
             throw new TransferException(StatusCodes.Status400BadRequest, "Everything selected is already in this directory.");
 
         if (kind == TransferKind.Move)
-            items = [..items.Where(item => !TransferPaths.IsSame(Path.GetDirectoryName(item.Source)!, physicalTarget))];
+            items = [..items.Where(item => !TransferPaths.IsSame(locations.ParentOf(item.Source)!, physicalTarget))];
 
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         foreach (TransferItem item in items)
         {
             if (!names.Add(item.Name))
                 throw new TransferException(StatusCodes.Status409Conflict, $"More than one of the selected entries is called '{item.Name}'.");
-            // The target is a directory the user may read, so they can see what is taken
-            if (Path.Exists(Path.Combine(physicalTarget, item.Name)))
+            // The target is a directory the user may read, so they can see what is taken (a bridge in it too)
+            if (!locations.IsFree(Path.Combine(physicalTarget, item.Name)))
                 throw new TransferException(StatusCodes.Status409Conflict, $"'{item.Name}' already exists in this directory.");
         }
 
@@ -136,6 +146,16 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
         if (!item.IsDirectory)
             return item;
 
+        TransferItem checkedItem = CheckContents(user, kind, verb, item, root, destination, ref leftOutUnreadable);
+        // A bridge stays where the configuration puts it. Asked once everything inside is known to be readable, as the reason may name it.
+        if (kind != TransferKind.Copy && tree.FixedPlaceReason(user, item.Source) is { } fixedPlace)
+            throw new TransferException(StatusCodes.Status403Forbidden, fixedPlace);
+        return checkedItem;
+    }
+
+    /// <summary>The part of <see cref="CheckTree"/> about what is inside the directory.</summary>
+    private TransferItem CheckContents(ClaimsPrincipal user, TransferKind kind, string verb, TransferItem item, FileSystemInfo root, string? destination, ref bool leftOutUnreadable)
+    {
         List<InsideEntry> contents = [];
         try
         {
@@ -152,9 +172,9 @@ public sealed class TransferPlanner(Config config, IPathService path, AccessTree
                     continue;
                 }
 
-                string? entryDestination = destination is null ? null : Path.Combine(destination, Path.GetRelativePath(item.Source, walked.Entry.FullName));
+                string? entryDestination = destination is null ? null : Path.Combine(destination, walked.RelativePath);
                 CheckEntry(user, kind, verb, walked.Entry, walked.Access, entryDestination);
-                contents.Add(new InsideEntry(walked.Entry.FullName, walked.Entry is DirectoryInfo));
+                contents.Add(new InsideEntry(walked.Entry.FullName, walked.RelativePath, walked.Entry is DirectoryInfo));
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

@@ -17,6 +17,9 @@
 # Local secrets for docker compose (see .env.example)
 .env
 
+# What only this site has for docker compose, such as bridges (see compose.override.example.yaml)
+compose.override.yaml
+
 # Logs
 *.log
 

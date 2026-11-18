@@ -96,7 +96,7 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)
@@ -136,7 +136,7 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @System.IO.Path.GetFileName(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@System.IO.Path.GetFileName(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="/@virtualPath" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)

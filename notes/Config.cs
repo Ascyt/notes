@@ -1,4 +1,5 @@
 ﻿using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.History;
 
 namespace notes;
@@ -19,4 +20,6 @@ public sealed class Config
     public string? KillSwitchMarker { get; init; }
     public required AuthConfig Auth { get; init; }
     public HistoryConfig History { get; init; } = new();
+    /// <summary>Virtual directories of the notes kept in physical directories of their own, see <see cref="NotesLocations"/>.</summary>
+    public BridgeConfig[] Bridges { get; init; } = [];
 }

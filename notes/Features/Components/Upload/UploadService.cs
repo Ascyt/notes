@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 
@@ -26,7 +27,7 @@ public interface IUploadService
     int DeleteStaleUploads(TimeSpan maxAge);
 }
 
-public sealed class UploadService(Config config, IPathService path, StructureLock structureLock, FolderConfigStore configs, TimeProvider time) : IUploadService
+public sealed class UploadService(NotesLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs, TimeProvider time) : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -85,7 +86,7 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
             for (int n = 1; ; n++)
             {
                 string finalPath = Path.Combine(physicalDirectory, finalName);
-                if (!Path.Exists(finalPath))
+                if (locations.IsFree(finalPath))
                 {
                     if (!mayCreate(finalPath))
                     {
@@ -95,9 +96,10 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
 
                     try
                     {
+                        tempPath = MoveToVolumeOf(tempPath, physicalDirectory);
                         File.Move(tempPath, finalPath);
                         configs.FileAdded(physicalDirectory, finalName);
-                        return path.ToVirtualPath(config.Dir, finalPath);
+                        return path.ToVirtualPath(finalPath);
                     }
                     catch (FileNotFoundException) when (!File.Exists(tempPath))
                     {
@@ -173,8 +175,26 @@ public sealed class UploadService(Config config, IPathService path, StructureLoc
     private void SetLastWriteTimeToNow(FileStream temp)
         => File.SetLastWriteTimeUtc(temp.SafeFileHandle, time.GetUtcNow().UtcDateTime);
 
-    /// <summary>The folder for globally saved data, inside the notes directory but never shown or reachable through it.</summary>
-    private string GlobalDirectory => Path.Combine(Path.GetFullPath(config.Dir), PathService.ReservedName);
+    /// <summary>
+    /// The upload moved next to the directory it goes into, if that is in a bridge (which may be on another volume): there it can be renamed
+    /// into place, so that it appears at once and complete, not while it is copied. Returns where it is now.
+    /// </summary>
+    private string MoveToVolumeOf(string tempPath, string physicalDirectory)
+    {
+        // (Already there when a name was taken in the meantime and the next one is tried)
+        string targetTemp = locations.TempDirectoryFor(physicalDirectory, "upload");
+        if (locations.LocationOf(physicalDirectory) == locations.Root
+            || string.Equals(Path.GetDirectoryName(tempPath), targetTemp, StringComparison.OrdinalIgnoreCase))
+            return tempPath;
+
+        _ = Directory.CreateDirectory(targetTemp);
+        string moved = Path.Combine(targetTemp, Path.GetFileName(tempPath));
+        File.Move(tempPath, moved);
+        return moved;
+    }
+
+    /// <summary>The folder for the app's own data at the root of the notes, never shown or reachable through it.</summary>
+    private string GlobalDirectory => locations.Root.DataDirectory;
 
     private string UserTempDirectory(string userId)
         => Path.Combine(GlobalDirectory, "temp", "user", UserFolderName(userId));

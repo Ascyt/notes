@@ -9,6 +9,8 @@ Admins have a gear button below the breadcrumb of every directory and file (left
 - For a **directory** the editor shows its whole `.config.json`.
 - For a **file** it shows only that file's entry in the `.config.json` of the directory it is in, without the `name`.
 
+Below the editor is where the entry is on disk (its physical path), which tells which folder its `.config.json` is in, also for a [bridge](bridges.md).
+
 `.config.json` is never listed, can't be opened or created by any other means, and is left out of downloads and copies by everyone but admins. For admins it is part of a zip download of a directory, and of a copy or move of it. When a non-admin copies or moves a directory, the copy has no configuration of its own and has that of where it went.
 
 ## The file

@@ -1,3 +1,4 @@
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 
@@ -5,9 +6,10 @@ namespace notes.Features.History;
 
 /// <summary>
 /// What the history keeps: every file, unless the configuration of its folder (or of the nearest folder above that has one) says
-/// <c>gitignore</c>. Configuration files are always kept, and the app's own data (<c>_</c>) never is.
+/// <c>gitignore</c>. Configuration files are always kept, and the app's own data (<c>_</c>) never is. The folders above are those of the notes:
+/// above a bridge, whose history is a repository of its own, comes the directory it is mounted in.
 /// </summary>
-public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
+public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, NotesLocations locations)
 {
     /// <summary>Whether the file (git path) is kept.</summary>
     public bool IsKept(string path)
@@ -36,14 +38,14 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
             return false;
 
         string folder = Path.GetDirectoryName(paths.ToPhysicalPath(path))!;
-        string? parent = Path.GetDirectoryName(folder);
+        string? parent = locations.ParentOf(folder);
         Dictionary<string, bool> known = NewKnown();
 
         bool leftOutNow = IsLeftOut(folder, known);
         // (Without a valid configuration the folder above decides, as for the one on disk)
         bool leftOutThen = ConfigParser.ParseFolder(newContents, existingFiles: null).Value is { } config
             ? config.Gitignore
-            : !paths.IsRoot(folder) && parent is not null && IsLeftOut(parent, known);
+            : parent is not null && IsLeftOut(parent, known);
         return leftOutNow != leftOutThen;
     }
 
@@ -79,7 +81,8 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
                 continue;
 
             string subfolderPattern = pattern + EscapeForPattern(name) + "/";
-            if (PatternsInside(subfolder, subfolderPattern, known) is not { } inside)
+            // What a bridge hides is no part of the notes, so nothing in it is kept
+            if (locations.IsHiddenByBridge(subfolder) || PatternsInside(subfolder, subfolderPattern, known) is not { } inside)
             {
                 // (In a folder that is left out, it already is by the folder's pattern)
                 if (!leftOut)
@@ -111,7 +114,8 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
 
     private bool IsKept(string path, Dictionary<string, bool> known)
     {
-        if (path.Split('/')[0] == PathService.ReservedName)
+        // What a bridge hides is no part of the notes, though it is in the work tree
+        if (path.Split('/')[0] == PathService.ReservedName || locations.IsHiddenByBridge(paths.ToPhysicalPath(path)))
             return false;
 
         return IsConfigFile(path) || !IsLeftOut(Path.GetDirectoryName(paths.ToPhysicalPath(path))!, known);
@@ -126,9 +130,9 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths)
         if (known.TryGetValue(folder, out bool leftOut))
             return leftOut;
 
-        string? parent = Path.GetDirectoryName(folder);
+        string? parent = locations.ParentOf(folder);
         leftOut = configs.Get(folder).Config is { } config ? config.Gitignore
-            : parent is not null && !paths.IsRoot(folder) && IsLeftOut(parent, known);
+            : parent is not null && IsLeftOut(parent, known);
         known[folder] = leftOut;
         return leftOut;
     }

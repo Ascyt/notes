@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Toolbar;
 using notes.Features.Helpers;
@@ -13,7 +14,7 @@ using notes.Pages.Editor;
 namespace notes.Features.HistoryViewing.Views;
 
 /// <summary>The pages of an entry as an earlier state has it (<c>?before=</c>): its listing or its file, with nothing in them that changes anything.</summary>
-public sealed class EarlierStateViews(Config config, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateCommits commits,
+public sealed class EarlierStateViews(NotesLocations locations, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateCommits commits,
     CommitChanges changes)
 {
     /// <summary>Why nothing can be changed in an earlier state, which the controls that would change something say.</summary>
@@ -22,7 +23,7 @@ public sealed class EarlierStateViews(Config config, IPathService path, AccessTr
     /// <param name="addressOfNow">The address of the entry as it is now, which the view of a commit leads back to.</param>
     public DirectoryView CreateDirectoryView(ClaimsPrincipal user, string virtualPath, ShowEntryAsItWas shown, string addressOfNow)
     {
-        DirectoryView directory = new(config, path, tree)
+        DirectoryView directory = new(locations, path, tree)
         {
             VirtualPath = virtualPath,
             PhysicalPath = shown.PhysicalPath,
@@ -120,7 +121,7 @@ public sealed class EarlierStateViews(Config config, IPathService path, AccessTr
         Dictionary<string, ParentWithoutHistory> parents = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string parentPath, EarlierStateVerdict verdict) in permissions.DirectoriesAboveThatCantBeSeenAsTheyWere(user, physicalPath, state))
         {
-            string virtualPath = path.ToVirtualPath(config.Dir, parentPath);
+            string virtualPath = path.ToVirtualPath(parentPath);
             // Only those who manage the configuration may know what it leaves out (as the notice of the page it leads to says)
             string reason = verdict == EarlierStateVerdict.NotKeptInHistory && tree.CanManageConfiguration(user)
                 ? "The configuration leaves this directory out of the history."

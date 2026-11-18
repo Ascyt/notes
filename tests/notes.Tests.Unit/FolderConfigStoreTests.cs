@@ -142,7 +142,7 @@ public sealed class FolderConfigStoreTests : IDisposable
     private const string OldFolder = """{ "version": "1.0.0", "perms": { "inheritance": false }, "gitignore": false, "files": [] }""";
 
     private FolderConfigStore StoreOf(string version, params IConfigMigration[] steps)
-        => new(_notes.Config, new ConfigMigrator(ConfigVersions.Parse(version), steps, NullLogger<ConfigMigrator>.Instance), NullLogger<FolderConfigStore>.Instance);
+        => new(_notes.Locations, new ConfigMigrator(ConfigVersions.Parse(version), steps, NullLogger<ConfigMigrator>.Instance), NullLogger<FolderConfigStore>.Instance);
 
     [Fact]
     public void A_file_without_a_version_is_read_as_the_current_one()

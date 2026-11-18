@@ -86,7 +86,7 @@ Different ways to look at the same thing share its address. They are told apart 
 
 Notes are files and folders on disk, and what the app keeps about them lives with them: the configuration of a folder (such as its permissions) in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads, or their history) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
 
-Later, some virtual directories may be stored in physical directories of their own. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root.
+Some virtual directories are stored in physical directories of their own ([bridges](../administration/bridges.md)), each with its own `_`. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root: which directory an entry is in, and what is in a directory, is asked of `NotesLocations` (`notes/Features/Bridges`), not read off the physical paths.
 
 ### 16. The app serves its own files
 

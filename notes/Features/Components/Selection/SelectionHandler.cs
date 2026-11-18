@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
 
@@ -14,7 +15,7 @@ public sealed record SelectionRequest(string[]? Paths);
 /// Answers <c>?selection</c>. A GET returns the user's selection; a POST changes it: <c>?selection=add</c> and <c>?selection=remove</c>
 /// take the virtual paths in the body, <c>?selection=clear</c> unselects everything. Every answer is the selection as it is afterwards.
 /// </summary>
-public sealed class SelectionHandler(Config config, IPathService path, AccessTree tree, ISelectionService selection)
+public sealed class SelectionHandler(NotesLocations locations, IPathService path, AccessTree tree, ISelectionService selection)
 {
     /// <summary>More entries than this in one request is not something a page does.</summary>
     private const int MaxPathsPerRequest = 10_000;
@@ -26,7 +27,7 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
     public IActionResult HandleGet(ClaimsPrincipal user)
     {
         string? userId = UserIdOf(user);
-        if (userId is null || !tree.CanOpen(user, config.Dir))
+        if (userId is null || !tree.CanOpen(user, locations.Root.PhysicalPath))
             return new NotFoundResult();
 
         return new JsonResult(selection.Get(userId));
@@ -35,7 +36,7 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
     public async Task<IActionResult> HandlePostAsync(HttpRequest request, ClaimsPrincipal user, string action)
     {
         string? userId = UserIdOf(user);
-        if (userId is null || !tree.CanOpen(user, config.Dir))
+        if (userId is null || !tree.CanOpen(user, locations.Root.PhysicalPath))
             return new NotFoundResult();
 
         SelectionSnapshot? result;
@@ -90,7 +91,7 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
         // The paths are mostly in the same directory: find them all together (each directory is listed once, not once per path), and read
         // the configuration of the folders above them once for all of them
         using IDisposable scope = ConfigReadScope.Begin();
-        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(config.Dir, virtualPaths);
+        IReadOnlyList<FileSystemInfo?> found = path.FindEntries(virtualPaths);
         List<SelectionEntry> entries = [];
         for (int i = 0; i < virtualPaths.Length; i++)
         {
@@ -99,7 +100,7 @@ public sealed class SelectionHandler(Config config, IPathService path, AccessTre
                 continue;
 
             bool isDirectory = entry is DirectoryInfo;
-            entries.Add(new SelectionEntry(path.ToVirtualPath(config.Dir, entry.FullName), isDirectory, tree.GetAccess(user, entry.FullName, isDirectory).CanDelete));
+            entries.Add(new SelectionEntry(path.ToVirtualPath(entry.FullName), isDirectory, tree.GetAccess(user, entry.FullName, isDirectory).CanDelete));
         }
 
         return entries;

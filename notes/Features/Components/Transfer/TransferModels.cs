@@ -33,7 +33,8 @@ public sealed record TransferItem(string Source, string Name, bool IsDirectory)
 
 /// <summary>An entry inside a directory that is copied.</summary>
 /// <param name="Path">Its physical path.</param>
-public sealed record InsideEntry(string Path, bool IsDirectory);
+/// <param name="RelativePath">Where it is in the directory, by the names of the notes (see <see cref="notes.Features.Auth.WalkedEntry.RelativePath"/>).</param>
+public sealed record InsideEntry(string Path, string RelativePath, bool IsDirectory);
 
 /// <summary>What the <see cref="TransferPlanner"/> found is to be done.</summary>
 /// <param name="LeftOutUnreadable">Whether a copy leaves out entries that the user may not read.</param>
@@ -47,13 +48,12 @@ public sealed class TransferException(int statusCode, string message, bool keeps
     public bool KeepsStaging { get; } = keepsStaging;
 }
 
-/// <summary>Comparing physical paths the way the notes do: case-insensitively, ignoring a trailing separator.</summary>
+/// <summary>
+/// Comparing physical paths the way the notes do: case-insensitively, ignoring a trailing separator. (Whether one is inside another is for
+/// <see cref="notes.Features.Bridges.NotesLocations.IsSameOrInside"/>, as a bridge isn't inside its directory on disk.)
+/// </summary>
 public static class TransferPaths
 {
     public static bool IsSame(string a, string b)
         => string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Whether <paramref name="child"/> is somewhere below <paramref name="parent"/>.</summary>
-    public static bool IsInside(string child, string parent)
-        => Path.TrimEndingDirectorySeparator(child).StartsWith(Path.TrimEndingDirectorySeparator(parent) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 }

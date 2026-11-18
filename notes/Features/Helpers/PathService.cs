@@ -1,31 +1,35 @@
-﻿namespace notes.Features.Helpers;
+﻿using notes.Features.Bridges;
+
+namespace notes.Features.Helpers;
 
 public interface IPathService
 {
     /// <summary>Whether the name is usable as a single file or directory name.</summary>
     bool IsValidName(string name);
-    /// <summary>The physical path of the existing file or directory at the virtual path inside <paramref name="dir"/>, or null if there is none or the path isn't valid.</summary>
-    string? ToPhysicalPath(string dir, string virtualPath);
+    /// <summary>The physical path of the existing file or directory at the virtual path of the notes, or null if there is none or the path isn't valid.</summary>
+    string? ToPhysicalPath(string virtualPath);
 
     /// <summary>
     /// The existing entries at the virtual paths, each found like <see cref="ToPhysicalPath"/> finds it (null where that gives null; the root for
     /// an empty path). A directory that several of the paths go through is listed only once, so many paths in the same directory (a selection)
     /// cost about as much as one: on a slow disk, listing a directory again for every path is what takes the time.
     /// </summary>
-    IReadOnlyList<FileSystemInfo?> FindEntries(string dir, IReadOnlyList<string> virtualPaths);
+    IReadOnlyList<FileSystemInfo?> FindEntries(IReadOnlyList<string> virtualPaths);
 
-    string ToVirtualPath(string dir, string physicalPath);
+    /// <summary>The virtual path of the physical one (see <see cref="NotesLocations.ToVirtualPath"/>), but <c>.</c> for the root.</summary>
+    string ToVirtualPath(string physicalPath);
 }
 
-public sealed class PathService : IPathService
+/// <summary>Finds the physical paths of the notes, through the bridges (<see cref="NotesLocations"/>).</summary>
+public sealed class PathService(NotesLocations locations) : IPathService
 {
     /// <summary>Hidden and system entries are entries like any other, and a directory that can't be read must not look empty.</summary>
     private static readonly EnumerationOptions ListOptions = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
 
-    public string? ToPhysicalPath(string dir, string virtualPath)
-        => Resolve(dir, virtualPath, FindEntry)?.FullName;
+    public string? ToPhysicalPath(string virtualPath)
+        => Resolve(virtualPath, FindEntry)?.FullName;
 
-    public IReadOnlyList<FileSystemInfo?> FindEntries(string dir, IReadOnlyList<string> virtualPaths)
+    public IReadOnlyList<FileSystemInfo?> FindEntries(IReadOnlyList<string> virtualPaths)
     {
         // What was found in each directory, by name, for all of the paths
         Dictionary<string, Listing> listings = new(StringComparer.Ordinal);
@@ -44,23 +48,35 @@ public sealed class PathService : IPathService
             return found[(directory, name)] = entry is null || IsLink(entry) ? null : entry;
         }
 
-        return [..virtualPaths.Select(virtualPath => Resolve(dir, virtualPath, FindListed, linksChecked: true))];
+        return [..virtualPaths.Select(virtualPath => Resolve(virtualPath, FindListed, linksChecked: true))];
     }
 
     /// <summary>
-    /// Walks down from the root one directory at a time. A segment is only followed if it names an entry that actually exists in the current
-    /// directory (as <paramref name="find"/> finds it), so the result is made of paths the filesystem itself returned and can never lead out
-    /// of the root (no "..", drive letters, UNC paths or the like get this far). Links are never followed: they could point out of the root.
+    /// Walks down from the root one directory at a time. A segment is only followed if it names a bridge, or an entry that actually exists in
+    /// the current directory (as <paramref name="find"/> finds it), so the result is made of paths the configuration or the filesystem itself
+    /// gave and can never lead out of the notes (no "..", drive letters, UNC paths or the like get this far). Links are never followed: they
+    /// could point out of the notes.
     /// </summary>
     /// <param name="linksChecked">Whether <paramref name="find"/> already leaves out links.</param>
-    private FileSystemInfo? Resolve(string dir, string virtualPath, Func<string, string, FileSystemInfo?> find, bool linksChecked = false)
+    private FileSystemInfo? Resolve(string virtualPath, Func<string, string, FileSystemInfo?> find, bool linksChecked = false)
     {
-        FileSystemInfo current = new DirectoryInfo(Path.GetFullPath(dir));
+        FileSystemInfo current = new DirectoryInfo(locations.Root.PhysicalPath);
+        string walked = "";
 
         foreach (string name in virtualPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries))
         {
             if (!IsValidName(name))
                 return null;
+
+            // A bridge goes before whatever is on disk at its place, which it hides
+            walked = walked == "" ? name : walked + "/" + name;
+            if (locations.BridgeAt(walked) is { } bridge)
+            {
+                if (!Directory.Exists(bridge.PhysicalPath))
+                    return null;
+                current = new DirectoryInfo(bridge.PhysicalPath);
+                continue;
+            }
 
             FileSystemInfo? entry = find(current.FullName, name);
             if (entry is null || (!linksChecked && IsLink(entry)))
@@ -153,14 +169,11 @@ public sealed class PathService : IPathService
             => _exact.GetValueOrDefault(name) ?? _caseless.GetValueOrDefault(name);
     }
 
-    public string ToVirtualPath(string dir, string physicalPath)
-    {
-        string s = Path.GetRelativePath(Path.GetFullPath(dir), physicalPath);
-        return s.Replace('\\', '/');
-    }
+    public string ToVirtualPath(string physicalPath)
+        => locations.ToVirtualPath(physicalPath) is var virtualPath and not "" ? virtualPath : ".";
 
     /// <summary>
-    /// Name of the folder in the notes directory for globally saved data (temp files and the like). It is
+    /// Name of the folder in the notes directory (and in the physical directory of each bridge) for the app's own data (temp files, the history). It is
     /// not a valid name, so no path, upload or rename can ever lead to it, and listings skip it.
     /// </summary>
     public const string ReservedName = "_";

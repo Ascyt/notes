@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
+using notes.Features.Bridges;
 using notes.Features.Components.Download;
 using notes.Features.Helpers;
 using notes.Features.History;
@@ -33,7 +34,7 @@ public sealed record AskedState(EarlierState State, EarlierStateParameter Asked,
 /// can be seen, <c>?commits</c> for the list of its changes), as docs/development/history-specification.md says. Who may see what is decided by
 /// <see cref="EarlierStatePermissions"/>.
 /// </summary>
-public sealed class EarlierStateRequests(Config config, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateReader reader,
+public sealed class EarlierStateRequests(Config config, NotesLocations locations, IPathService path, AccessTree tree, EarlierStatePermissions permissions, EarlierStateReader reader,
     EarlierStateCommits commits, HistoryService history, DownloadHandler downloadHandler, TimeProvider time)
 {
     /// <summary>
@@ -82,12 +83,13 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
             asked = EarlierStateParameter.ForTime(before);
         }
 
-        // Whether there is a history is how the site is run: only admins are told
-        if (!reader.HasHistory)
+        // Whether there is a history is how the site is run: only admins are told. (Below a bridge, it is in a repository of the bridge, which
+        // can't be viewed yet: for the history of the root, there is nothing there.)
+        if (!reader.HasHistory || !locations.LocationOfVirtual(virtualPath).IsRoot)
             return new RedirectToNow(tree.CanManageConfiguration(user) ? EarlierStateNotice.NoHistory : EarlierStateNotice.NotPermitted);
 
         // What is there now is answered as it is now first: a hidden entry like a missing one, an unreadable one as unreadable
-        string? existingPath = path.ToPhysicalPath(config.Dir, virtualPath);
+        string? existingPath = path.ToPhysicalPath(virtualPath);
         if (existingPath is not null)
         {
             if (!tree.IsKnown(user, existingPath))
@@ -163,10 +165,10 @@ public sealed class EarlierStateRequests(Config config, IPathService path, Acces
     /// </summary>
     private string? EntryWhoseHistoryMayBeSeen(ClaimsPrincipal user, string virtualPath)
     {
-        if (!reader.HasHistory)
+        if (!reader.HasHistory || !locations.LocationOfVirtual(virtualPath).IsRoot)
             return null;
 
-        string? existingPath = path.ToPhysicalPath(config.Dir, virtualPath);
+        string? existingPath = path.ToPhysicalPath(virtualPath);
         if (existingPath is not null && (!tree.IsKnown(user, existingPath) || !history.IsKept(existingPath, Directory.Exists(existingPath))))
             return null;
 

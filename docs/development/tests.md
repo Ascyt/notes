@@ -9,7 +9,7 @@ tests/notes.Tests.Ui            the scripts of the pages in a real browser (Play
 tests/notes.Tests.Common        what they share: the app with a fake login and a fake clock, users, the tree of notes they start from
 ```
 
-The integration tests check the app against the [security specification](security-specification.md). Users are signed in by a header instead of Keycloak (`TestAuthentication`), and the app's clock (`TimeProvider`) is a fake one that the tests move, so nothing waits for real time. Most tests start from the same tree of notes and users (`BaseTree`, `Users`), in which every kind of entry the specification talks about exists for every kind of user.
+The integration tests check the app against the [security specification](security-specification.md). Users are signed in by a header instead of Keycloak (`TestAuthentication`), and the app's clock (`TimeProvider`) is a fake one that the tests move, so nothing waits for real time. Most tests start from the same tree of notes and users (`BaseTree`, `Users`), in which every kind of entry the specification talks about exists for every kind of user. The tests of [bridges](../administration/bridges.md) start the app with bridges to physical folders outside the notes (`BridgedNotesAppFactory`, `BridgeTest`).
 
 ## Running them
 
