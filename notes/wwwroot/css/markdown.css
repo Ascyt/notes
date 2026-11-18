@@ -16,6 +16,30 @@
   padding-left: max(0px, calc(var(--markdown-edit-gutter) - var(--bs-gutter-x) * 0.5 - (100cqw - 100%) / 2));
 }
 
+/* On a narrow screen the room is worth more than the gutter: the button is shown over the text instead, where it is tapped.
+   The width is the one markdown-edit-here.js asks for (NARROW_SCREEN). */
+@media (max-width: 767.98px) {
+  .markdown-edit-gutter {
+    padding-left: 0;
+  }
+}
+
+/* Over the text the button needs a background of its own, so that the text under it doesn't show through */
+.markdown-edit-here.is-over-text {
+  background: var(--bs-secondary-bg);
+  opacity: 1;
+}
+
+/* While Alt is held it stands where the mouse is, and the click goes through it to the page (markdown-edit-here.js) */
+.markdown-edit-here.is-at-pointer {
+  pointer-events: none;
+}
+
+/* The mouse is over the button then, so it looks as it would over a link: the click opens the editor, whatever is under it */
+html.has-edit-here-at-pointer, html.has-edit-here-at-pointer * {
+  cursor: pointer !important;
+}
+
 .markdown-edit-here {
   position: absolute;
   display: inline-flex;
@@ -88,11 +112,6 @@
 
 .markdown-body li:not(:has(> p)) > :is(ul, ol):last-child {
   margin-bottom: 0;
-}
-
-/* Items split by a blank line are lists of their own (MarkdownLists): groups of one list, a smaller gap apart than paragraphs */
-.markdown-body :is(ul, ol):has(+ ul, + ol) {
-  margin-bottom: 0.5rem;
 }
 
 .markdown-body ul.contains-task-list {

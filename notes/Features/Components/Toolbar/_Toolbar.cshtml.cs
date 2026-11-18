@@ -26,6 +26,7 @@ public enum ToolbarTone
 /// <param name="IsDownload">Whether the link downloads what it points at.</param>
 /// <param name="Tone">Colors the icon.</param>
 /// <param name="DisabledReason">Disables the button from the start, and is what its tooltip says. Scripts change it with setButtonDisabled.</param>
+/// <param name="IsHidden">Hides the button from the start, for one that only belongs to a state of the page that its script shows it in.</param>
 public sealed record ToolbarButton(
     string Id,
     string Icon,
@@ -35,7 +36,8 @@ public sealed record ToolbarButton(
     string? OnClick = null,
     bool IsDownload = false,
     ToolbarTone Tone = ToolbarTone.Normal,
-    string? DisabledReason = null)
+    string? DisabledReason = null,
+    bool IsHidden = false)
 {
     // The buttons the pages use, so that the same button looks and behaves the same everywhere
 
@@ -61,6 +63,17 @@ public sealed record ToolbarButton(
     /// </summary>
     public static ToolbarButton SimpleView()
         => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", Key: "!+E", OnClick: "toggleSimpleView()");
+
+    /// <summary>
+    /// Indents the lines of the selection, or inserts an indent at the cursor: what Tab does in the code editor, for the simple view, where
+    /// a phone has no Tab key. The page's script shows the two only in the simple view (in the code editor, Ctrl+] and Ctrl+[ are Monaco's own).
+    /// </summary>
+    public static ToolbarButton Indent()
+        => new(Id: "indent-button", Icon: "fa-solid fa-indent", Label: "Indent", Key: "^]", OnClick: "indentSimpleView(false)", IsHidden: true);
+
+    /// <summary>Takes an indent away from the lines of the selection, or the line of the cursor: what Shift+Tab does in the code editor.</summary>
+    public static ToolbarButton Outdent()
+        => new(Id: "outdent-button", Icon: "fa-solid fa-outdent", Label: "Outdent", Key: "^[", OnClick: "indentSimpleView(true)", IsHidden: true);
 
     /// <summary>Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.</summary>
     public static ToolbarButton ZoomIn()

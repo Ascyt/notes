@@ -56,13 +56,13 @@
         @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
         if (button.Href is not null)
         {
-            <a id="@button.Id" href="@button.Href" download="@(button.IsDownload ? "" : null)" class="toolbar-button @tone" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")">
+            <a id="@button.Id" href="@button.Href" download="@(button.IsDownload ? "" : null)" class="toolbar-button @tone" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")" hidden="@button.IsHidden">
                 <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
             </a>
         }
         else
         {
-            <button id="@button.Id" type="button" class="toolbar-button @tone" onclick="@button.OnClick" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")">
+            <button id="@button.Id" type="button" class="toolbar-button @tone" onclick="@button.OnClick" key="@button.Key" aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")" hidden="@button.IsHidden">
                 <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
             </button>
         }

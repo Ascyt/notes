@@ -24,6 +24,12 @@
     if (isEditing)
     {
         toolbarButtons.Add(ToolbarButton.SimpleView());
+        // Only in the simple view, which has no Tab key on a phone (file-editor.js shows them), and only where there is something to change
+        if (Model.CanWrite)
+        {
+            toolbarButtons.Add(ToolbarButton.Indent());
+            toolbarButtons.Add(ToolbarButton.Outdent());
+        }
         toolbarButtons.Add(ToolbarButton.ZoomOut());
         toolbarButtons.Add(ToolbarButton.ZoomIn());
     }
@@ -112,6 +118,7 @@
     }
     <script src="~/js/markdown/markdown-print.js" asp-append-version="true"></script>
     <script src="~/js/markdown/markdown-edit-here.js" asp-append-version="true"></script>
+    <script src="~/js/markdown/markdown-start-position.js" asp-append-version="true"></script>
     @if (!Model.IsReadOnly)
     {
         <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Contents.Length != 0, Kind = "file" }'/>
@@ -145,7 +152,9 @@
     Contents: Model.Contents,
     Language: Model.Language,
     MonacoPath: Url.Content("~/lib/monaco-editor/min/vs"),
-    ReadOnlyMessage: Model.ReadOnlyReason)))</script>
+    ReadOnlyMessage: Model.ReadOnlyReason,
+    SuggestsWords: !Model.IsProse)))</script>
 <script src="~/js/editor/editor.js" asp-append-version="true"></script>
 <script src="~/js/editor/editor-start-position.js" asp-append-version="true"></script>
+<script src="~/js/editor/text-area-indent.js" asp-append-version="true"></script>
 <script src="~/js/editor/file-editor.js" asp-append-version="true"></script>

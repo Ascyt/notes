@@ -1,6 +1,6 @@
 // The editor of a text file: the code editor (Monaco, see editor.js) or the simple view, a plain text field for phones, saving, and
 // what the components of the page (delete, rename) ask of it. What the page knows about the file comes from #file-editor-options.
-// The toolbar's buttons call saveFile() and toggleSimpleView().
+// The toolbar's buttons call saveFile(), toggleSimpleView() and indentSimpleView(outdent); the way to the preview leads to the cursor's place.
 (function () {
     const SIMPLE_VIEW_KEY = 'notes.simpleEditor';
     const options = JSON.parse(document.getElementById('file-editor-options').textContent);
@@ -119,7 +119,8 @@
                 value: options.contents,
                 language: options.language,
                 readOnly: !canWrite,
-                readOnlyMessage: options.readOnlyMessage
+                readOnlyMessage: options.readOnlyMessage,
+                suggestsWords: options.suggestsWords
             }).then(function (editor) {
                 monacoEditor = editor;
                 window.editor = editor;
@@ -144,8 +145,49 @@
         simpleElement.hidden = false;
     }
 
+    // ---- Indenting in the simple view ----
+
+    // Only shown in the simple view. Disabled in the code editor too, so that their shortcuts are left to Monaco, which has the same.
+    const indentButtons = ['indent-button', 'outdent-button'].map(id => document.getElementById(id)).filter(Boolean);
+    for (const button of indentButtons)
+        button.addEventListener('mousedown', e => e.preventDefault()); // the text field keeps the focus, and a phone its keyboard
+
+    function updateIndentButtons() {
+        for (const button of indentButtons) {
+            button.hidden = !useSimple;
+            setButtonDisabled(button, useSimple ? null : 'The code editor indents with Tab.');
+        }
+    }
+
+    window.indentSimpleView = function (outdent) {
+        if (!useSimple || !canWrite)
+            return;
+        if (outdent)
+            textAreaIndent.outdent(simpleElement);
+        else
+            textAreaIndent.indent(simpleElement);
+    };
+
+    // ---- The way to the preview ----
+
+    // Leads to where the cursor is, in whichever view is shown
+    const previewButton = document.getElementById('preview-button');
+    if (previewButton)
+        previewButton.addEventListener('click', function () {
+            let place = null;
+            if (useSimple)
+                place = editorStartPosition.placeInTextArea(simpleElement);
+            else if (monacoEditor && monacoEditor.getPosition()) {
+                const position = monacoEditor.getPosition();
+                place = { line: position.lineNumber, column: position.column };
+            }
+            if (place)
+                editorStartPosition.linkToPreview(previewButton, place);
+        });
+
     // The button leads to the other view, so its icon is that of the other view
     function updateViewButton() {
+        updateIndentButtons();
         const icon = viewButton.querySelector('.btn-icon');
         icon.classList.remove('fa-solid', 'fa-regular', 'fa-mobile-screen-button', 'fa-keyboard');
         icon.classList.add(...(useSimple ? ['fa-regular', 'fa-keyboard'] : ['fa-solid', 'fa-mobile-screen-button']));

@@ -14,7 +14,8 @@ namespace notes.Pages.Editor;
 /// <param name="CanWrite">Whether it may be changed; otherwise the editor is read-only and Save stays disabled.</param>
 /// <param name="MonacoPath">Where Monaco is served from.</param>
 /// <param name="ReadOnlyMessage">What the editor says when typing into it while it is read-only.</param>
-public sealed record FileEditorOptions(bool CanWrite, string Contents, string Language, string MonacoPath, string ReadOnlyMessage);
+/// <param name="SuggestsWords">Whether the code editor suggests words of the text while typing, which is left out for prose.</param>
+public sealed record FileEditorOptions(bool CanWrite, string Contents, string Language, string MonacoPath, string ReadOnlyMessage, bool SuggestsWords);
 
 /// <summary>A file as an earlier state has it (<c>?before=</c> or <c>?commit=</c>), shown instead of the one on disk.</summary>
 /// <param name="Shown">Which state it is, as the address has it.</param>
@@ -102,6 +103,9 @@ public class FileView : PageModel
     public MediaKind Media { get; private set; }
 
     public string Language => LanguageOf(VirtualPath);
+
+    /// <summary>Text written as prose (notes, plain text), where the editor's suggestions of words are more in the way than of help.</summary>
+    public bool IsProse => Path.GetExtension(VirtualPath).ToLowerInvariant() is ".md" or ".txt";
 
     /// <summary>How the editor highlights a file of that name.</summary>
     public static string LanguageOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch

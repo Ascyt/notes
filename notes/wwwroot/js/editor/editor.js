@@ -5,6 +5,7 @@
 //       value, language,  what it starts with, and how that is highlighted
 //       uri,              if given, the editor edits a model of that name (needed to tie a JSON schema to it, see onBeforeCreate)
 //       readOnly, readOnlyMessage,
+//       suggestsWords     false leaves out the suggestions of words of the text while typing (in prose they are more in the way than of help)
 //       onBeforeCreate    function(monaco), called before the editor is made, e.g. to set up a language
 //   })                    returns a promise of the editor
 //
@@ -185,6 +186,10 @@
             fontSize: Math.round(MONACO_FONT_SIZE * window.editorZoom.factor)
             // Monaco's own zoom (mouseWheelZoom, its zoom actions) is left off: it isn't kept, and would add to this one
         };
+        if (options.suggestsWords === false) {
+            settings.wordBasedSuggestions = 'off';
+            settings.quickSuggestions = false; // nor anything else popping up by itself
+        }
         if (options.uri)
             settings.model = monaco.editor.createModel(options.value, options.language, monaco.Uri.parse(options.uri));
         else {
