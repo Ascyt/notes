@@ -46,6 +46,12 @@ public class FileView : PageModel
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the file.</summary>
     public bool CanConfigure { get; init; }
 
+    /// <summary>
+    /// For an image, video or audio file: the media before and after it in the grid of its directory (in the state that is shown), which the toolbar leads
+    /// to. Null for any other file.
+    /// </summary>
+    public Browse.MediaNeighbours? MediaNeighbours { get; init; }
+
     /// <summary>Whether the page has the way to the earlier states of the file.</summary>
     public HistoryButtonState HistoryButton { get; init; } = HistoryButtonState.Hidden;
 

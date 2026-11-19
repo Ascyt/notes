@@ -56,6 +56,7 @@ public sealed class EarlierStateViews(Config config, NotesLocations locations, I
             PhysicalPath = shown.PhysicalPath,
             MaxTextBytes = config.Limits.MaxTextBytes,
             Earlier = new EarlierFile(shown.Shown, blob.Size, () => blob.GetContentStream()),
+            MediaNeighbours = MediaEntries.IsMedia(shown.Entry.Name) ? MediaNeighboursAsTheyWere(user, shown) : null,
             HistoryButton = HistoryButtonState.Usable,
             CommitSidebar = CommitViewSidebar(user, shown.State, shown.PhysicalPath, shown.Shown, "file", addressOfNow),
             CommitChangesButton = WayToChanges(user, shown, "file"),
@@ -67,6 +68,23 @@ public sealed class EarlierStateViews(Config config, NotesLocations locations, I
         };
         await file.InitAsync();
         return file;
+    }
+
+    /// <summary>
+    /// The media next to a file in its directory as it was, among those that could be opened then (as the grid of the directory in that state
+    /// has them). The links lead to them as they are now; the card of the state adds the state to them.
+    /// </summary>
+    private MediaNeighbours MediaNeighboursAsTheyWere(ClaimsPrincipal user, ShowEntryAsItWas shown)
+    {
+        string gitPath = shown.Entry.GitPath;
+        string parentGitPath = gitPath.Contains('/') ? gitPath[..gitPath.LastIndexOf('/')] : "";
+        if (shown.State.FindEntry(parentGitPath) is not { IsDirectory: true } parent)
+            return MediaNeighbours.None;
+
+        IEnumerable<(string, string)> openable = permissions.ListDirectoryAsItWas(user, parent, shown.State)
+            .Where(listed => listed.Kind == EarlierListingKind.Link && !listed.Entry.IsDirectory && MediaEntries.IsMedia(listed.Entry.Name))
+            .Select(listed => (listed.Entry.Name, VirtualPaths.ToAddress(path.ToVirtualPath(listed.PhysicalPath))));
+        return MediaEntries.NeighboursOf(shown.Entry.Name, openable);
     }
 
     /// <summary>In the view of a commit, the way to what it changed of the entry, disabled where it changed nothing of it that may be seen; otherwise null.</summary>

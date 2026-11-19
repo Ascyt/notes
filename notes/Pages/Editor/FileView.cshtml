@@ -11,6 +11,12 @@
     // Instead of edit they get the way to the source, which the editor shows read-only.
     List<ToolbarButton> toolbarButtons = [];
     bool isEditing = !Model.IsBinary && !Model.ShowsPreview;
+    // First, for an image or video: the way through the media of the directory, as the grid has them
+    if (Model.MediaNeighbours is { } neighbours)
+    {
+        toolbarButtons.Add(ToolbarButton.PreviousMedia(neighbours.Previous));
+        toolbarButtons.Add(ToolbarButton.NextMedia(neighbours.Next));
+    }
     // Save is for what can be edited. Next to it the way between the two views of a markdown file: the other view is what the button leads to.
     if (isEditing && !Model.IsReadOnly)
         toolbarButtons.Add(ToolbarButton.Save(Model.CanWrite ? null : Model.ReadOnlyReason));

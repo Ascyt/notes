@@ -2,9 +2,15 @@
 
 ## Directories
 
-A directory shows its subdirectories first, then its files, each in reverse order of their names: new entries are named after the date and time they were made (see [Organizing](organizing.md#creating)), so the newest come first. Every entry has a number, which is also its [shortcut](keyboard.md).
+A directory shows its subdirectories first, then its files, each in reverse order of their names: new entries are named after the date and time they were made (see [Organizing](organizing.md#creating)), so the newest come first. Every entry has a number, which is also its [shortcut](keyboard.md). The numbers of a group have leading zeroes up to the digits of its largest one (`01` to `12`), so that the names start at the same place.
 
-Above the listing is the path of the directory (the *breadcrumb*): each part of it leads to that directory, the house icon to the root. The name at its end is a text field, which renames the directory (see [Organizing](organizing.md#renaming)). Below it is the toolbar: icons for what can be done with the directory, such as downloading it. Each icon says what it does when hovered.
+Images, videos and audio files are listed apart from the other files, under **Media**, as a grid of tiles in the same order: a small picture of each image, the first frame of each video (marked with a play icon), and the icon of its kind for audio. Until a picture has loaded, its tile shows the icon of its kind too, as does the breadcrumb of a media file. The grid is only there if the directory has any. Alt with the number opens one, and Alt+Shift with the number selects it; the box in the corner of a picture selects it too, and so does pressing on the tile around it. PDFs stay with the files. A picture that can't be made (a file that isn't the image its name says, or one too large) shows an icon instead.
+
+| Desktop, light | Phone, dark |
+|---|---|
+| ![The media of a directory](../screenshots/media-desktop.png) | ![The media of a directory on a phone](../screenshots/media-phone.png) |
+
+Above the listing is the path of the directory (the *breadcrumb*): each part of it leads to that directory, the house icon to the root. The name at its end is a text field, which renames the directory (see [Organizing](organizing.md#renaming)). Below it is the toolbar: icons for what can be done with the directory, such as downloading it. Each icon says what it does when hovered. The bar at the top and the breadcrumb below it stay at the top of the screen while the page scrolls; the toolbar scrolls with the page.
 
 | Desktop, light | Phone, dark |
 |---|---|
@@ -39,7 +45,7 @@ Whether an earlier state can be seen is up to the permissions now and at that ti
 
 Every file and directory has an address that is its path, for example `/projects/plan.md`. Such an address can be shared: whoever opens it sees the entry if they may. An address that leads nowhere, and one that leads to something the user may not know about, both show the same "not found" page.
 
-Different views of the same file share its address and only add to it: `?edit` for the editor, `?raw` for the file itself, `?download` to download it. The pages of the app that aren't notes start with `/_/`, for example `/_/About`.
+Different views of the same file share its address and only add to it: `?edit` for the editor, `?raw` for a media file on its own, `?thumbnail` for the small picture of an image, `?download` to download it. The pages of the app that aren't notes start with `/_/`, for example `/_/About`.
 
 ![The page for an address that leads nowhere](../screenshots/error-desktop.png)
 

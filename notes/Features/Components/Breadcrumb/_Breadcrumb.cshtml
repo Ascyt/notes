@@ -2,7 +2,8 @@
 @model _Breadcrumb
 
 @* The same height everywhere (that of the rename input at the end of it), so that what is below doesn't move when going from the root to a directory *@
-<div class="d-flex align-items-center gap-1 mb-2" style="min-height: calc(1.5 * 0.875rem + 0.5rem + 2px);">
+@* Stays at the top of the screen as part of the navbar while the page scrolls (site.css) *@
+<div class="sticky-breadcrumb d-flex align-items-center gap-1" style="min-height: calc(1.5 * 0.875rem + 0.5rem + 2px);">
     @if (Model.IsRoot)
     {
         @* Nowhere to go from here, and nothing to rename *@
@@ -41,7 +42,7 @@
             }
             <span class="text-secondary opacity-50">/</span>
         }
-        <i class="fa-regular fa-s @(Model.IsFile ? "fa-file" : "fa-folder")"></i>
+        <i class="fa-s @Model.Icon"></i>
         <partial name="/Features/Components/Rename/_RenameInput.cshtml"model="new _RenameInput { Name = Model.Name, DisabledReason = Model.RenameDisabledReason }"/>
     }
 </div>

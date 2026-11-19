@@ -1,10 +1,11 @@
 @model _CreateButton
 
 @{
-    string label = Model.IsFile ? "Create file" : "Create subdirectory";
+    string label = Model.IsFile ? "Create file" : "Create directory";
 }
 
-@* Icon only: the label is its tooltip and aria-label. Disabled like the toolbar buttons (site.js): it says why on hover, and clicking it does nothing *@
+@* Icon only (the label is its tooltip and aria-label), unless it stands in for an empty group. Disabled like the toolbar buttons (site.js):
+   it says why on hover, and clicking it does nothing *@
 <form method="post" class="d-flex gap-3">
-    <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")" data-label="@label" aria-label="@label" data-disabled-reason="@Model.DisabledReason" aria-disabled="@(Model.DisabledReason is null ? "false" : "true")"><i class="fa-solid fa-plus"></i></button>
+    <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")" data-label="@label" aria-label="@label" data-disabled-reason="@Model.DisabledReason" aria-disabled="@(Model.DisabledReason is null ? "false" : "true")"><i class="fa-solid fa-plus"></i>@if (Model.ShowsLabel){<span class="fst-italic text-secondary ms-2">@label</span>}</button>
 </form>

@@ -1,0 +1,76 @@
+@using notes.Features.HistoryViewing.Changes
+@using notes.Pages.Browse
+@model _MediaTile
+
+@{
+    bool isLocked = Model.Entry.Kind == ListedKind.Locked;
+    string? reason = Model.Entry.CanOpen ? null
+        : isLocked ? "No read access to this file."
+        : Model.Href is null ? "Insufficient permissions to see this entry as it was. It is not there any more." : "Insufficient permissions to see this entry as it was.";
+    bool isVideo = Model.Kind == notes.Pages.Editor.MediaKind.Video;
+}
+
+@* Like a row of the other groups: an .entry-row (which the selection script picks up) only for what can be opened, and for what can't the data
+   attribute that says why (see _UnopenableEntry). Pressing on the tile around the link selects it. *@
+@if (Model.Entry.CanOpen)
+{
+    <div class="media-tile entry-row @(Model.IsSelected ? "table-active" : "")" data-group="media" data-path="@Model.VirtualPath">
+        <a class="media-link text-decoration-none" href="@Model.Href" key="@Model.OpenKey" key-anchor=".entry-index" title="@Model.Name">
+            @* The icon of its kind is under the picture: it shows while the picture loads, where it can't be loaded, and for audio, which has none *@
+            <span class="media-picture">
+                <i class="@Model.Icon media-placeholder"></i>
+                @if (isVideo)
+                {
+                    @* Its first frame, which preload="metadata" is enough for; the video itself is never played here *@
+                    <video src="@Model.PictureSource" preload="metadata" muted playsinline disablepictureinpicture tabindex="-1" aria-hidden="true" onerror="this.hidden = true;"></video>
+                }
+                else if (Model.PictureSource is not null)
+                {
+                    <img src="@Model.PictureSource" alt="" loading="lazy" onerror="this.hidden = true;"/>
+                }
+                @if (isVideo)
+                {
+                    <i class="fa-solid fa-play media-video-mark" aria-label="Video"></i>
+                }
+            </span>
+            <span class="media-caption"><span class="entry-index">@Model.Number</span><span class="media-name @(Model.Entry.Mark == ChangeMark.Deleted ? "text-decoration-line-through" : "")">@Model.Name</span>@if (Model.Entry.Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</span>
+        </a>
+        @if (Model.ShowsCheckbox)
+        {
+            <input type="checkbox" class="form-check-input entry-select media-select" key="@Model.SelectKey" aria-label="Select @Model.Name" checked="@Model.IsSelected"/>
+        }
+    </div>
+}
+else
+{
+    @* The box (where the others have one) only keeps the tiles alike, and says why it can't be ticked *@
+    Func<object?, object> contents =
+        @<text>
+            @if (Model.Href is not null)
+            {
+                <a class="media-link text-secondary text-decoration-none" href="@Model.Href" key="@Model.OpenKey" key-anchor=".entry-index">
+                    <span class="media-picture"><i class="@Model.Icon media-placeholder"></i></span>
+                    <span class="media-caption"><span class="entry-index">@Model.Number</span><span class="media-name">@Model.Name</span><i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@reason"></i></span>
+                </a>
+            }
+            else
+            {
+                <span class="media-link text-secondary">
+                    <span class="media-picture"><i class="@Model.Icon media-placeholder"></i></span>
+                    <span class="media-caption"><span class="entry-index">@Model.Number</span><span class="media-name">@Model.Name</span><i class="fa-solid @(isLocked ? "fa-lock" : "fa-calendar-xmark") fa-xs ms-1" aria-label="@reason"></i></span>
+                </span>
+            }
+            @if (Model.ShowsCheckbox)
+            {
+                <input type="checkbox" class="form-check-input media-select" disabled aria-label="@Model.Name: can't be opened or selected" style="cursor: not-allowed;"/>
+            }
+        </text>;
+    if (isLocked)
+    {
+        <div class="media-tile" data-locked-entry="@Model.Name" title="@reason">@contents(null)</div>
+    }
+    else
+    {
+        <div class="media-tile" data-no-history-entry="@Model.Name" title="@reason">@contents(null)</div>
+    }
+}

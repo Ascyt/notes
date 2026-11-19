@@ -51,3 +51,18 @@ document.addEventListener('DOMContentLoaded', function () {
     for (const button of document.querySelectorAll('[data-label]'))
         refreshButton(button);
 });
+
+// The heights of the parts that stay at the top of the screen (site.css), as they change: the navbar's menu opens on a phone, the breadcrumb
+// wraps on a narrow screen
+document.addEventListener('DOMContentLoaded', function () {
+    const parts = { '--site-header-height': document.getElementById('site-header'), '--breadcrumb-height': document.querySelector('.sticky-breadcrumb') };
+    const observer = new ResizeObserver(function () {
+        for (const [property, element] of Object.entries(parts))
+            if (element)
+                // Not offsetHeight: rounded to whole pixels, it leaves a gap of a fraction of one (on a scaled screen) the page shows through
+                document.documentElement.style.setProperty(property, element.getBoundingClientRect().height + 'px');
+    });
+    for (const element of Object.values(parts))
+        if (element)
+            observer.observe(element);
+});

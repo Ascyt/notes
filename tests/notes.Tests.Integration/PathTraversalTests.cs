@@ -60,7 +60,7 @@ public sealed class PathTraversalTests : IntegrationTest, IDisposable
         {
             foreach ((string method, string query, byte[]? body) in new (string, string, byte[]?)[]
                      {
-                         ("GET", "", null), ("GET", "?raw", null), ("GET", "?download", null), ("POST", "", "pwned"u8.ToArray()), ("DELETE", "", null),
+                         ("GET", "", null), ("GET", "?raw", null), ("GET", "?thumbnail", null), ("GET", "?download", null), ("POST", "", "pwned"u8.ToArray()), ("DELETE", "", null),
                          ("POST", "?rename=renamed", null), ("POST", "?create=file", null), ("GET", "?config", null)
                      })
             {

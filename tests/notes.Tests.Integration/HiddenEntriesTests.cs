@@ -35,6 +35,7 @@ public sealed class HiddenEntriesTests(NotesAppFactory app) : IntegrationTest(ap
     [
         ("GET", "", null),
         ("GET", "?raw", null),
+        ("GET", "?thumbnail", null),
         ("GET", "?download", null),
         ("GET", "?config", null),
         ("GET", "?selection", null),

@@ -80,6 +80,7 @@ builder.Services.AddSingleton<SelectionHandler>();
 builder.Services.AddSingleton<TransferHandler>();
 builder.Services.AddSingleton<DownloadHandler>();
 builder.Services.AddSingleton<RawHandler>();
+builder.Services.AddSingleton<ThumbnailHandler>();
 builder.Services.AddSingleton<UploadHandler>();
 builder.Services.AddSingleton<CreateHandler>();
 builder.Services.AddSingleton<RenameHandler>();

@@ -4,7 +4,7 @@ Everything here needs to be logged in, and permission for it (see [Permissions](
 
 ## Creating
 
-The plus below the subdirectories creates a subdirectory (`n`), the one below the files a file (Shift+N). A new entry is named after the current date and time, for example `2026-11-09_14-30` or `2026-11-09_14-30.md`; a new file opens in the editor right away. It can be renamed whenever.
+The plus below the subdirectories creates a subdirectory (`n`), the one below the files a file (Shift+N). Where a directory has no subdirectories or no files, that group has no header, only its plus with **Create directory** or **Create file** next to it; for whoever can't create anything there, the empty group is left out. A new entry is named after the current date and time, for example `2026-11-09_14-30` or `2026-11-09_14-30.md`; a new file opens in the editor right away. It can be renamed whenever.
 
 ## Uploading
 

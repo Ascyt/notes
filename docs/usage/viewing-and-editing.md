@@ -55,9 +55,11 @@ A file that may be read but not changed opens in the editor as read-only, and th
 
 ## Images, video, audio and PDF
 
-Images, videos, audio files and PDFs are shown on the file's page by the browser. The image icon shows the file on its own, as the browser would (`?raw`).
+Images, videos, audio files and PDFs are shown on the file's page by the browser. On these, the code icon shows the file on its own, as the browser would (`?raw`). Other files can't be viewed like this, and say so: an HTML or SVG file sent as what it is could run scripts as a page of the site.
 
-Images that browsers can't show themselves are converted for showing: photos of phones (HEIC/HEIF) and cameras (RAW files such as CR2, NEF, ARW or DNG), JPEG XL, JPEG 2000, TIFF, Photoshop and GIMP files, and many older formats. They are shown as JPEG, or as PNG where they are transparent; only the first page or layer is shown (the merged image of a Photoshop file). Downloading them still gives the file as it is. A file that isn't the image its name says can't be shown.
+On an image, video or audio file, the two arrow icons at the left of the toolbar (or the arrow keys left and right) go to the media before and after it, in the order of the grid of its directory (see [Browsing](browsing.md#directories)). They are gray at the first and the last. Media that can't be opened are skipped; in an earlier state, they go through the media as they were then.
+
+Images that browsers can't show themselves are converted for showing: photos of phones (HEIC/HEIF) and cameras (RAW files such as CR2, NEF, ARW or DNG), JPEG XL, JPEG 2000, TIFF, Photoshop and GIMP files, and many older formats. They are shown as JPEG, or as PNG where they are transparent; only the first page or layer is shown (the merged image of a Photoshop file). Downloading them still gives the file as it is. A file that isn't the image its name says can't be shown. The small pictures of the grid of a directory (`?thumbnail`) are made the same way, of every kind of image: at most 320 pixels on the longer side, as WebP.
 
 ![An image](../screenshots/image-desktop.png)
 

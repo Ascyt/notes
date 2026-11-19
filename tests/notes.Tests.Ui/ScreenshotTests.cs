@@ -89,6 +89,17 @@ public sealed class ScreenshotTests(ScreenshotFixture fixture) : UiTest(fixture)
         });
 
     [Fact]
+    public Task Directory_with_media()
+    {
+        _ = Tree.File("docs/trip/notes.md", "notes");
+        _ = Tree.File("docs/trip/2026-10-02_street-music.mp3", [0]);
+        foreach ((string name, int width, int height) in new[] { ("2026-10-03_harbour.png", 640, 400), ("2026-10-02_old-town.png", 400, 600), ("2026-10-01_arrival.png", 500, 500) })
+            _ = Tree.File("docs/trip/" + name, GradientPng(width, height));
+        return CaptureAsync("media", Users.Alice, "/docs/trip",
+            page => page.WaitForFunctionAsync("() => [...document.querySelectorAll('.media-tile img')].every(image => image.complete && image.naturalWidth > 0)"));
+    }
+
+    [Fact]
     public Task Markdown_preview()
     {
         _ = Tree.File("docs/meeting.md", Guide);

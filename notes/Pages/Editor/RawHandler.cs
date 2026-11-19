@@ -9,6 +9,8 @@ namespace notes.Pages.Editor;
 /// <summary>
 /// Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page. An image the browser can't show is converted
 /// into one it can first (see <see cref="ConvertedImageFormats"/>); downloading it still gives the file as it is.
+/// Any other file is refused (403, with the reason): sent as what it is, an HTML or SVG file of the notes would be a page of this site, with
+/// its scripts, and for what isn't media there is nothing the browser would show better than the file's page (or a download) does.
 /// </summary>
 public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
 {
@@ -26,7 +28,7 @@ public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
         }
 
         if (!TryPrepare(response, physicalPath, out string contentType))
-            return new NotFoundResult();
+            return NotMedia();
         return new PhysicalFileResult(physicalPath, contentType)
         {
             EnableRangeProcessing = true // seeking in videos and audio
@@ -45,8 +47,18 @@ public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
 
         return TryPrepare(response, name, out string contentType)
             ? new FileContentResult(contents, contentType) { EnableRangeProcessing = true }
-            : new NotFoundResult();
+            : NotMedia();
     }
+
+    /// <summary>
+    /// The refusal of a file that isn't media. It has a text, which also keeps the error page away: that one would say that the file may not
+    /// be read, which isn't so.
+    /// </summary>
+    private static ContentResult NotMedia()
+        => new() { StatusCode = StatusCodes.Status403Forbidden, ContentType = "text/plain; charset=utf-8", Content = NotMediaReason };
+
+    /// <summary>Why a file that isn't media has no raw bytes to show.</summary>
+    private const string NotMediaReason = "Only media files (images, video, audio and PDF) can be viewed raw. The file can be downloaded instead.";
 
     /// <summary>The type the browser is told, from the name; false for what the browser isn't to show (see <see cref="MediaTypes"/>).</summary>
     private static bool TryPrepare(HttpResponse response, string name, out string contentType)

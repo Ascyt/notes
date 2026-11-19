@@ -1,7 +1,8 @@
 @model _SelectionBar
 
 @* The card at the bottom of a directory listing, and the script behind all of the selecting: the checkboxes of the listing
-   (.entry-row with a .entry-select, and a .entry-select-all above each group of them) are plain markup in DirectoryView. *@
+   (.entry-row with a .entry-select, and a .entry-select-all above each group of them: rows of the tables, tiles of the media) are plain
+   markup in DirectoryView. *@
 
 @* The card is one of the floating cards (see _Toasts): the script moves it into their stack, below the messages. *@
 
@@ -63,7 +64,7 @@
         const clearButton = document.getElementById('selection-clear');
         const directory = bar.dataset.directory;
         const createDeniedReason = bar.dataset.createDenied || null; // nothing may be copied or moved into this directory
-        const rows = [...document.querySelectorAll('tr.entry-row')];
+        const rows = [...document.querySelectorAll('.entry-row')];
         const headers = [...document.querySelectorAll('.entry-select-all')];
 
         // What the server last said the selection is. Version and paths are only ever replaced as a whole by an answer of the server.
@@ -164,7 +165,7 @@
                 header.checked = count > 0 && count === group.length;
                 header.indeterminate = count > 0 && count < group.length;
                 header.disabled = isBusy() || group.length === 0;
-                header.closest('th').title = isBusy() ? BUSY_REASON : group.length === 0 ? 'There is nothing to select.' : '';
+                header.closest('th, .media-group-header').title = isBusy() ? BUSY_REASON : group.length === 0 ? 'There is nothing to select.' : '';
             }
         }
 
@@ -319,7 +320,7 @@
             });
 
             // ...and so does a click beside it
-            header.closest('th').addEventListener('click', function (e) {
+            header.closest('th, .media-group-header').addEventListener('click', function (e) {
                 if (e.target !== header && !isBusy() && group.length > 0)
                     header.click();
             });
@@ -342,7 +343,7 @@
         document.addEventListener('mousedown', function (e) {
             if (e.button !== 0 || isBusy())
                 return;
-            const row = e.target.closest && e.target.closest('tr.entry-row');
+            const row = e.target.closest && e.target.closest('.entry-row');
             // Links, boxes and the like do their own thing
             if (!row || e.target.closest('a, input, button, label'))
                 return;
@@ -357,7 +358,7 @@
             if (drag === null)
                 return;
             const element = document.elementFromPoint(e.clientX, e.clientY);
-            const index = rows.indexOf(element && element.closest('tr.entry-row'));
+            const index = rows.indexOf(element && element.closest('.entry-row'));
             if (index >= 0 && index !== drag.current) {
                 drag.current = index;
                 applyDrag();

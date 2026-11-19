@@ -55,3 +55,31 @@ body {
     --bs-btn-active-bg: var(--bs-danger);
     --bs-btn-active-border-color: var(--bs-danger);
 }
+
+/* The breadcrumb of a page is a second row of the navbar (which is sticky-top): it stays right below it while the page scrolls under it.
+   The height of the navbar changes (its menu on a phone), so site.js keeps --site-header-height up to date. */
+.sticky-breadcrumb {
+  position: sticky;
+  top: var(--site-header-height, 0px);
+  z-index: 1019; /* under the navbar (1020) and its menu, over the page */
+  /* Across the whole width like the navbar, over the side padding of the page */
+  margin: 0 calc(var(--bs-gutter-x, 1.5rem) * -0.5) 0.5rem;
+  padding: 0 calc(var(--bs-gutter-x, 1.5rem) * 0.5) 0.5rem;
+  background: var(--bs-body-bg);
+  border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+  box-sizing: content-box; /* its min-height (_Breadcrumb) is that of the row, without the padding and line */
+}
+
+/* With the breadcrumb, the line below the navbar is the breadcrumb's, and there is no gap between them that would move while scrolling */
+body:has(.sticky-breadcrumb) #site-header .navbar {
+  border-bottom-color: transparent !important;
+}
+
+main:has(> .sticky-breadcrumb) {
+  padding-top: 0 !important;
+}
+
+/* A link to a place in the page (a heading of a note) shows it below them, not under them */
+html {
+  scroll-padding-top: calc(var(--site-header-height, 0px) + var(--breadcrumb-height, 0px) + 0.5rem);
+}

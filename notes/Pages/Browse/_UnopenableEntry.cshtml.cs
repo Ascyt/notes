@@ -14,8 +14,8 @@ public class _UnopenableEntry : PageModel
     /// <summary>Why it can't be opened: <see cref="ListedKind.Locked"/> or <see cref="ListedKind.NoHistory"/>.</summary>
     public ListedKind Kind { get; init; }
 
-    /// <summary>Its position in the listing, counted from 1.</summary>
-    public int Number { get; init; }
+    /// <summary>Its position in the listing, counted from 1, with leading zeroes (<see cref="DirectoryView.NumberText"/>).</summary>
+    public string Number { get; init; } = "";
 
     /// <summary>
     /// Where it leads, if anywhere: an entry without history leads to the entry as it is now, whose page says why it can't be seen as it was

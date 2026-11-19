@@ -26,8 +26,106 @@
         border-bottom-width: 0;
     }
 
+    /* The media: a grid of pictures (or icons, for audio), each with its number and name below it. The header is like those of the tables above. */
+    .media-group-header {
+        padding: 0.5rem;
+        border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+        cursor: default;
+    }
+
+    .media-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+        gap: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .media-tile {
+        position: relative;
+        padding: 0.25rem;
+        border-radius: 0.375rem;
+        min-width: 0; /* so that a long name is cut off instead of widening the column */
+    }
+
+    /* Selected, like a row of the tables (the selection script sets the same class) */
+    .media-tile.table-active {
+        background: var(--bs-secondary-bg);
+    }
+
+    .media-link {
+        display: block;
+    }
+
+    /* The name is the link, in its color like those of the other entries; the number stays as it is in the rows */
+    .media-link .entry-index {
+        color: var(--bs-body-color);
+    }
+
+    .media-picture {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        aspect-ratio: 1;
+        overflow: hidden;
+        border-radius: 0.25rem;
+        background: var(--bs-tertiary-bg);
+    }
+
+    /* Over the icon, which shows until the picture is there */
+    .media-picture img, .media-picture video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none; /* the click is the link's */
+    }
+
+    .media-placeholder {
+        font-size: 2rem;
+        color: var(--bs-secondary-color);
+    }
+
+    /* Tells a video from an image at a glance */
+    .media-video-mark {
+        position: absolute;
+        right: 0.375rem;
+        bottom: 0.375rem;
+        padding: 0.25rem 0.3rem;
+        border-radius: 0.25rem;
+        font-size: 0.625rem;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.6);
+    }
+
+    .media-caption {
+        display: flex;
+        align-items: baseline;
+        margin-top: 0.25rem;
+        white-space: nowrap;
+    }
+
+    .media-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .media-link:hover .media-name, .media-link:focus-visible .media-name {
+        text-decoration: underline;
+    }
+
+    /* Over the corner of the picture, where it doesn't cover what it shows */
+    .media-select {
+        position: absolute;
+        top: 0.5rem;
+        left: 0.5rem;
+        margin: 0;
+        cursor: pointer;
+    }
+
     /* Selection boxes, in the rows and above them */
-    .entry-select, .entry-select-all {
+    .entry-select:not(.media-select), .entry-select-all {
         margin-top: 0; /* Bootstrap's own offset (for checkboxes next to a label) puts it below the text */
         margin-right: 0.5rem;
         vertical-align: middle;
@@ -69,7 +167,16 @@
 }
 
 <div>
-    <table class="table entry-table">
+    @if (!Model.ShowsDirectories && !Model.ShowsFiles && Model.Media.Length == 0)
+    {
+        <p id="empty-directory" class="small text-secondary fst-italic mb-0">Empty</p>
+    }
+    @* An empty group is only its + button, saying what it adds, without the header; with nothing to add either, it is left out *@
+    @if (Model.ShowsDirectories)
+    {
+    <table id="directories-group" class="table entry-table @(!Model.ShowsFiles && Model.Media.Length == 0 ? "mb-0" : "")">
+        @if (Model.Directories.Length > 0)
+        {
         <thead>
         <tr>
             <th class="fw-normal small text-secondary">
@@ -80,11 +187,8 @@
             </th>
         </tr>
         </thead>
-        <tbody>
-        @if (Model.Directories.Length == 0)
-        {
-            <tr data-empty-group="directories"><td class="small text-secondary fst-italic">None</td></tr>
         }
+        <tbody>
         @for (int i = 0; i < Model.Directories.Length; i++)
         {
             @* The row can be selected by clicking anywhere on it but the link; Ctrl plus the shortcut of its link selects it as well *@
@@ -96,21 +200,26 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="directories" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="@VirtualPaths.ToAddress(virtualPath)" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@DirectoryView.NumberText(i, Model.Directories.Length)</span><i class="fa-solid fa-folder"></i> <a class="@Model.LinkDecoration(Model.Directories[i])" href="@VirtualPaths.ToAddress(virtualPath)" key="@DirectoryView.NumberKey(i, "")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Directories[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)
         {
             <tr>
                 <td>
-                    <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false, DisabledReason = Model.CreateDeniedReason }"/>
+                    <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = false, DisabledReason = Model.CreateDeniedReason, ShowsLabel = Model.Directories.Length == 0 }"/>
                 </td>
             </tr>
         }
         </tbody>
     </table>
-    @* No margin below the last table: the page's own padding is all there should be between it and the footer *@
-    <table class="table entry-table mb-0">
+    }
+    @if (Model.ShowsFiles)
+    {
+    @* No margin below the last group: the page's own padding is all there should be between it and the footer *@
+    <table id="files-group" class="table entry-table @(Model.Media.Length == 0 ? "mb-0" : "")">
+        @if (Model.Files.Length > 0)
+        {
         <thead>
         <tr>
             <th class="fw-normal small text-secondary">
@@ -121,11 +230,8 @@
             </th>
         </tr>
         </thead>
-        <tbody>
-        @if (Model.Files.Length == 0)
-        {
-            <tr data-empty-group="files"><td class="small text-secondary fst-italic">None</td></tr>
         }
+        <tbody>
         @for (int i = 0; i < Model.Files.Length; i++)
         {
             string path = Model.Files[i].Path;
@@ -136,22 +242,41 @@
                 continue;
             }
             <tr class="entry-row @(Model.IsSelected(virtualPath) ? "table-active" : "")" data-group="files" data-path="@virtualPath">
-                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@(i + 1)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="@VirtualPaths.ToAddress(virtualPath)" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
+                <td>@if (Model.CanSelect){<input type="checkbox" class="form-check-input entry-select" key="@DirectoryView.NumberKey(i, "^+")" aria-label="Select @Model.NameOf(path)" checked="@Model.IsSelected(virtualPath)"/>}<span class="entry-index">@DirectoryView.NumberText(i, Model.Files.Length)</span><i class="fa-regular fa-file"></i> <a class="@Model.LinkDecoration(Model.Files[i])" href="@VirtualPaths.ToAddress(virtualPath)" key="@DirectoryView.NumberKey(i, "+")" key-anchor="i">@Model.NameOf(path)</a>@if (Model.Files[i].Mark is { } mark){<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
             </tr>
         }
         @if (!Model.IsReadOnly)
         {
             <tr>
                 <td>
-                    <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true, DisabledReason = Model.CreateDeniedReason }"/>
+                    <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton { IsFile = true, DisabledReason = Model.CreateDeniedReason, ShowsLabel = Model.Files.Length == 0 }"/>
                 </td>
             </tr>
         }
         </tbody>
     </table>
+    }
+    @* Images and videos, as pictures in a grid; only there if there are any (new ones are added through the files above, or uploaded) *@
+    @if (Model.Media.Length > 0)
+    {
+        <div id="media-group" class="media-group">
+            <div class="media-group-header fw-normal small text-secondary">
+                @if (Model.CanSelect)
+                {
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="media" key="!a" aria-label="Select all media"/>
+                }Media
+            </div>
+            <div class="media-grid">
+                @for (int i = 0; i < Model.Media.Length; i++)
+                {
+                    <partial name="/Pages/Browse/_MediaTile.cshtml" model="Model.MediaTile(Model.Media[i], i)"/>
+                }
+            </div>
+        </div>
+    }
     @if (!Model.IsRoot && !Model.IsReadOnly)
     {
-        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length > 0, Kind = "directory" }'/>
+        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length + Model.Media.Length > 0, Kind = "directory" }'/>
     }
 </div>
 

@@ -83,9 +83,27 @@ public sealed record ToolbarButton(
     public static ToolbarButton ZoomOut()
         => new(Id: "zoom-out-button", Icon: "fa-solid fa-magnifying-glass-minus", Label: "Zoom out", Key: "!-", OnClick: "editorZoom.zoomOut()");
 
-    /// <summary>The bytes of a media file as the browser shows them, instead of the page around them.</summary>
+    /// <summary>
+    /// From a media file to the one before it in the grid of its directory, disabled at the first. The arrow keys are left to a video or audio
+    /// player that has the focus (see shortcuts.js), which seeks with them.
+    /// </summary>
+    /// <param name="href">The address of the media before it, or null if it is the first.</param>
+    public static ToolbarButton PreviousMedia(string? href)
+        => new(Id: "previous-media-button", Icon: "fa-solid fa-chevron-left", Label: "Previous media file", Key: "ArrowLeft", Href: href,
+            DisabledReason: href is null ? "This is the first media file of the directory." : null);
+
+    /// <summary>From a media file to the one after it in the grid of its directory, disabled at the last.</summary>
+    /// <param name="href">The address of the media after it, or null if it is the last.</param>
+    public static ToolbarButton NextMedia(string? href)
+        => new(Id: "next-media-button", Icon: "fa-solid fa-chevron-right", Label: "Next media file", Key: "ArrowRight", Href: href,
+            DisabledReason: href is null ? "This is the last media file of the directory." : null);
+
+    /// <summary>
+    /// The bytes of a media file as the browser shows them, instead of the page around them. Every file has them (<c>?raw</c>), but only on
+    /// media does the browser show more than the page already does.
+    /// </summary>
     public static ToolbarButton Raw()
-        => new(Id: "raw-button", Icon: "fa-regular fa-file-image", Label: "View the raw image", Key: "^u", Href: "?raw");
+        => new(Id: "raw-button", Icon: "fa-regular fa-file-code", Label: "View the raw file", Key: "^u", Href: "?raw");
 
     /// <summary>
     /// Saves the rendered markdown as a PDF, through the browser's print dialog (markdown-print.js). Ctrl+P, which prints anyway, goes

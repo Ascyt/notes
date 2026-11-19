@@ -93,7 +93,53 @@ public static class ConvertedImageFormats
         [".dcm"] = MagickFormat.Dcm,
     };
 
+    /// <summary>The images the browser shows itself, which are only read to make their thumbnails (see <see cref="ImageForBrowser.ThumbnailAsync"/>).</summary>
+    private static readonly Dictionary<string, MagickFormat> BrowserFormatsByExtension = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".jpg"] = MagickFormat.Jpeg,
+        [".jpeg"] = MagickFormat.Jpeg,
+        [".jpe"] = MagickFormat.Jpeg,
+        [".jfif"] = MagickFormat.Jpeg,
+        [".png"] = MagickFormat.Png,
+        [".gif"] = MagickFormat.Gif,
+        [".webp"] = MagickFormat.WebP,
+        [".avif"] = MagickFormat.Avif,
+        [".bmp"] = MagickFormat.Bmp,
+        [".ico"] = MagickFormat.Ico,
+    };
+
     /// <summary>The format a file of that name is read as, or false if it isn't converted (the browser shows it itself, or it isn't an image).</summary>
     public static bool TryGet(string path, out MagickFormat format)
         => FormatsByExtension.TryGetValue(Path.GetExtension(path), out format);
+
+    /// <summary>The format a file of that name is read as to make its thumbnail: any image of either list, or false for anything else.</summary>
+    public static bool TryGetForThumbnail(string path, out MagickFormat format)
+        => TryGet(path, out format) || BrowserFormatsByExtension.TryGetValue(Path.GetExtension(path), out format);
+
+    /// <summary>
+    /// What the contents of an image the browser shows itself really are: images saved from the web often have the wrong extension (a WebP
+    /// named .jpg), which the browser shows all the same, as it goes by the contents. So for these the start of the contents decides, but only
+    /// between the formats of <see cref="BrowserFormatsByExtension"/>; anything else is read as <paramref name="named"/>, as its name says,
+    /// and no other reader of ImageMagick can be reached this way either.
+    /// </summary>
+    public static MagickFormat BrowserFormatOfContents(ReadOnlySpan<byte> contents, MagickFormat named)
+    {
+        if (!BrowserFormatsByExtension.ContainsValue(named))
+            return named;
+        if (contents.StartsWith((ReadOnlySpan<byte>)[0xFF, 0xD8, 0xFF]))
+            return MagickFormat.Jpeg;
+        if (contents.StartsWith((ReadOnlySpan<byte>)[0x89, (byte)'P', (byte)'N', (byte)'G']))
+            return MagickFormat.Png;
+        if (contents.StartsWith("GIF8"u8))
+            return MagickFormat.Gif;
+        if (contents.Length >= 12 && contents.StartsWith("RIFF"u8) && contents[8..12].SequenceEqual("WEBP"u8))
+            return MagickFormat.WebP;
+        if (contents.Length >= 12 && contents[4..8].SequenceEqual("ftyp"u8) && (contents[8..12].SequenceEqual("avif"u8) || contents[8..12].SequenceEqual("avis"u8)))
+            return MagickFormat.Avif;
+        if (contents.StartsWith("BM"u8))
+            return MagickFormat.Bmp;
+        if (contents.StartsWith((ReadOnlySpan<byte>)[0x00, 0x00, 0x01, 0x00]))
+            return MagickFormat.Ico;
+        return named;
+    }
 }

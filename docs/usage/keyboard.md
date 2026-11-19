@@ -4,7 +4,8 @@ Everything in the app can be done with the keyboard. **Holding the right Ctrl ke
 
 How the shortcuts are made:
 
-- **The entries of a directory have numbers.** `1` to `9` and `0` open the first ten subdirectories, Shift with the number the first ten files. Ctrl with the same keys selects them instead.
+- **The entries of a directory have numbers.** `1` to `9` and `0` open the first ten subdirectories, Shift with the number the first ten files, Alt with the number the first ten media (images, videos and audio). Ctrl with the same keys selects them instead; for the media it is Alt+Shift with the number, as Ctrl+Alt is AltGr on many keyboards, which types characters. `a`, Shift+A and Alt+A select all subdirectories, files or media.
+- **On an image, video or audio file**, the arrow keys left and right go to the media before and after it in its directory, unless a video or audio player has the focus, which seeks with them.
 - **What is done often has a single key** on its page: `e` edits a Markdown file, `p` shows it rendered, `Delete` deletes, `n` creates a subdirectory.
 - **What is done less often has a modifier**, such as Alt+PageDown to download or Alt+ArrowUp (or Backspace) to go to the parent directory. Home goes to the root.
 - **What is rare or dangerous has several**, such as Ctrl+Alt+Shift+Delete for the kill switch.

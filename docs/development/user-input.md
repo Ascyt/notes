@@ -54,7 +54,7 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 
 | Parameter | Allowed values | Otherwise |
 |---|---|---|
-| `edit`, `raw`, `download`, `config`, `history`, `changes`, `previous`, `abort`, `last`, `newer` | Only whether they are there counts | — |
+| `edit`, `raw`, `thumbnail`, `download`, `config`, `history`, `changes`, `previous`, `abort`, `last`, `newer` | Only whether they are there counts | — |
 | `create` | `file`, `directory` | 400 |
 | `rename` | A [name for a new entry](#names-of-new-entries) | 400 with the reason |
 | `upload` | `start`, or an id the server made (a GUID) | 400 |
@@ -86,7 +86,7 @@ A note is written by whoever may change it and read by everyone who may read it,
 - **Markdown** never becomes HTML that can run code: see "Rendered markdown can't run code" in the [security specification](security-specification.md#what-a-user-may-learn).
 - **Text** is shown in the editor or rendered only up to `Config:Limits:MaxTextBytes`; a larger file is shown as one that can't be viewed, and can still be downloaded. A file whose start has a NUL byte or isn't UTF-8 is binary.
 - **Media** is sent with the type its extension names (never what its contents claim, never SVG, which can carry scripts) and `X-Content-Type-Options: nosniff`.
-- **Images the browser can't show** (HEIC, raw photos, …) are converted by ImageMagick, which only ever reads them as the format their extension names (so none of its other readers, such as scripts or URLs, can be reached). Files larger than `Config:Limits:MaxConvertedImageBytes`, or with more than `Config:Limits:MaxConvertedImagePixels` pixels or 30,000 on a side, aren't converted (they can be downloaded). Only so many images are converted at once (half the processors); the rest wait.
+- **Images the browser can't show** (HEIC, raw photos, …) are converted by ImageMagick, which only ever reads them as the format their extension names (so none of its other readers, such as scripts or URLs, can be reached). Files larger than `Config:Limits:MaxConvertedImageBytes`, or with more than `Config:Limits:MaxConvertedImagePixels` pixels or 30,000 on a side, aren't converted (they can be downloaded). The same goes for the thumbnails of images (`?thumbnail`), of every image format, which are read only as the format their extension names too; the one exception is an image the browser shows itself (JPEG, PNG, GIF, WebP, AVIF, BMP, ICO), whose first bytes may say it is another of these (a WebP named `.jpg`, as images saved from the web often are), never anything else. Only so many images are converted at once (half the processors), thumbnails included; the rest wait.
 - **Downloads** are always `application/octet-stream`, as attachments.
 
 ## Cookies and headers

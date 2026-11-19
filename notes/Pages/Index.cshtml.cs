@@ -39,6 +39,7 @@ public sealed class IndexModel(Config config,
     ConfigHandler configHandler,
     DownloadHandler downloadHandler,
     RawHandler rawHandler,
+    ThumbnailHandler thumbnailHandler,
     CreateHandler createHandler,
     UploadHandler uploadHandler,
     RenameHandler renameHandler,
@@ -128,6 +129,9 @@ public sealed class IndexModel(Config config,
         if (Request.Query.ContainsKey("raw"))
             return canOpen ? rawHandler.Handle(Response, PhysicalPath) : NotFound();
 
+        if (Request.Query.ContainsKey("thumbnail"))
+            return canOpen ? await thumbnailHandler.HandleAsync(Response, PhysicalPath) : NotFound();
+
         EarlierStateMessage = EarlierStateNotice.TakeMessage(HttpContext);
         bool isDirectory = System.IO.Directory.Exists(PhysicalPath);
         HistoryButtonState historyButton = DecideHistoryButtonState(access, isDirectory);
@@ -157,6 +161,7 @@ public sealed class IndexModel(Config config,
                 MaxTextBytes = config.Limits.MaxTextBytes,
                 CanWrite = access.CanWrite,
                 CanConfigure = tree.CanManageConfiguration(User),
+                MediaNeighbours = MediaEntries.IsMedia(locations.NameOf(PhysicalPath)) ? MediaEntries.NeighboursNow(User, PhysicalPath, locations, tree, path) : null,
                 HistoryButton = historyButton,
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
@@ -248,6 +253,10 @@ public sealed class IndexModel(Config config,
         // The bytes of a side of the change, for the browser to show it
         if (Request.Query.ContainsKey("raw"))
             return CommitChangesRequests.RawBytesOfSide(Response, shown, previous: Request.Query.ContainsKey(CommitChangesRequests.PreviousParameter));
+        if (Request.Query.ContainsKey("thumbnail"))
+            return (Request.Query.ContainsKey(CommitChangesRequests.PreviousParameter) ? shown.Before : shown.After).Entry is { Blob: { } sideBlob } side
+                ? await thumbnailHandler.HandleContentsAsync(Response, side.Name, sideBlob.Size, () => EarlierStateRequests.ReadAllBytes(sideBlob))
+                : NotFound();
 
         string addressOfNow = AddressOfNow();
         EarlierStateCard = earlierStateViews.CreateCard(User, shown.State, shown.Shown, addressOfNow, showsChanges: true);
@@ -265,6 +274,10 @@ public sealed class IndexModel(Config config,
         // The bytes and the download of the entry as it was, like those of the entry as it is
         if (Request.Query.ContainsKey("raw"))
             return EarlierStateRequests.RawBytesAsTheyWere(Response, shown);
+        if (Request.Query.ContainsKey("thumbnail"))
+            return shown.Entry.Blob is { } blob
+                ? await thumbnailHandler.HandleContentsAsync(Response, shown.Entry.Name, blob.Size, () => EarlierStateRequests.ReadAllBytes(blob))
+                : NotFound();
         if (Request.Query.ContainsKey("download"))
             return earlierStateRequests.DownloadAsItWas(User, VirtualPath, shown);
 

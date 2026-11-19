@@ -19,8 +19,9 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
 </head>
 <body>
-<header>
-    <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body border-bottom box-shadow mb-3">
+@* Stays at the top of the screen, and the breadcrumb of the page below it (site.css) *@
+<header id="site-header" class="sticky-top">
+    <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body border-bottom box-shadow">
         <div class="container-fluid">
             <a class="navbar-brand" href="/" key="Home">@Config.Title</a>
             @* Top right: next to the menu button when the menu is collapsed, after the menu otherwise *@
@@ -58,7 +59,8 @@
     <partial name="/Features/Auth/_SessionNotice.cshtml" model='new _SessionNotice { Message = sessionNotice, ReturnUrl = Context.OriginalPathAndQuery }'/>
 }
 <div class="container-fluid">
-    <main role="main" class="pb-3">
+    @* The gap below the navbar is the page's, not the navbar's: as a margin of the navbar it would be a gap the page shows through while scrolling *@
+    <main role="main" class="pt-3 pb-3">
         @RenderBody()
     </main>
 </div>

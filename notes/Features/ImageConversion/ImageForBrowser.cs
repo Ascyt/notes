@@ -45,6 +45,48 @@ public static class ImageForBrowser
         }
     }
 
+    /// <summary>
+    /// A small picture of the image, for the grid of a directory's media: at most <see cref="ThumbnailSide"/> on its longer side, as WebP
+    /// (which keeps transparency). Converted one at a time like the others, and read as <paramref name="format"/> only.
+    /// </summary>
+    /// <remarks>
+    /// A directory asks for many at once, so the wait for a turn doesn't hold on to a thread (which would leave none for other requests);
+    /// the making itself runs on a thread of the pool.
+    /// </remarks>
+    /// <exception cref="MagickException">The contents aren't an image of that format, or one that can be read.</exception>
+    public static async Task<ConvertedImage> ThumbnailAsync(byte[] contents, MagickFormat format, CancellationToken cancellation)
+    {
+        await Converting.WaitAsync(cancellation);
+        try
+        {
+            return await Task.Run(() => MakeThumbnail(contents, format), cancellation);
+        }
+        finally
+        {
+            _ = Converting.Release();
+        }
+    }
+
+    private static ConvertedImage MakeThumbnail(byte[] contents, MagickFormat format)
+    {
+        MagickReadSettings settings = new() { Format = format, FrameIndex = 0, FrameCount = 1 };
+        // A JPEG can be decoded at a fraction of its size right away, which is much faster for a photo than reading all of it
+        if (format == MagickFormat.Jpeg)
+            settings.SetDefine(MagickFormat.Jpeg, "size", $"{2 * ThumbnailSide}x{2 * ThumbnailSide}");
+        using MagickImage image = new(contents, settings);
+        image.AutoOrient();
+        image.Thumbnail(new MagickGeometry(ThumbnailSide, ThumbnailSide) { Greater = true }); // keeps the proportions; only ever smaller, never larger
+        image.Format = MagickFormat.WebP;
+        image.Quality = ThumbnailQuality;
+        return new ConvertedImage(image.ToByteArray(), "image/webp");
+    }
+
+    /// <summary>The longer side of a thumbnail: twice the size of a tile of the grid, so it is sharp on screens with more pixels.</summary>
+    public const uint ThumbnailSide = 320;
+
+    /// <summary>Good enough for a small picture, which is looked at for what it shows rather than for its details.</summary>
+    private const uint ThumbnailQuality = 75;
+
     private static ConvertedImage ConvertNow(byte[] contents, MagickFormat format)
     {
         // Only the first frame: the merged image of a PSD, the first page of a TIFF

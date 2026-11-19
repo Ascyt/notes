@@ -13,7 +13,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
     [InlineData("broken")]
     public async Task Known_entries_alice_may_not_read_refuse_to_open(string path)
     {
-        foreach (string query in new[] { "", "?raw", "?download" })
+        foreach (string query in new[] { "", "?raw", "?thumbnail", "?download" })
         {
             HttpResponseMessage response = await Client.GetAsync(Users.Alice, "/" + path + query);
             await AssertStatus(HttpStatusCode.Forbidden, response);
@@ -56,6 +56,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
 
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Nobody, "/?download"));
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Nobody, "/?raw"));
+        await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Nobody, "/?thumbnail"));
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Nobody, "/?selection"));
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Nobody, "/?config"));
     }
@@ -203,14 +204,24 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         _ = Tree.File("docs/pic.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0]);
         _ = Tree.File("docs/page.html", "<script>alert(1)</script>");
         _ = Tree.File("docs/drawing.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>");
+        _ = Tree.File("docs/blob.bin", [0, 1, 2, 3]);
 
         HttpResponseMessage png = await Client.GetAsync(Users.Alice, "/docs/pic.png?raw");
         await AssertStatus(HttpStatusCode.OK, png);
         Assert.Equal("image/png", png.Content.Headers.ContentType?.MediaType);
         Assert.Equal("nosniff", png.Headers.GetValues("X-Content-Type-Options").Single());
 
-        await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs/page.html?raw"));
-        await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs/drawing.svg?raw"));
+        // What isn't media is refused, with the reason (not the page that says it may not be read, which it may), and none of it is sent
+        foreach (string path in new[] { "/docs/page.html?raw", "/docs/drawing.svg?raw", "/docs/blob.bin?raw", "/docs/a.md?raw" })
+        {
+            HttpResponseMessage refused = await Client.GetAsync(Users.Alice, path);
+            await AssertStatus(HttpStatusCode.Forbidden, refused);
+            Assert.Equal("text/plain", refused.Content.Headers.ContentType?.MediaType);
+            string body = await refused.Content.ReadAsStringAsync(Cancellation);
+            Assert.NotEmpty(body);
+            Assert.DoesNotContain("<script>", body);
+        }
+        // A directory has no bytes at all
         await AssertStatus(HttpStatusCode.NotFound, await Client.GetAsync(Users.Alice, "/docs?raw"));
     }
 
@@ -224,7 +235,7 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         Assert.Matches(@"<a id=""raw-button"" href=""\?raw""", png);
 
 
-        // Binary, but there are no raw bytes of it (?raw is a 404)
+        // Binary, but there are no raw bytes of it (?raw refuses it)
         foreach (string path in new[] { "/docs/blob.bin", "/docs/a.md", "/docs" })
             Assert.DoesNotContain("id=\"raw-button\"", await BodyOf(await Client.GetAsync(Users.Alice, path)));
     }

@@ -52,8 +52,11 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
     /// </summary>
     public ListedEntry[] Directories { get; private set; } = [];
 
-    /// <summary>The files, chosen like <see cref="Directories"/>.</summary>
+    /// <summary>The files, chosen like <see cref="Directories"/>, but without the media.</summary>
     public ListedEntry[] Files { get; private set; } = [];
+
+    /// <summary>The images and videos (<see cref="MediaEntries"/>), chosen like the files, which are shown in a grid of their own.</summary>
+    public ListedEntry[] Media { get; private set; } = [];
 
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
     public bool CanBrowse { get; init; }
@@ -102,6 +105,12 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
     /// </summary>
     public bool IsReadOnly => ShowsEarlierState || (CreateDeniedReason is not null && DeleteDeniedReason is not null);
 
+    /// <summary>Whether the group of directories is there: it has some, or its button to add one. An empty group with nothing to add is left out.</summary>
+    public bool ShowsDirectories => Directories.Length > 0 || !IsReadOnly;
+
+    /// <summary>Whether the group of files is there (as <see cref="ShowsDirectories"/>).</summary>
+    public bool ShowsFiles => Files.Length > 0 || !IsReadOnly;
+
     /// <summary>What the user has selected (anywhere in the notes) when the page is made.</summary>
     public SelectionSnapshot Selection { get; init; } = SelectionSnapshot.Empty;
 
@@ -138,11 +147,11 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
             .Select(ToListed(isDirectory: true))
             .Where(entry => entry.CanOpen || seesUnreadable)];
         // The configuration file is not a note: it is changed through the configuration page, and never listed
-        Files = [..children.Where(child => child.Entry is FileInfo && !string.Equals(child.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
+        ListedEntry[] files = [..MediaEntries.InListingOrder(children.Where(child => child.Entry is FileInfo && !string.Equals(child.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)), child => child.Name)
             .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: false))
             .Where(entry => entry.CanOpen || seesUnreadable)];
+        SplitOffMedia(files);
 
         if (IsRoot)
             DeleteDeniedReason = "The root directory can't be deleted.";
@@ -163,8 +172,53 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
     {
         (ListedEntry Entry, bool IsDirectory)[] all = [.. entries.OrderByDescending(listed => NameOf(listed.Entry.Path), StringComparer.OrdinalIgnoreCase)];
         Directories = [.. all.Where(listed => listed.IsDirectory).Select(listed => listed.Entry)];
-        Files = [.. all.Where(listed => !listed.IsDirectory).Select(listed => listed.Entry)];
+        SplitOffMedia([.. all.Where(listed => !listed.IsDirectory).Select(listed => listed.Entry)]);
         DeleteDeniedReason = RenameDeniedReason = CreateDeniedReason = EarlierStateViews.CantBeChangedReason;
+    }
+
+    private void SplitOffMedia(ListedEntry[] files)
+    {
+        Files = [.. files.Where(file => !MediaEntries.IsMedia(NameOf(file.Path)))];
+        Media = [.. files.Where(file => MediaEntries.IsMedia(NameOf(file.Path)))];
+    }
+
+    /// <summary>
+    /// The number of an entry of a group, with as many leading zeroes as the largest number of the group has digits, so that the names
+    /// start at the same place (and don't move when the group grows by a digit as entries are added).
+    /// </summary>
+    public static string NumberText(int index, int countInGroup)
+        => (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(countInGroup.ToString(System.Globalization.CultureInfo.InvariantCulture).Length, '0');
+
+    /// <summary>The tile of a media file in the grid.</summary>
+    public _MediaTile MediaTile(ListedEntry entry, int index)
+    {
+        string virtualPath = ToVirtualPath(entry.Path);
+        string name = NameOf(entry.Path);
+        Editor.MediaKind kind = Editor.MediaTypes.KindOf(name);
+        // Of the state that is shown, and in the changes of a commit of the side that is there: before it, for what it deleted
+        string state = (Shown is { } shown ? "&" + shown.QueryPart : "")
+            + (ShowsChanges ? "&" + CommitChangesRequests.ChangesParameter + (entry.Mark == ChangeMark.Deleted ? "&" + CommitChangesRequests.PreviousParameter : "") : "");
+        return new _MediaTile
+        {
+            Entry = entry,
+            Name = name,
+            VirtualPath = virtualPath,
+            Kind = kind,
+            // A video shows its first frame, which the browser takes from the video itself (a little after the start, which is often black)
+            PictureSource = kind switch
+            {
+                Editor.MediaKind.Image => VirtualPaths.ToAddress(virtualPath) + "?thumbnail" + state,
+                Editor.MediaKind.Video => VirtualPaths.ToAddress(virtualPath) + "?raw" + state + "#t=0.5",
+                _ => null
+            },
+            Number = NumberText(index, Media.Length),
+            OpenKey = entry.CanOpen || entry.Kind == ListedKind.NoHistory && entry.ExistsNow ? NumberKey(index, "!") : null,
+            SelectKey = NumberKey(index, "!+"),
+            Href = entry.CanOpen ? VirtualPaths.ToAddress(virtualPath)
+                : entry.Kind == ListedKind.NoHistory && entry.ExistsNow ? VirtualPaths.ToAddress(virtualPath) : null,
+            ShowsCheckbox = CanSelect,
+            IsSelected = IsSelected(virtualPath)
+        };
     }
 
     /// <summary>The row of an entry of the listing that can't be opened (see <see cref="ListedEntry.CanOpen"/>).</summary>
@@ -177,7 +231,7 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
             Name = NameOf(entry.Path),
             IsDirectory = isDirectory,
             Kind = entry.Kind,
-            Number = index + 1,
+            Number = NumberText(index, isDirectory ? Directories.Length : Files.Length),
             Href = href,
             Key = href is null ? null : NumberKey(index, isDirectory ? "" : "+"),
             ShowsCheckbox = CanSelect

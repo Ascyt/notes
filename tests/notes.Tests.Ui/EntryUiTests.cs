@@ -486,7 +486,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
     {
         await OpenAsync("/docs");
 
-        await Page.Keyboard.PressAsync("n"); // Create subdirectory
+        await Page.Keyboard.PressAsync("n"); // Create directory
 
         await Expect(Page).ToHaveURLAsync(new Regex("/docs/\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}$"));
         Assert.Equal(2, Directory.GetDirectories(Tree.Physical("docs")).Length);
