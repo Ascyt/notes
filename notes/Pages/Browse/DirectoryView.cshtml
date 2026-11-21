@@ -1,6 +1,5 @@
 @using notes.Features.Components.Breadcrumb
 @using notes.Features.Components.Create
-@using notes.Features.Components.Delete
 @using notes.Features.Components.Selection
 @using notes.Features.Components.Toolbar
 @using notes.Features.Components.Upload
@@ -136,7 +135,7 @@
 </style>
 
 @{
-    // Whoever can't change anything isn't offered the buttons that do (create, upload, delete), instead of seeing them disabled
+    // Whoever can't change anything isn't offered the buttons that do (create, upload), instead of seeing them disabled
     // The configuration leftmost (only there for those who manage it), then the history (its changes, then the choice of a time), then what moves files in and out
     List<ToolbarButton> toolbarButtons = [];
     if (Model.CanConfigure)
@@ -152,10 +151,7 @@
     if (!Model.ShowsChanges)
         toolbarButtons.Add(ToolbarButton.Download(isFile: false));
     if (!Model.IsReadOnly)
-    {
         toolbarButtons.Add(ToolbarButton.Upload(Model.CreateDeniedReason));
-        toolbarButtons.Add(ToolbarButton.Delete("directory", Model.DeleteDeniedReason));
-    }
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = false, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason, ParentsWithoutHistory = Model.ParentsWithoutHistory }"/>
@@ -273,10 +269,6 @@
                 }
             </div>
         </div>
-    }
-    @if (!Model.IsRoot && !Model.IsReadOnly)
-    {
-        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Directories.Length + Model.Files.Length + Model.Media.Length > 0, Kind = "directory" }'/>
     }
 </div>
 

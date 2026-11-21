@@ -18,7 +18,7 @@ The name at the end of the breadcrumb is a text field (F2 goes there). A changed
 
 ## Deleting
 
-The trash can icon (or `Delete`) deletes the current file or directory. Unless it is empty, a confirmation comes first. A directory is deleted with everything in it, and only if everything in it may be deleted; otherwise nothing is.
+Files and directories are deleted through the selection (see below): selected in their own directory, the card offers Delete (`Delete`), which asks for confirmation first. A directory is deleted with everything in it, and only if everything in it may be deleted; otherwise nothing is.
 
 ## Selecting, copying and moving
 

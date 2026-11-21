@@ -144,7 +144,7 @@ Notes on the table:
 
 - **Every request** first resolves the address to a known entry, or answers 404 (`IndexModel`). Each operation's own checks come on top of that.
 - **Copy, move, delete and rename are checked completely before anything is changed** (`TransferPlanner`). A copy then copies exactly the entries that were checked: nothing unreadable, and nothing that appeared later.
-- **The UI leaves out what the permissions don't allow at all, and disables the rest of what they don't allow, saying why** (see rule 7 below). This covers the selection card and the Delete, Rename, Upload, Create, Save and history controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again. For deleting, renaming and moving, the UI only looks at the entries themselves, not at what is inside a directory: walking a large tree for every page would make it slow. That is checked when it is done, and a refusal names what is in the way.
+- **The UI leaves out what the permissions don't allow at all, and disables the rest of what they don't allow, saying why** (see rule 7 below). This covers the selection card (with its Delete) and the Rename, Upload, Create, Save and history controls. The flags on the selection card are recorded when entries are selected. Whatever is then done with the selection is checked again. For deleting, renaming and moving, the UI only looks at the entries themselves, not at what is inside a directory: walking a large tree for every page would make it slow. That is checked when it is done, and a refusal names what is in the way.
 
 ### Pages outside the notes
 

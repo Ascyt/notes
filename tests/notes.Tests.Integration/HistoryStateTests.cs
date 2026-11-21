@@ -28,7 +28,6 @@ public sealed class HistoryStateTests(NotesAppFactory app) : HistoryStateTest(ap
         Assert.DoesNotContain("id=\"edit-here-button\"", body);
         Assert.Contains("id=\"view-source-button\"", body);
         Assert.Contains("id=\"view-source-here-button\"", body);
-        Assert.DoesNotContain("id=\"delete-button\"", body);
         Assert.DoesNotContain("id=\"config-button\"", body);
     }
 
@@ -49,7 +48,6 @@ public sealed class HistoryStateTests(NotesAppFactory app) : HistoryStateTest(ap
         Assert.Contains("id=\"history-card\"", body);
         Assert.DoesNotContain("id=\"markdown-preview\"", body);
         Assert.DoesNotContain("id=\"save-button\"", body);
-        Assert.DoesNotContain("id=\"delete-button\"", body);
     }
 
     [Fact]
@@ -65,7 +63,6 @@ public sealed class HistoryStateTests(NotesAppFactory app) : HistoryStateTest(ap
         Assert.Contains(">a.md<", body);
         Assert.DoesNotContain("later.md", body);
         Assert.DoesNotContain("id=\"upload-button\"", body);
-        Assert.DoesNotContain("id=\"delete-button\"", body);
         Assert.DoesNotContain("class=\"form-check-input entry-select", body);
         Assert.DoesNotContain("selection-bar", body);
         Assert.Matches(@"data-disabled-reason=""[^""]+""", body); // (the name can't be changed, and says why)

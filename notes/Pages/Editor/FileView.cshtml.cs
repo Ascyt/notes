@@ -72,7 +72,7 @@ public class FileView : PageModel
 
     /// <summary>
     /// Whether the user can't change anything about the file: not its contents, nor delete it. The page then doesn't offer the buttons that
-    /// change things (save, delete) at all, instead of showing them disabled.
+    /// change things (save) at all, instead of showing them disabled.
     /// </summary>
     public bool IsReadOnly => !CanWrite && DeleteDeniedReason is not null;
 

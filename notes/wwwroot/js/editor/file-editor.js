@@ -1,5 +1,5 @@
 // The editor of a text file: the code editor (Monaco, see editor.js) or the simple view, a plain text field for phones, saving, and
-// what the components of the page (delete, rename) ask of it. What the page knows about the file comes from #file-editor-options.
+// what the components of the page (rename) ask of it. What the page knows about the file comes from #file-editor-options.
 // The toolbar's buttons call saveFile(), toggleSimpleView() and indentSimpleView(outdent); the way to the preview leads to the cursor's place.
 (function () {
     const SIMPLE_VIEW_KEY = 'notes.simpleEditor';
@@ -19,6 +19,10 @@
 
     simpleElement.value = options.contents;
     simpleElement.readOnly = !canWrite;
+    // Enter goes on with a list (markdown-lists.js)
+    const continuesLists = canWrite && options.language === 'markdown';
+    if (continuesLists)
+        markdownLists.bindToTextArea(simpleElement);
 
     // localStorage can throw (blocked storage, private mode), and then the choice just isn't kept
     function readSimpleView() {
@@ -112,6 +116,7 @@
     async function showMonaco() {
         simpleElement.hidden = true;
         monacoElement.hidden = false;
+        fitEditorAboveKeyboard();
 
         if (!monacoLoading)
             monacoLoading = createEditor(monacoElement, {
@@ -125,6 +130,8 @@
                 monacoEditor = editor;
                 window.editor = editor;
                 editor.onDidChangeModelContent(updateDirty);
+                if (continuesLists)
+                    markdownLists.bindToMonaco(editor);
                 return editor;
             });
 
@@ -143,6 +150,7 @@
             simpleElement.value = monacoEditor.getValue();
         monacoElement.hidden = true;
         simpleElement.hidden = false;
+        fitEditorAboveKeyboard();
     }
 
     // ---- Indenting in the simple view ----
@@ -209,11 +217,47 @@
         updateDirty();
     };
 
+    // ---- Room above a phone's keyboard ----
+
+    // With a phone's keyboard open, only what is above it can be seen (the visual viewport), and typing at the bottom of an editor that goes
+    // on under the keyboard scrolls the whole page, so the breadcrumb and the toolbar go out of sight. So the editor ends above the keyboard
+    // (or the bottom of a low window) instead, and the page stays at its top while the editor has the focus.
+    const NORMAL_HEIGHT = 0.75; // of the window, as the page's style has it
+    const MIN_HEIGHT = 80;      // px, so that there is always some of it
+    const BOTTOM_GAP = 8;       // px between the editor and the keyboard
+
+    function fitEditorAboveKeyboard() {
+        const viewport = window.visualViewport;
+        const shown = useSimple ? simpleElement : monacoElement;
+        if (!viewport || shown.hidden)
+            return;
+
+        // Where the editor starts with the page at its top, and how much room that leaves
+        const top = shown.getBoundingClientRect().top + window.scrollY;
+        const room = viewport.height - top - BOTTOM_GAP;
+        const isCramped = room < window.innerHeight * NORMAL_HEIGHT;
+        for (const element of [simpleElement, monacoElement])
+            element.style.height = isCramped ? Math.max(MIN_HEIGHT, room) + 'px' : '';
+
+        if (isCramped && shown.contains(document.activeElement)) {
+            window.scrollTo(0, 0);
+            // The cursor may now be under the new bottom of the editor
+            if (!useSimple && monacoEditor && monacoEditor.getPosition()) {
+                monacoEditor.layout();
+                monacoEditor.revealPositionInCenterIfOutsideViewport(monacoEditor.getPosition());
+            }
+        }
+    }
+
+    if (window.visualViewport)
+        window.visualViewport.addEventListener('resize', fitEditorAboveKeyboard);
+    window.addEventListener('resize', fitEditorAboveKeyboard);
+    // Opening the keyboard may come before or after the focus does
+    simpleElement.addEventListener('focus', fitEditorAboveKeyboard);
+    monacoElement.addEventListener('focusin', fitEditorAboveKeyboard);
+
     // ---- The other components of the page ----
 
-    // Deleting needs confirmation unless the file is empty and has no unsaved changes
-    window.needsDeleteConfirmation = () => (!useSimple && !monacoEditor) || isDirty || currentValue() !== '';
-    window.onEntryDeleted = () => { isDirty = false; };
     window.beforeRename = () => {
         if (isDirty || isSaving) {
             notify('The file has unsaved changes, which have to be saved before renaming.', 'warning');

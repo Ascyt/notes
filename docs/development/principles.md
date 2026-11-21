@@ -57,7 +57,7 @@ Everything is gray (Bootstrap's secondary styles, low emphasis), unless it is so
 
 - the links to the files and directories, which is where the page leads,
 - the Save button while there is something to save,
-- a button that deletes something, but only while it is hovered or focused (`btn-danger-on-hover`, or the toolbar's danger tone),
+- a button that deletes something, but only while it is hovered or focused (`btn-danger-on-hover`),
 - a warning that something went wrong.
 
 ### 10. Nobody is left wondering why

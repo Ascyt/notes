@@ -101,7 +101,7 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
 
     /// <summary>
     /// Whether the user can't change anything here: neither add entries nor delete the directory. The page then doesn't offer the buttons
-    /// that change things (create, upload, delete) at all, instead of showing them disabled.
+    /// that change things (create, upload) at all, instead of showing them disabled.
     /// </summary>
     public bool IsReadOnly => ShowsEarlierState || (CreateDeniedReason is not null && DeleteDeniedReason is not null);
 

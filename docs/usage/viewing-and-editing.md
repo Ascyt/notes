@@ -47,7 +47,7 @@ Every text file can be edited in the browser. There are two editors, and the cho
 |---|---|
 | ![The code editor](../screenshots/editor-desktop.png) | ![The simple editor on a phone](../screenshots/simple-editor-phone.png) |
 
-The phone icon in the toolbar switches to the simple editor, the keyboard icon back to the code editor. In the simple editor, as a phone has no Tab key, the two icons next to the keyboard icon (or Ctrl+] and Ctrl+[) do what Tab and Shift+Tab do in the code editor: indent the selected lines, or put an indent at the cursor, and take an indent away again; the text field keeps the focus, and with it the keyboard of a phone. In Markdown and plain text files (`.md`, `.txt`) the code editor doesn't suggest words while typing. The floppy disk icon (or Ctrl+S) saves; it is only blue while there is something to save. Leaving the page with unsaved changes asks first.
+The phone icon in the toolbar switches to the simple editor, the keyboard icon back to the code editor. In the simple editor, as a phone has no Tab key, the two icons next to the keyboard icon (or Ctrl+] and Ctrl+[) do what Tab and Shift+Tab do in the code editor: indent the selected lines, or put an indent at the cursor, and take an indent away again; the text field keeps the focus, and with it the keyboard of a phone. In Markdown and plain text files (`.md`, `.txt`) the code editor doesn't suggest words while typing. In a Markdown file, Enter in a list goes on with it: the next line gets the same bullet and indent, the next number, or an empty task box; Enter on an empty item ends the list instead, and Shift+Enter is a plain line break. On a phone, the editor ends above the open keyboard, so the breadcrumb and the toolbar stay in sight while typing at its bottom. The floppy disk icon (or Ctrl+S) saves; it is only blue while there is something to save. Leaving the page with unsaved changes asks first.
 
 The magnifying glass icons (or Alt+Plus and Alt+Minus) make the text of the editor larger and smaller; inside the editor, Ctrl+Plus, Ctrl+Minus and Ctrl+scrolling do the same, and Ctrl+0 goes back to the usual size. Both editors share the zoom, and it is kept in the browser.
 
@@ -55,7 +55,7 @@ A file that may be read but not changed opens in the editor as read-only, and th
 
 ## Images, video, audio and PDF
 
-Images, videos, audio files and PDFs are shown on the file's page by the browser. On these, the code icon shows the file on its own, as the browser would (`?raw`). Other files can't be viewed like this, and say so: an HTML or SVG file sent as what it is could run scripts as a page of the site.
+Images, videos, audio files and PDFs are shown on the file's page by the browser. On these, the code icon shows the file on its own, as the browser would (`?raw`). On an image, video or PDF, the expand icon (or `f`) shows it over the whole screen; Escape (or `f` again) leaves it. Other files can't be viewed like this, and say so: an HTML or SVG file sent as what it is could run scripts as a page of the site.
 
 On an image, video or audio file, the two arrow icons at the left of the toolbar (or the arrow keys left and right) go to the media before and after it, in the order of the grid of its directory (see [Browsing](browsing.md#directories)). They are gray at the first and the last. Media that can't be opened are skipped; in an earlier state, they go through the media as they were then.
 

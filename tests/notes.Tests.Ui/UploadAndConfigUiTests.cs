@@ -87,12 +87,11 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
     }
 
     [Fact]
-    public async Task Where_nothing_may_be_added_there_is_no_upload_create_or_delete_at_all()
+    public async Task Where_nothing_may_be_added_there_is_no_upload_or_create_at_all()
     {
         await OpenAsync("/shelf");
 
         await Expect(Page.Locator("#upload-button")).ToHaveCountAsync(0);
-        await Expect(Page.Locator("#delete-button")).ToHaveCountAsync(0);
         await Expect(Page.Locator("button[formaction='?create=file']")).ToHaveCountAsync(0);
     }
 
@@ -104,7 +103,6 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
         await OpenAsync("/docs/nested/b.md");
 
         await ExpectDisabledWithReason(Page.Locator("#rename-input"));
-        await Expect(Page.Locator("#delete-button")).ToHaveAttributeAsync("aria-disabled", "false");
     }
 
     // ---- Toasts

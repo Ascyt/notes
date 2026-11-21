@@ -27,7 +27,7 @@
     </div>
 </div>
 
-<div class="modal fade" id="selection-delete-modal" tabindex="-1" aria-labelledby="selection-delete-title" aria-hidden="true">
+<div class="modal" id="selection-delete-modal" tabindex="-1" aria-labelledby="selection-delete-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -57,8 +57,6 @@
         const moveButton = document.getElementById('selection-move');
         const deleteButton = document.getElementById('selection-delete');
         const deleteModal = document.getElementById('selection-delete-modal');
-        const directoryDeleteButton = document.getElementById('delete-button'); // deletes the directory itself (not part of this component)
-        const directoryDeleteReason = directoryDeleteButton ? directoryDeleteButton.dataset.disabledReason || null : null; // why it can't be, apart from the selection
         const spinner = document.getElementById('selection-spinner');
         const progress = document.getElementById('selection-progress');
         const clearButton = document.getElementById('selection-clear');
@@ -98,8 +96,7 @@
 
             const count = selected.size;
 
-            // Selected in this very directory: there is nothing to copy or move here, so the card offers Delete instead (and the
-            // directory's own Delete button, which would be easily mistaken for it, waits). Otherwise it is Copy and Move.
+            // Selected in this very directory: there is nothing to copy or move here, so the card offers Delete instead. Otherwise it is Copy and Move.
             const allHere = count > 0 && [...selected].every(path => parentOf(path) === directory);
             setAvailable(copyButton, !allHere);
             setAvailable(moveButton, !allHere);
@@ -112,11 +109,6 @@
             setButtonDisabled(copyButton, createDeniedReason);
             setButtonDisabled(moveButton, createDeniedReason || removeDeniedReason);
             setButtonDisabled(deleteButton, removeDeniedReason);
-
-            if (directoryDeleteButton)
-                setButtonDisabled(directoryDeleteButton, allHere
-                    ? 'Use Delete in the selection card to delete selected folders, or clear the selection first to delete this directory.'
-                    : directoryDeleteReason);
         }
 
         // The top of the card: how many are selected. The boxes show a change at once, but the card shows what the server knows, so

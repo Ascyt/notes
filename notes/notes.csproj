@@ -48,7 +48,6 @@
       <AdditionalFiles Include="Features\Auth\_Account.cshtml" />
       <AdditionalFiles Include="Features\Components\Breadcrumb\_Breadcrumb.cshtml" />
       <AdditionalFiles Include="Features\Components\Create\_CreateButton.cshtml" />
-      <AdditionalFiles Include="Features\Components\Delete\_DeleteButton.cshtml" />
       <AdditionalFiles Include="Features\Components\Rename\_RenameInput.cshtml" />
       <AdditionalFiles Include="Features\Components\Selection\_SelectionBar.cshtml" />
       <AdditionalFiles Include="Features\Components\Toast\_Toasts.cshtml" />

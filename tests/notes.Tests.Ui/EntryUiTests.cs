@@ -116,7 +116,6 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
 
         await Assertions.Expect(page.Locator("#download-button")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#save-button")).ToHaveCountAsync(0);
-        await Assertions.Expect(page.Locator("#delete-button")).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator("#rename-input")).ToHaveAttributeAsync("readonly", "");
         await bob.DisposeAsync();
     }
@@ -402,58 +401,15 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await ExpectDisabledWithReason(Page.Locator("#rename-input"));
     }
 
-    // ---- Delete
-
-    [Fact]
-    public async Task An_empty_file_is_deleted_without_asking()
-    {
-        _ = Tree.File("docs/empty.md");
-        await OpenAsync("/docs/empty.md");
-
-        await Page.Locator("#delete-button").ClickAsync();
-
-        await Expect(Page).ToHaveURLAsync(new Regex("/docs$"));
-        await Expect(ToastOf("success")).ToBeVisibleAsync();
-        Assert.False(Tree.Exists("docs/empty.md"));
-    }
-
-    [Fact]
-    public async Task A_file_with_contents_asks_first()
-    {
-        await OpenAsync("/docs/a.md");
-
-        await Page.Locator("#delete-button").ClickAsync();
-        await Expect(Page.Locator("#delete-modal")).ToBeVisibleAsync();
-        Assert.True(Tree.Exists("docs/a.md"));
-        await Page.Locator("#delete-confirm").ClickAsync();
-
-        await Expect(Page).ToHaveURLAsync(new Regex("/docs$"));
-        Assert.False(Tree.Exists("docs/a.md"));
-    }
-
-    [Fact]
-    public async Task A_refused_delete_shows_what_the_server_says()
-    {
-        await OpenAsync("/docs");
-        // Since the page was made, something inside became unreadable
-        Tree.Config("docs/nested", Cfg.Folder(Cfg.Perms(rwDeny: ["g:team"])));
-
-        await Page.Locator("#delete-button").ClickAsync();
-        await Page.Locator("#delete-confirm").ClickAsync();
-
-        // Names what is in the way
-        await Expect(ToastOf("danger")).ToContainTextAsync("docs/nested");
-        await Expect(Page.Locator("#delete-button")).ToHaveAttributeAsync("aria-disabled", "false");
-        Assert.True(Tree.Exists("docs/nested"));
-    }
-
     // ---- Disabled buttons (site.js) and shortcuts (shortcuts.js)
 
     [Fact]
     public async Task A_disabled_button_says_why_and_does_nothing_when_clicked()
     {
+        // Nothing in drop may be deleted
         await OpenAsync("/drop");
-        ILocator delete = Page.Locator("#delete-button");
+        await Page.Locator("tr.entry-row[data-path='drop/existing.md'] .entry-select").CheckAsync();
+        ILocator delete = Page.Locator("#selection-delete");
 
         await Expect(delete).ToHaveAttributeAsync("aria-disabled", "true");
         await ExpectDisabledWithReason(delete);
@@ -461,8 +417,8 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await Page.Keyboard.PressAsync("Delete");
         await Task.Delay(300, TestContext.Current.CancellationToken);
 
-        await Expect(Page.Locator("#delete-modal")).ToBeHiddenAsync();
-        Assert.True(Tree.Exists("drop"));
+        await Expect(Page.Locator("#selection-delete-modal")).ToBeHiddenAsync();
+        Assert.True(Tree.Exists("drop/existing.md"));
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 @using notes.Features.Components.Breadcrumb
-@using notes.Features.Components.Delete
 @using notes.Features.Components.Toolbar
 @using notes.Features.HistoryViewing.Commits
 @using notes.Features.HistoryViewing.Views
@@ -7,7 +6,7 @@
 @model notes.Pages.Editor.FileView
 
 @{
-    // Whoever can't change anything about the file isn't offered the buttons that do (save, delete), instead of seeing them disabled.
+    // Whoever can't change anything about the file isn't offered the buttons that do (save), instead of seeing them disabled.
     // Instead of edit they get the way to the source, which the editor shows read-only.
     List<ToolbarButton> toolbarButtons = [];
     bool isEditing = !Model.IsBinary && !Model.ShowsPreview;
@@ -17,6 +16,9 @@
         toolbarButtons.Add(ToolbarButton.PreviousMedia(neighbours.Previous));
         toolbarButtons.Add(ToolbarButton.NextMedia(neighbours.Next));
     }
+    // What is shown large enough to look at (audio is only its player)
+    if (Model.IsBinary && Model.Media is MediaKind.Image or MediaKind.Video or MediaKind.Pdf)
+        toolbarButtons.Add(ToolbarButton.Fullscreen());
     // Save is for what can be edited. Next to it the way between the two views of a markdown file: the other view is what the button leads to.
     if (isEditing && !Model.IsReadOnly)
         toolbarButtons.Add(ToolbarButton.Save(Model.CanWrite ? null : Model.ReadOnlyReason));
@@ -55,8 +57,6 @@
     if (Model.ShowsPreview)
         toolbarButtons.Add(ToolbarButton.SaveAsPdf());
     toolbarButtons.Add(ToolbarButton.Download(isFile: true));
-    if (!Model.IsReadOnly)
-        toolbarButtons.Add(ToolbarButton.Delete("file", Model.DeleteDeniedReason));
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb { IsFile = true, VirtualPath = Model.VirtualPath, RenameDisabledReason = Model.RenameDeniedReason, ParentsWithoutHistory = Model.ParentsWithoutHistory }"/>
@@ -125,10 +125,6 @@
     <script src="~/js/markdown/markdown-print.js" asp-append-version="true"></script>
     <script src="~/js/markdown/markdown-edit-here.js" asp-append-version="true"></script>
     <script src="~/js/markdown/markdown-start-position.js" asp-append-version="true"></script>
-    @if (!Model.IsReadOnly)
-    {
-        <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = Model.Contents.Length != 0, Kind = "file" }'/>
-    }
     return;
 }
 
@@ -147,10 +143,6 @@
 <div id="editor" key="Enter"></div>
 @* The simple view: a plain text field, for phones, where Monaco is awkward to use. Only one of the two is shown. *@
 <textarea id="simple-editor" class="form-control font-monospace" style="height: 75vh; resize: none; font-size: 1rem;" spellcheck="false" key="Enter" aria-label="File contents" hidden></textarea>
-@if (!Model.IsReadOnly)
-{
-    <partial name="/Features/Components/Delete/_DeleteButton.cshtml" model='new _DeleteButton { NeedsConfirmation = false, Kind = "file" }'/>
-}
 
 @* What the script knows about the file. Serialized with < and > escaped, so the contents can't end the script element. *@
 <script type="application/json" id="file-editor-options">@(Json.Serialize(new FileEditorOptions(
@@ -163,4 +155,5 @@
 <script src="~/js/editor/editor.js" asp-append-version="true"></script>
 <script src="~/js/editor/editor-start-position.js" asp-append-version="true"></script>
 <script src="~/js/editor/text-area-indent.js" asp-append-version="true"></script>
+<script src="~/js/editor/markdown-lists.js" asp-append-version="true"></script>
 <script src="~/js/editor/file-editor.js" asp-append-version="true"></script>

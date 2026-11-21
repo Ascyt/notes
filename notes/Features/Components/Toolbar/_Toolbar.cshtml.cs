@@ -8,9 +8,7 @@ public enum ToolbarTone
     /// <summary>The usual dark icon.</summary>
     Normal,
     /// <summary>Blue: the one thing that is worth doing now (while it can be done).</summary>
-    Primary,
-    /// <summary>It destroys something: usual until it is hovered or focused, then red.</summary>
-    Danger
+    Primary
 }
 
 /// <summary>
@@ -98,6 +96,10 @@ public sealed record ToolbarButton(
         => new(Id: "next-media-button", Icon: "fa-solid fa-chevron-right", Label: "Next media file", Key: "ArrowRight", Href: href,
             DisabledReason: href is null ? "This is the last media file of the directory." : null);
 
+    /// <summary>Shows an image, video or PDF over the whole screen (BinaryView), and leaves it again.</summary>
+    public static ToolbarButton Fullscreen()
+        => new(Id: "fullscreen-button", Icon: "fa-solid fa-expand", Label: "Fullscreen", Key: "f", OnClick: "toggleMediaFullscreen()");
+
     /// <summary>
     /// The bytes of a media file as the browser shows them, instead of the page around them. Every file has them (<c>?raw</c>), but only on
     /// media does the browser show more than the page already does.
@@ -117,10 +119,6 @@ public sealed record ToolbarButton(
 
     public static ToolbarButton Upload(string? disabledReason = null)
         => new(Id: "upload-button", Icon: "fa-solid fa-upload", Label: "Upload files", Key: "!PageUp", DisabledReason: disabledReason);
-
-    /// <param name="kind">What is being deleted ("file" or "directory").</param>
-    public static ToolbarButton Delete(string kind, string? disabledReason = null)
-        => new(Id: "delete-button", Icon: "fa-regular fa-trash-can", Label: $"Delete this {kind}", Key: "Delete", OnClick: "requestDelete()", Tone: ToolbarTone.Danger, DisabledReason: disabledReason);
 
     /// <summary>
     /// The way to the configuration page. Only for those who manage the configuration, and not there at all for anyone else (unlike the other

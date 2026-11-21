@@ -146,7 +146,6 @@ public sealed class ReadAccessTests(NotesAppFactory app) : IntegrationTest(app)
         string body = await BodyOf(await Client.GetAsync(Users.Bob, "/docs/a.md"));
 
         Assert.DoesNotContain("id=\"save-button\"", body);
-        Assert.DoesNotContain("id=\"delete-button\"", body);
         Assert.Contains("id=\"download-button\"", body);
     }
 

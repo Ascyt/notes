@@ -10,7 +10,7 @@ Images, videos and audio files are listed apart from the other files, under **Me
 |---|---|
 | ![The media of a directory](../screenshots/media-desktop.png) | ![The media of a directory on a phone](../screenshots/media-phone.png) |
 
-Above the listing is the path of the directory (the *breadcrumb*): each part of it leads to that directory, the house icon to the root. The name at its end is a text field, which renames the directory (see [Organizing](organizing.md#renaming)). Below it is the toolbar: icons for what can be done with the directory, such as downloading it. Each icon says what it does when hovered. The bar at the top and the breadcrumb below it stay at the top of the screen while the page scrolls; the toolbar scrolls with the page.
+Above the listing is the path of the directory (the *breadcrumb*): each part of it leads to that directory, the house icon to the root. The name at its end is a text field, which renames the directory (see [Organizing](organizing.md#renaming)). The breadcrumb is always one line: where the path doesn't fit, the name at the end keeps its room, and the directories above become dots (their name shows when hovered), the outermost ones a single "…" that leads to them. Below it is the toolbar: icons for what can be done with the directory, such as downloading it. Each icon says what it does when hovered. The bar at the top and the breadcrumb below it stay at the top of the screen while the page scrolls; the toolbar scrolls with the page.
 
 | Desktop, light | Phone, dark |
 |---|---|

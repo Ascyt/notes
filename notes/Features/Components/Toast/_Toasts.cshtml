@@ -38,11 +38,6 @@
 
     .toast-card {
         cursor: pointer;
-        transition: opacity 0.3s;
-    }
-
-    .toast-card.leaving {
-        opacity: 0;
     }
 </style>
 
@@ -84,8 +79,7 @@
             let timer = null;
             const dismiss = function () {
                 clearTimeout(timer);
-                card.classList.add('leaving');
-                setTimeout(() => card.remove(), 300);
+                card.remove();
             };
             card.addEventListener('click', dismiss);
             timer = setTimeout(dismiss, kind === 'danger' ? ERROR_DURATION : DEFAULT_DURATION);

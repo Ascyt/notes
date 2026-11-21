@@ -17,6 +17,16 @@ html {
   min-height: 100%;
 }
 
+/* No animations (principles: plain, without fluff): Bootstrap's transitions (menus, buttons, fields) and its smooth scrolling are left out,
+   so that everything appears and moves at once. Spinners and the moving stripes of a progress bar are animations, not transitions, and stay. */
+*, *::before, *::after {
+  transition: none !important;
+}
+
+:root {
+  scroll-behavior: auto;
+}
+
 body {
   margin-bottom: 60px;
 }
@@ -68,6 +78,45 @@ body {
   background: var(--bs-body-bg);
   border-bottom: var(--bs-border-width) solid var(--bs-border-color);
   box-sizing: content-box; /* its min-height (_Breadcrumb) is that of the row, without the padding and line */
+}
+
+/* Always one line (breadcrumb.js shortens the parents to fit), with the name at its end taking the room that is left */
+.breadcrumb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.breadcrumb-row > *, .breadcrumb-part > * {
+  flex-shrink: 0;
+}
+
+.breadcrumb-part {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Font Awesome and the flex boxes set a display of their own, which would show what breadcrumb.js hides */
+.breadcrumb-row [hidden] {
+  display: none !important;
+}
+
+/* A small dot in the middle of the line, wide enough to be tapped */
+.breadcrumb-dot {
+  font-size: 0.4em;
+  width: 2.5em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.breadcrumb-row #rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap; /* the buttons stay next to the name */
 }
 
 /* With the breadcrumb, the line below the navbar is the breadcrumb's, and there is no gap between them that would move while scrolling */

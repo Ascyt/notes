@@ -5,7 +5,7 @@ using notes.Features.Components.Selection;
 
 namespace notes.Tests.Ui;
 
-/// <summary>The grid of media of a listing, the way from one media file to the next, and the parts of a page that stay at the top while it scrolls.</summary>
+/// <summary>The grid of media of a listing, the way from one media file to the next, fullscreen, and the parts of a page that stay at the top (the breadcrumb, which stays one line).</summary>
 public sealed class MediaUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     private static byte[] Png()
@@ -113,6 +113,64 @@ public sealed class MediaUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await AssertBreadcrumbRightBelowNavbarAsync();
         LocatorBoundingBoxResult toolbar = (await Page.Locator("[role=toolbar]").First.BoundingBoxAsync())!;
         Assert.True(toolbar.Y + toolbar.Height < 0, "The toolbar scrolls away with the page.");
+    }
+
+    [Fact]
+    public async Task The_fullscreen_button_shows_an_image_over_the_whole_screen_and_leaves_it_again()
+    {
+        AddPictures();
+        await OpenAsync("/docs/pics/a.png");
+        ILocator button = Page.Locator("#fullscreen-button");
+        await Expect(button).ToHaveAttributeAsync("aria-disabled", "false");
+
+        await button.ClickAsync();
+        _ = await Page.WaitForFunctionAsync("() => document.fullscreenElement && document.fullscreenElement.id === 'media-view'");
+
+        await Page.Keyboard.PressAsync("f");
+        _ = await Page.WaitForFunctionAsync("() => document.fullscreenElement === null");
+    }
+
+    [Fact]
+    public async Task Audio_has_no_fullscreen_button()
+    {
+        _ = Tree.File("docs/sound.mp3", "not really audio");
+        await OpenAsync("/docs/sound.mp3");
+
+        await Expect(Page.Locator("#download-button")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#fullscreen-button")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task On_a_phone_a_deep_path_stays_one_line_and_the_name_keeps_its_room()
+    {
+        await Page.SetViewportSizeAsync(375, 812);
+        const string name = "a-rather-long-name-of-a-note.md";
+        _ = Tree.File($"docs/first-directory/second-directory/third-directory/fourth-directory/{name}", "x");
+        await OpenAsync($"/docs/first-directory/second-directory/third-directory/fourth-directory/{name}");
+        ILocator row = Page.Locator(".breadcrumb-row");
+        ILocator input = Page.Locator("#rename-input");
+
+        // One line: no higher than the name in it (and its padding and line)
+        _ = await Page.WaitForFunctionAsync("() => document.querySelector('.breadcrumb-row').scrollWidth <= document.querySelector('.breadcrumb-row').clientWidth + 1");
+        LocatorBoundingBoxResult rowBox = (await row.BoundingBoxAsync())!;
+        LocatorBoundingBoxResult inputBox = (await input.BoundingBoxAsync())!;
+        Assert.True(rowBox.Height < inputBox.Height * 2, "The breadcrumb is one line.");
+        // The parents made room: the outer ones are dots or gone, the one above is still there (it leads up)
+        await Expect(Page.Locator(".breadcrumb-parent[data-name='docs'] .breadcrumb-name")).ToBeHiddenAsync();
+        await Expect(Page.Locator(".breadcrumb-parent[data-name='fourth-directory']")).ToBeVisibleAsync();
+        // ...and the whole name fits into the input
+        Assert.True(await input.EvaluateAsync<bool>("input => input.scrollWidth <= input.clientWidth"), "The whole name is shown.");
+    }
+
+    [Fact]
+    public async Task On_a_wide_screen_the_breadcrumb_shows_every_name()
+    {
+        _ = Tree.File("docs/one/two/note.md", "x");
+        await OpenAsync("/docs/one/two/note.md");
+
+        foreach (string name in new[] { "docs", "one", "two" })
+            await Expect(Page.Locator($".breadcrumb-parent[data-name='{name}'] .breadcrumb-name")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#breadcrumb-collapsed")).ToBeHiddenAsync();
     }
 
     private async Task AssertBreadcrumbRightBelowNavbarAsync()

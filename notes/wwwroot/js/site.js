@@ -52,8 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshButton(button);
 });
 
-// The heights of the parts that stay at the top of the screen (site.css), as they change: the navbar's menu opens on a phone, the breadcrumb
-// wraps on a narrow screen
+// The heights of the parts that stay at the top of the screen (site.css), as they change: the navbar's menu opens on a phone
 document.addEventListener('DOMContentLoaded', function () {
     const parts = { '--site-header-height': document.getElementById('site-header'), '--breadcrumb-height': document.querySelector('.sticky-breadcrumb') };
     const observer = new ResizeObserver(function () {
