@@ -1,0 +1,231 @@
+using Notes.Features.History;
+
+namespace Notes.Tests.Unit;
+
+/// <summary>What the history leaves out (gitignore), and what happens when that changes.</summary>
+public sealed class HistoryGitignoreTests : HistoryTest
+{
+    [Fact]
+    public void Gitignore_leaves_out_the_folder_and_what_is_below_unless_a_subfolder_says_otherwise()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/video.bin", [1, 2, 3]);
+        Notes.Files.File("media/other/clip.md", "left out as well\n");
+        Notes.Files.Config("media/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        Notes.Files.File("media/keep/notes.md", "kept\n");
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("media/.config.json", files.Keys);
+        Assert.Contains("media/keep/.config.json", files.Keys);
+        Assert.Contains("media/keep/notes.md", files.Keys);
+        Assert.DoesNotContain("media/video.bin", files.Keys);
+        Assert.DoesNotContain("media/other/clip.md", files.Keys);
+    }
+
+    [Fact]
+    public void Whether_an_entry_is_kept_is_what_the_configuration_says_now_for_files_and_directories()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.Config("media/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        HistoryService history = History();
+
+        Assert.True(history.IsKept(Notes.P(""), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/video.bin"), isDirectory: false));
+        Assert.False(history.IsKept(Notes.P("media/other"), isDirectory: true));
+        Assert.False(history.IsKept(Notes.P("media/other/clip.md"), isDirectory: false));
+        Assert.True(history.IsKept(Notes.P("media/keep"), isDirectory: true));
+        Assert.True(history.IsKept(Notes.P("media/keep/notes.md"), isDirectory: false));
+
+        // Kept earlier doesn't count: what the configuration says now decides
+        Notes.Files.Config("docs", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Assert.False(history.IsKept(Notes.P("docs/a.md"), isDirectory: false));
+    }
+
+    [Fact]
+    public void Files_that_gitignore_leaves_out_later_go_from_the_history_but_stay_on_disk()
+    {
+        Notes.Files.Config("media", Cfg.Folder(Cfg.Perms()));
+        Notes.Files.File("media/a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+        Assert.Contains("media/a.md", Commits(history)[0].Files.Keys);
+
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        history.CommitPending(CommitReason.Idle);
+
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.DoesNotContain("media/a.md", files.Keys);
+        Assert.Contains("\"gitignore\": true", files["media/.config.json"]);
+        Assert.True(Notes.Files.Exists("media/a.md"));
+    }
+
+    /// <summary>Saves a folder's configuration as the configuration editor does.</summary>
+
+    [Fact]
+    public void Before_gitignore_leaves_files_out_what_is_pending_in_them_is_committed_by_whoever_changed_it()
+    {
+        Notes.Files.Config("media", Cfg.Folder(Cfg.Perms()));
+        Notes.Files.File("media/a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+        Save(history, Alice, "media/a.md", "edited by alice\n");
+
+        SaveConfig(history, Admin, "media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+
+        List<Snapshot> commits = Commits(history);
+        Assert.Equal(4, commits.Count);
+        Assert.Equal("#gitignore", commits[0].Message);
+        Assert.Equal(Users.Admin.Name, commits[0].Author);
+        Assert.DoesNotContain("media/a.md", commits[0].Files.Keys);
+        Assert.Contains("\"gitignore\": true", commits[0].Files["media/.config.json"]);
+        Assert.Equal("#before-gitignore", commits[1].Message);
+        Assert.Equal(Users.Alice.Name, commits[1].Author);
+        Assert.Equal("edited by alice\n", commits[1].Files["media/a.md"]);
+    }
+
+    [Fact]
+    public void Keeping_a_folder_again_brings_its_files_back_with_the_change()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+
+        SaveConfig(history, Admin, "media", Cfg.Folder(gitignore: false, Cfg.Perms()));
+
+        List<Snapshot> commits = Commits(history);
+        // Nothing was pending: no commit before it
+        Assert.Equal(3, commits.Count);
+        Assert.Equal("#gitignore", commits[0].Message);
+        Assert.Equal(Users.Admin.Name, commits[0].Author);
+        Assert.Equal("a\n", commits[0].Files["media/a.md"]);
+    }
+
+    [Fact]
+    public void Leaving_out_the_root_is_by_whoever_did_it()
+    {
+        Notes.Files.File("a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+
+        SaveConfig(history, Admin, "", Cfg.Folder(gitignore: true, Cfg.Perms()));
+
+        Snapshot latest = Commits(history)[0];
+        Assert.Equal("#gitignore", latest.Message);
+        Assert.Equal(Users.Admin.Name, latest.Author);
+        Assert.Equal([".config.json"], latest.Files.Keys);
+    }
+
+    [Fact]
+    public void A_configuration_that_keeps_gitignore_as_it_was_commits_nothing()
+    {
+        Notes.Files.Config("media", Cfg.Folder(Cfg.Perms()));
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+        Save(history, Alice, "a.md", "pending\n");
+
+        SaveConfig(history, Admin, "media", Cfg.Folder(Cfg.Perms(inherit: false)));
+
+        Assert.Equal(2, Commits(history).Count);
+    }
+
+    [Fact]
+    public void Git_is_told_to_leave_out_what_is_left_out_and_to_look_into_what_is_kept_in_it()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/other/clip.md", "left out\n");
+        Notes.Files.Config("media/deep/keep", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        Notes.Files.File("media/deep/keep/notes.md", "kept again\n");
+        Notes.Files.Config("docs/raw", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(
+        [
+            "/_/",
+            "/docs/raw/*",
+            "!/docs/raw/.config.json",
+            "/media/*",
+            "!/media/.config.json",
+            "!/media/deep/",
+            "/media/deep/*",
+            "!/media/deep/keep/",
+        ], exclude);
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("media/deep/keep/notes.md", files.Keys);
+        Assert.Contains("media/deep/keep/.config.json", files.Keys);
+        Assert.DoesNotContain("media/other/clip.md", files.Keys);
+    }
+
+    [Fact]
+    public void A_folder_left_out_with_nothing_kept_in_it_is_left_out_whole()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/clips[1]/a.md", "left out\n");
+        Notes.Files.File("media/clips[1]/deeper/b.md", "left out\n");
+        Notes.Files.File("docs/a.md", "kept\n");
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(["/_/", "/media/*", "!/media/.config.json"], exclude);
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("docs/a.md", files.Keys);
+        Assert.Contains("media/.config.json", files.Keys);
+        Assert.DoesNotContain(files.Keys, path => path.StartsWith("media/clips", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_folder_is_named_with_its_wildcards_escaped()
+    {
+        Notes.Files.Config("docs/raw[1]", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("docs/raw[1]/a.md", "left out\n");
+        Notes.Files.File("docs/raw1/a.md", "kept\n");
+        HistoryService history = History();
+
+        history.CommitPending(CommitReason.Startup);
+
+        string[] exclude = File.ReadAllLines(Path.Combine(history.GitDirectory, "info", "exclude"));
+        Assert.Equal(["/_/", "/docs/raw\\[1]/*", "!/docs/raw\\[1]/.config.json"], exclude);
+        // "[1]" as a pattern would have meant "raw1" too
+        IReadOnlyDictionary<string, string> files = Commits(history)[0].Files;
+        Assert.Contains("docs/raw1/a.md", files.Keys);
+        Assert.DoesNotContain("docs/raw[1]/a.md", files.Keys);
+    }
+
+    [Fact]
+    public void A_folder_kept_again_outside_the_app_is_looked_into_by_the_next_commit()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        Notes.Files.File("media/a.md", "a\n");
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+
+        Notes.Files.Config("media", Cfg.Folder(gitignore: false, Cfg.Perms()));
+        history.CommitPending(CommitReason.Idle);
+
+        Assert.Equal("a\n", Commits(history)[0].Files["media/a.md"]);
+    }
+
+    [Fact]
+    public void A_save_of_a_file_that_is_left_out_never_reaches_the_threshold()
+    {
+        Notes.Files.Config("media", Cfg.Folder(gitignore: true, Cfg.Perms()));
+        HistoryService history = History();
+        history.CommitPending(CommitReason.Startup);
+        Save(history, Alice, "a.md", "pending\n");
+
+        Save(history, Alice, "media/big.md", Lines(100));
+
+        Assert.Equal(2, Commits(history).Count);
+    }
+}

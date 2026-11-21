@@ -1,0 +1,18 @@
+/* A file that is shown by the browser, or not at all (BinaryView.cshtml) */
+
+.media-view {
+    max-height: 75vh;
+}
+
+object.media-view {
+    height: 75vh;
+}
+
+/* The whole screen, with the media as large as it fits */
+.media-view:fullscreen {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    background: #000;
+}

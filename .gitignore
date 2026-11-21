@@ -11,7 +11,7 @@
 .idea/
 *.sln.iml
 
-# Client-side libraries restored via LibMan (see notes/libman.json)
+# Client-side libraries restored via LibMan (see src/Notes/libman.json)
 **/wwwroot/lib/
 
 # Local secrets for docker compose (see .env.example)
@@ -31,7 +31,7 @@ Thumbs.db
 data/
 
 # The app's own data in the notes used in development (temporary files, the history)
-notes/notes-test/_/
+src/Notes.Host/notes-test/_/
 
 # Marker of the kill switch when running locally (in production it is in the keys volume)
-notes/killed
+src/Notes.Host/killed

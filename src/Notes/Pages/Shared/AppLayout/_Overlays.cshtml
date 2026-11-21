@@ -1,0 +1,16 @@
+@using Notes.Extensions
+@using Notes.Features.Auth
+@using Notes.Features.Components.Toast
+@* What the pages of the app put over themselves, at the start of the body of every layout (docs/library.md): the stack of messages,
+   the notice of a session that ended, and for admins the dialog of the kill switch. It needs nothing of the page. *@
+
+<partial name="/Features/Components/Toast/_Toasts.cshtml" model="new _Toasts()"/>
+@if (User.IsInRole(AppAccess.AdminRole))
+{
+    <partial name="/Features/KillSwitch/_KillSwitchModal.cshtml" model="new Notes.Features.KillSwitch._KillSwitchModal()"/>
+}
+@if (SessionNotice.Of(Context) is { } sessionNotice)
+{
+    <partial name="/Features/Auth/_SessionNotice.cshtml"
+        model='new _SessionNotice { Notice = sessionNotice, ReturnUrl = Context.OriginalPathAndQuery }'/>
+}

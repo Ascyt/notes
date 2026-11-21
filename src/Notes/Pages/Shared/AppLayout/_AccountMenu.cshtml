@@ -1,0 +1,10 @@
+@using Notes.Extensions
+@using Notes.Features.Auth
+@* Logging in and out, and who is logged in, for a layout that wants it (docs/library.md). It needs nothing of the page. *@
+<partial name="/Features/Auth/_Account.cshtml" model='new _Account
+{
+    IsAuthenticated = User.Identity?.IsAuthenticated == true,
+    IsAdmin = User.IsInRole(AppAccess.AdminRole),
+    UserName = User.Identity?.Name ?? "",
+    ReturnUrl = Context.OriginalPathAndQuery
+}'/>

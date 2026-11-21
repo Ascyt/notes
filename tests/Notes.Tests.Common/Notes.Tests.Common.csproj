@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <!-- Razor, for the views of a site of its own that the tests can add to the app (Pages, see SiteNotesAppFactory) -->
+    <PropertyGroup>
+        <RootNamespace>Notes.Tests.Common</RootNamespace>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The site as it is run, which starts the app (and with it the Notes library) -->
+        <ProjectReference Include="..\..\src\Notes.Host\Notes.Host.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -77,7 +77,7 @@ These terms are defined by `AccessTree` (`Features/Auth/AccessTree.cs`), not by 
 
 - **Known:** the user may read every directory above the entry, up to the root. They may see its name. For anonymous users the entry must also be readable itself (`AccessTree.SeesUnreadableNames`), so for them known and openable are the same. The root is always known.
 - **Openable:** known, and the user may read the entry itself.
-- **Hidden:** not known, meaning the entry is somewhere inside a directory the user may not read (or, for anonymous users, may not be read itself). That holds whatever `GetAccess` says about the entry itself. Walks over the notes (`AccessTree.Walk`) never go into unreadable directories, and for anonymous users leave unreadable entries out.
+- **Hidden:** not known, meaning the entry is somewhere inside a directory the user may not read (or, for anonymous users, may not be read itself), or not [exposed](#exposed-folders). That holds whatever `GetAccess` says about the entry itself. Walks over the notes (`AccessTree.Walk`) never go into unreadable directories, and for anonymous users leave unreadable entries out.
 
 ## What a user may learn
 
@@ -92,7 +92,7 @@ How the app keeps to this:
 - **Unreadable entries refuse to open.** Opening a known entry the user may not read (its page, `?raw`, `?thumbnail`, `?download`) gets a 403. This is fine, because its name is visible in the listing anyway. (Anonymous users never get there: for them such an entry is hidden.) The one exception is the root: without `Read` on it, the root page shows only the login link.
 - **Messages only name known entries.** Messages and tooltips may name known entries, including unreadable ones. They never name hidden ones.
 - **Name collisions leak nothing.** They only happen in directories the user may read, where they see every name anyway.
-- **Rendered markdown can't run code.** A note is written by whoever may change it and read by everyone else. So `MarkdownRenderer` (`notes/Features/Markdown`) turns no HTML of a note into HTML (it is shown as text), only keeps links and images that lead to `http`, `https` (links also `mailto`) or the notes themselves, and drops every attribute a note can set except ids, which get a prefix so they can't be the ids of the page. The classes that are kept are the ones the extensions make, and none of them is a class of the page (a custom container's name gets a prefix as well). What the browser renders further (math with KaTeX, diagrams with mermaid) comes out of the server as escaped text, which the page reads as text: KaTeX runs without `trust`, mermaid with `securityLevel: 'strict'`. Behind all of that, the site's policy runs no inline script or handler at all (`script-src 'self'`, see the user input document): what got through as markup still couldn't run. Links to other hosts get `rel="noopener noreferrer"`, so the site they open doesn't learn the path of the note.
+- **Rendered markdown can't run code.** A note is written by whoever may change it and read by everyone else. So `MarkdownRenderer` (`src/Notes/Features/Markdown`) turns no HTML of a note into HTML (it is shown as text), only keeps links and images that lead to `http`, `https` (links also `mailto`) or the notes themselves, and drops every attribute a note can set except ids, which get a prefix so they can't be the ids of the page. The classes that are kept are the ones the extensions make, and none of them is a class of the page (a custom container's name gets a prefix as well). What the browser renders further (math with KaTeX, diagrams with mermaid) comes out of the server as escaped text, which the page reads as text: KaTeX runs without `trust`, mermaid with `securityLevel: 'strict'`. Behind all of that, the site's policy runs no inline script or handler at all (`script-src 'self'`, see the user input document): what got through as markup still couldn't run. Links to other hosts get `rel="noopener noreferrer"`, so the site they open doesn't learn the path of the note.
 - **Unreadable directories stay closed.** Operations never look inside a directory the user may not read. Moving, deleting or renaming such a directory, or a directory containing it, fails because of the directory itself, never because of what is in it. So nothing about the contents can be learned from results or timing.
 
 Listings must never show more about an unreadable entry than its name and kind. A feature that adds sizes, dates, previews, counts or the like must leave them out for unreadable entries.
@@ -108,9 +108,18 @@ A [bridge](../administration/bridges.md) is a directory of the notes kept in a p
 - **A bridge can't be left.** Paths are found from the root one name at a time, and a bridge is entered only by its virtual name, so nothing leads from a bridge into its physical folder's surroundings, into the folder of another bridge, or into the app's data (`_`) of a bridge.
 - **What a bridge hides is no part of the notes.** Whatever is on disk where a bridge is mounted (in the folder of the directory above) is answered like a missing path, gets no permissions, isn't listed, walked or kept in the history, and its name is taken (by the bridge).
 
+### Exposed folders
+
+A site may show only some directories of the notes (`Config:Exposed`, see [Using the notes in a site](../library.md)); by default it shows all of them. An entry is exposed if it is one of these directories or inside one, at its path as it is in the notes (`/notes/files/a.md` is `notes/files/a.md`). On top of the permissions:
+
+- **What isn't exposed is no part of the site.** A path that isn't exposed is hidden from everyone, admins too: every request for it, of every kind and in every state of the history, answers like a missing path. Nothing that is exposed leads out of it: listings, walks, downloads, copies and moves stay inside, and the breadcrumb starts at the exposed directory.
+- **The directories above still count.** Whether an exposed entry is known is decided as for any entry: the user must be allowed to read every directory above it up to the root, also those that aren't exposed. Exposing a directory never gives anyone more than the permissions do.
+- **An exposed directory stays where it is.** Like a bridge, it, or a directory that holds one, can't be deleted, moved or renamed (403, also for admins), checked last; only admins are told why.
+- **The exposed directories exist.** A setting that names a directory that isn't there, or whose path isn't valid or is taken by a page of the app, doesn't let the app start.
+
 ## Operations
 
-"Known" and "openable" are as defined above. "The tree" means the entry and everything inside it, at any depth. The root directory can never be renamed or deleted.
+"Known" and "openable" are as defined above. "The tree" means the entry and everything inside it, at any depth. The root directory can never be renamed or deleted, nor can an exposed directory or one that holds one.
 
 | Operation | Request | Required | Unreadable entries inside |
 |---|---|---|---|
@@ -148,14 +157,16 @@ Notes on the table:
 
 ### Pages outside the notes
 
-Every path that starts with `/_/` belongs to the app, not to the notes. `_` is a reserved name (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers, the history) and is never part of the notes. These pages are not covered by the permissions of the notes.
+The pages of the app itself are at its own address (`Config:AppPath`, `/_` by default, so `/_/Login`), not in the notes. They are not covered by the permissions of the notes. Their addresses come first: the name they take at the root of the notes (the first part of the app's address, or with an empty one each page's name: `Login`, `About`, …) is no part of the notes, like `_`. A directory of that name is hidden from everyone (answers like a missing path, as does everything inside it), and no new entry at the root gets that name (400, with the reason).
+
+`_` is a reserved name in any case (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers, the history) and is never part of the notes. So is `_content`, where the scripts and styles of the app are served.
 
 | Page | Request | Required |
 |---|---|---|
 | Log in, log out | `GET /_/Login`, `POST /_/Logout` | Nothing |
 | About | `GET /_/About` | Nothing |
 | Error page | shown for an error status | Nothing. It names only the requested path, a request id and the time. |
-| Background jobs (Hangfire dashboard) | `/_/Hangfire` | Admin (`NotesAccess.AdminPolicyName`, otherwise 404) |
+| Background jobs (Hangfire dashboard) | `/_/Hangfire`, where the site has it | Admin (`AppAccess.AdminPolicyName`, otherwise 404) |
 | Shut the site down ([kill switch](../administration/kill-switch.md)) | `POST /_/Shutdown` | Admin (otherwise 404) and the antiforgery token. Afterwards every request, by anyone, gets the same page that only says the site is shut down (503). |
 
 ### The history
@@ -179,7 +190,7 @@ What the history does never decides whether an operation is allowed, and never f
    - `Walk` for everything inside a directory;
    - `Inspect` for what a page shows about a tree.
 
-   Within the notes, only `EntryAccess` looks at roles and groups (for admin-only features, ask `CanManageConfiguration`). Pages outside the notes that are for admins use the admin policy (`NotesAccess.AdminPolicyName`).
+   Within the notes, only `EntryAccess` looks at roles and groups (for admin-only features, ask `CanManageConfiguration`). Pages outside the notes that are for admins use the admin policy (`AppAccess.AdminPolicyName`).
 2. **Pick the permissions from the definitions above.** Seeing contents needs `Read`, changing contents needs `Write`, bringing something into existence at a path needs `Create`, and taking it away needs `Delete`. Doing any of this inside a directory needs `Read` on that directory. If none of them fits, extend `EntryAccessInfo` and this document. Don't stretch an existing permission.
 3. **Answer hidden like missing.** Return the same 404 and the same message. Return 403 only for known entries.
 4. **Never look into an unreadable directory.** An operation on a tree either leaves unreadable entries out (only when it merely reads, like copy or download) or fails because of them (anything that would change, move or remove them). Never act on what is inside an unreadable directory, never show anything about it, and never follow links.
@@ -193,18 +204,19 @@ What the history does never decides whether an operation is allowed, and never f
 
 | What | Where |
 |---|---|
-| Permission levels, `IEntryAccess`, resolving the configuration for a user | `notes/Features/Auth/EntryAccess.cs` |
-| Known and openable entries, walking trees, page hints | `notes/Features/Auth/AccessTree.cs` |
-| Admin policy, claim names | `notes/Features/Auth/NotesAccess.cs` |
-| Principals and `perms` blocks | `notes/Features/Permissions/PermissionModel.cs` |
-| The configuration: model, parser (schema), text editing, store, migrations, `?config` handler | `notes/Features/Configuration/*` |
-| The history | `notes/Features/History/*` (keeping it), `notes/Features/HistoryViewing/*` (its earlier states, see the [history specification](history-specification.md#where-it-is-implemented)) |
-| The configuration page | `notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
-| Keeping groups and roles current, notice after a forced logout | `notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
-| Resolving every request to a known entry, and the access each action needs | `notes/Pages/Index.cshtml.cs`, `notes/Features/EntryActions/IEntryAction.cs` |
-| Where the notes are on disk (the root and the bridges), going from an entry to its directory and to what is in a directory | `notes/Features/Bridges/NotesLocations.cs`, through `notes/Features/Helpers/PathService.cs` for virtual paths |
-| Listing (unreadable entries) | `notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_UnopenableEntry.cshtml` |
-| Copy, move, delete, rename checks | `notes/Features/Components/Transfer/TransferPlanner.cs` |
-| Structure lock | `notes/Features/Helpers/StructureLock.cs` |
-| Create, upload, save, download, the bytes and thumbnails of media | their handlers in `notes/Features/Components/*`, `notes/Features/Editor` and `notes/Features/Media` |
-| Shutting the site down | `notes/Features/KillSwitch/KillSwitchService.cs`, `notes/Pages/App/Shutdown.cshtml.cs` |
+| Permission levels, `IEntryAccess`, resolving the configuration for a user | `src/Notes/Features/Auth/EntryAccess.cs` |
+| Known and openable entries, walking trees, page hints | `src/Notes/Features/Auth/AccessTree.cs` |
+| Admin policy, claim names | `src/Notes/Features/Auth/AppAccess.cs` |
+| Principals and `perms` blocks | `src/Notes/Features/Permissions/PermissionModel.cs` |
+| The configuration: model, parser (schema), text editing, store, migrations, `?config` handler | `src/Notes/Features/Configuration/*` |
+| The history | `src/Notes/Features/History/*` (keeping it), `src/Notes/Features/HistoryViewing/*` (its earlier states, see the [history specification](history-specification.md#where-it-is-implemented)) |
+| The configuration page | `src/Notes/Pages/ConfigEditor/ConfigEditorView.cshtml(.cs)` |
+| Keeping groups and roles current, notice after a forced logout | `src/Notes/Features/Auth/SessionRefresh.cs`, `SessionNotice.cs` |
+| Resolving every request to a known entry, and the access each action needs | `src/Notes/Pages/Index.cshtml.cs`, `src/Notes/Features/EntryActions/IEntryAction.cs` |
+| What the site shows, and the addresses and names of the app's own pages | `src/Notes/Features/Addresses` (`ExposedFolders`, `AppAddresses`), applied by `AccessTree` and `EarlierStatePermissions` |
+| Where the notes are on disk (the root and the bridges), going from an entry to its directory and to what is in a directory | `src/Notes/Features/Bridges/EntryLocations.cs`, through `src/Notes/Features/Helpers/PathService.cs` for virtual paths |
+| Listing (unreadable entries) | `src/Notes/Pages/Browse/DirectoryView.cshtml(.cs)`, `_UnopenableEntry.cshtml` |
+| Copy, move, delete, rename checks | `src/Notes/Features/Components/Transfer/TransferPlanner.cs` |
+| Structure lock | `src/Notes/Features/Helpers/StructureLock.cs` |
+| Create, upload, save, download, the bytes and thumbnails of media | their handlers in `src/Notes/Features/Components/*`, `src/Notes/Features/Editor` and `src/Notes/Features/Media` |
+| Shutting the site down | `src/Notes/Features/KillSwitch/KillSwitchService.cs`, `src/Notes/Pages/App/Shutdown.cshtml.cs` |

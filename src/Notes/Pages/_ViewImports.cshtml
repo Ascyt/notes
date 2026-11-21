@@ -1,0 +1,8 @@
+﻿@using Notes
+@using Notes.Features.Helpers
+@namespace Notes.Pages
+@* The pages say their layout themselves, from the setup (there is no _ViewStart: a site's own of the same path would take its place) *@
+@inject Notes.NotesSetup NotesSetup
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@* The styles and scripts of the components (component-styles, component-asset) *@
+@addTagHelper *, Notes

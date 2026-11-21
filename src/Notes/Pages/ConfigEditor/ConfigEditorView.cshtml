@@ -1,0 +1,66 @@
+@using Notes.Features.Components.Breadcrumb
+@using Notes.Features.Components.Toolbar
+@model Notes.Pages.ConfigEditor.ConfigEditorView
+@inject Notes.Features.Components.Toolbar.ToolbarButtons Buttons
+@inject Notes.Features.Components.Breadcrumb.BreadcrumbStarts BreadcrumbStarts
+@inject ConfigEditorTexts Texts
+@inject Notes.Features.Editor.EditorTexts EditorTexts
+@inject Notes.Features.Components.Toolbar.ToolbarTexts ToolbarTexts
+
+@* The configuration of a directory or file (?config), edited as the JSON they are saved as. It is an editor like the one of a file, with
+   Save, and a Reset that puts the default into it. What is wrong with the text is told by the server when saving, and by the schema
+   while typing. *@
+
+@{
+    List<ToolbarButton> toolbarButtons =
+    [
+        Buttons.Save(),
+        Buttons.ResetConfig(),
+        Buttons.ZoomOut(),
+        Buttons.ZoomIn(),
+        Buttons.BackToEntry(Model.IsFile, VirtualPaths.ToAddress(Model.VirtualPath))
+    ];
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb
+{
+    Start = BreadcrumbStarts.Of(Model.VirtualPath),
+    IsFile = Model.IsFile,
+    VirtualPath = Model.VirtualPath,
+    RenameDisabledReason = Texts.RenameDisabled
+}"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+
+<p class="small text-secondary mb-2">
+    @* Only what the configuration is: what each setting means is in the comments of the default (Reset) and in the schema's tooltips *@
+    <i class="fa-solid fa-gear"></i> @Texts.ConfigurationOf(Model.IsFile)
+    @if (Model.IsFile)
+    {
+        <text>@Texts.OfAFile</text>
+    }
+    else
+    {
+        <text>@Texts.OfADirectory</text>
+    }
+    @Texts.AdminsMayDoEverything
+</p>
+
+@if (Model.Warning is not null)
+{
+    <div id="config-warning" class="alert alert-warning small" role="alert">@Model.Warning</div>
+}
+<div id="config-errors" class="alert alert-danger small d-none" role="alert"></div>
+
+@Html.AntiForgeryToken()
+<div id="config-editor-page">
+    <div id="editor" key="Enter"></div>
+</div>
+<p id="config-physical-path" class="small text-secondary mt-2 mb-0 text-break"><i
+    class="fa-solid fa-hard-drive"></i> @Texts.OnDisk <code>@Model.PhysicalPath</code></p>
+
+<script-texts id="editor-texts" texts="@(new object[] { ToolbarTexts, EditorTexts })"/>
+<script component-asset="@Notes.Features.Editor.EditorAssets.Editor"></script>
+<script type="application/json"
+    id="config-editor-options">@Json.Serialize(Model.EditorOptions(Url.Content("~/_content/Notes/lib/monaco-editor/min/vs")))</script>
+<script-texts id="config-editor-texts" texts="@Texts"/>
+<script component-asset="@ConfigEditorView.Script"></script>

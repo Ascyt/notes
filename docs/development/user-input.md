@@ -24,7 +24,7 @@ The path of an address names an entry of the notes, one name per segment. `PathS
 - Each name has to be one that could be looked up at all (`PathService.IsValid`): not empty, no space at the start or end, no dot at the end (Windows drops it, so `x.` would be another spelling of `x`), not `.`, `..`, `_` (the app's data) or `.config.json` in any case, and none of the characters the system can't have in a name, nor `\`.
 - Links (symbolic links, junctions) are never followed: they could point out of the notes.
 - Names are compared **ignoring case** everywhere: in paths (the exact spelling wins where a file system has several), in the entries of a configuration, and in name collisions (see [Concurrency](#concurrency)).
-- `/_/…` belongs to the app, not to the notes.
+- The addresses of the app (`/_/…` by default, see `Config:AppPath`) belong to the app, not to the notes, and so does the name they take at the root (`AppAddresses`). A path the site doesn't show (`Config:Exposed`, `ExposedFolders`) answers 404 before anything else looks at it.
 
 How long a path may be in the address is limited by the server itself (see [Limits](#limits)). Names that are already there and break the stricter rules for new names (made outside the app) can still be opened, renamed and deleted.
 
@@ -36,6 +36,7 @@ A name that a user gives (an upload, a rename) has to keep more rules (`NewNames
 - none of `< > : " | ? *` (which Windows doesn't allow), on every system;
 - no control characters (line breaks, tabs, …) and no invisible formatting characters, such as the marks that turn the direction of the text around (with U+202E in it, `photo<U+202E>gpj.exe` is shown as `photoexe.jpg`), zero-width spaces, line and paragraph separators. The zero-width joiner is allowed, as emoji are made of it;
 - not a name Windows keeps for devices (`CON`, `PRN`, `AUX`, `NUL`, `COM0`–`COM9`, `LPT0`–`LPT9`), also not with an extension (`nul.txt`);
+- at the root of the notes, not a name an address of the app takes (`AppAddresses.NewEntryRefusal`: `_content`, and the first name of `Config:AppPath`, or with an empty one the names of its pages, such as `Login`); this is checked with the path the entry gets, also for what is copied or moved there;
 - the rules of every name above.
 
 The name is stored in Unicode's composed form (NFC), so that `é` typed on a Mac (where it may arrive as `e` and an accent) is the same name as on any other system.
@@ -148,11 +149,11 @@ Requests run at the same time, and a check is only worth something if what it ch
 
 | What | Where |
 |---|---|
-| Paths, names that can be looked up | `notes/Features/Helpers/PathService.cs` |
-| Names of new entries | `notes/Features/Helpers/NewNames.cs` |
-| Links to entries | `notes/Features/Helpers/VirtualPaths.cs` |
-| The limits | `notes/Features/Helpers/LimitsConfig.cs` |
-| The query, repeated parameters, one action per request | `notes/Pages/Index.cshtml.cs`, `notes/Features/EntryActions/EntryActions.cs` |
-| Headers of every answer | `notes/Extensions/SecurityHeaders.cs` |
-| Names in any case | `NotesLocations.IsFree` (`notes/Features/Bridges/NotesLocations.cs`) |
-| The tests | `tests/notes.Tests.Integration/NewNameTests.cs`, `UserInputTests.cs`, `LimitsTests.cs`, `PathTraversalTests.cs`, `RequestProtectionTests.cs` |
+| Paths, names that can be looked up | `src/Notes/Features/Helpers/PathService.cs` |
+| Names of new entries | `src/Notes/Features/Helpers/NewNames.cs` |
+| Links to entries | `src/Notes/Features/Helpers/VirtualPaths.cs` |
+| The limits | `src/Notes/Features/Helpers/LimitsConfig.cs` |
+| The query, repeated parameters, one action per request | `src/Notes/Pages/Index.cshtml.cs`, `src/Notes/Features/EntryActions/EntryActions.cs` |
+| Headers of every answer | `src/Notes/Extensions/SecurityHeaders.cs` |
+| Names in any case | `EntryLocations.IsFree` (`src/Notes/Features/Bridges/EntryLocations.cs`) |
+| The tests | `tests/Notes.Tests.Integration/NewNameTests.cs`, `UserInputTests.cs`, `LimitsTests.cs`, `PathTraversalTests.cs`, `RequestProtectionTests.cs` |

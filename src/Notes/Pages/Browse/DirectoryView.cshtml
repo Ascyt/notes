@@ -1,0 +1,97 @@
+@using Notes.Features.Components.Breadcrumb
+@using Notes.Features.Components.Selection
+@using Notes.Features.Components.Toolbar
+@using Notes.Features.Components.Upload
+@using Notes.Features.HistoryViewing.Commits
+@using Notes.Features.HistoryViewing.Views
+@using Notes.Pages.Browse.EntryTable
+@using Notes.Pages.Browse.MediaGrid
+@model Notes.Pages.Browse.DirectoryView
+@inject ToolbarButtons Buttons
+@inject BreadcrumbStarts BreadcrumbStarts
+@inject ListingTexts Texts
+
+@* The page of a directory: its breadcrumb and toolbar, then what is in it, in three groups (directories, files, media), and what is
+   done with them (upload, the selection). *@
+
+@{
+    // Whoever can't change anything isn't offered the buttons that do (create, upload), instead of seeing them disabled.
+    // The configuration leftmost (only there for those who manage it), then the history (its changes, then the choice of a time), then
+    // what moves files in and out.
+    List<ToolbarButton> toolbarButtons = [];
+    if (Model.CanConfigure)
+        toolbarButtons.Add(Buttons.Config(isFile: false));
+    if (Model.HistoryButton.IsShown)
+    {
+        toolbarButtons.Add(Buttons.Commits(Model.HistoryButton.DisabledReason));
+        if (Model.CommitChangesButton is { } commitChanges)
+            toolbarButtons.Add(commitChanges);
+        toolbarButtons.Add(Buttons.History(Model.HistoryButton.DisabledReason));
+    }
+    // The changes of a commit are no state of the directory that could be downloaded
+    if (!Model.ShowsChanges)
+        toolbarButtons.Add(Buttons.Download(isFile: false));
+    if (!Model.IsReadOnly)
+        toolbarButtons.Add(Buttons.Upload(Model.CreateDeniedReason));
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb
+{
+    Start = BreadcrumbStarts.Of(Model.VirtualPath),
+    IsFile = false,
+    VirtualPath = Model.VirtualPath,
+    RenameDisabledReason = Model.RenameDeniedReason,
+    ParentsWithoutHistory = Model.ParentsWithoutHistory
+}"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+@if (Model.HistoryButton.CanBeUsed)
+{
+    <partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "directory" }'/>
+    <partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "directory" }'/>
+}
+
+<div>
+    @if (!Model.ShowsDirectories && !Model.ShowsFiles && Model.Media.Length == 0)
+    {
+        <p id="empty-directory" class="small text-secondary fst-italic mb-0">@Texts.Empty</p>
+    }
+    @* An empty group is only its button that adds to it; with nothing to add either, it is left out *@
+    @if (Model.ShowsDirectories)
+    {
+        <partial name="/Pages/Browse/EntryTable/_EntryGroup.cshtml" model="new _EntryGroup
+        {
+            Kind = EntryGroupKind.Directories,
+            Listing = Model,
+            IsLast = !Model.ShowsFiles && Model.Media.Length == 0
+        }"/>
+    }
+    @if (Model.ShowsFiles)
+    {
+        <partial name="/Pages/Browse/EntryTable/_EntryGroup.cshtml" model="new _EntryGroup
+        {
+            Kind = EntryGroupKind.Files,
+            Listing = Model,
+            IsLast = Model.Media.Length == 0
+        }"/>
+    }
+    @if (Model.Media.Length > 0)
+    {
+        <partial name="/Pages/Browse/MediaGrid/_MediaGroup.cshtml" model="new _MediaGroup { Listing = Model }"/>
+    }
+</div>
+
+@if (!Model.IsReadOnly)
+{
+    <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload { DisabledReason = Model.CreateDeniedReason }"/>
+}
+
+@* Selecting is for copying, moving and deleting, which need an account: without one there is nothing to select for *@
+@if (Model.CanSelect)
+{
+    <partial name="/Features/Components/Selection/_SelectionBar.cshtml" model="new _SelectionBar
+    {
+        DirectoryPath = Model.CanonicalVirtualPath,
+        Selection = Model.Selection,
+        CreateDeniedReason = Model.CreateDeniedReason
+    }"/>
+}

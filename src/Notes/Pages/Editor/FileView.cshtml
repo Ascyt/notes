@@ -1,0 +1,170 @@
+@using Notes.Features.Components.Breadcrumb
+@using Notes.Features.Components.Toolbar
+@using Notes.Features.HistoryViewing.Commits
+@using Notes.Features.HistoryViewing.Views
+@using Notes.Features.Media
+@using Notes.Pages.Editor
+@model Notes.Pages.Editor.FileView
+@inject Notes.Features.Components.Toolbar.ToolbarButtons Buttons
+@inject Notes.Features.Components.Breadcrumb.BreadcrumbStarts BreadcrumbStarts
+@inject Notes.Features.Editor.EditorTexts Texts
+@inject Notes.Features.HistoryViewing.HistoryTexts HistoryTexts
+@inject Notes.Features.Markdown.Preview.MarkdownTexts MarkdownTexts
+@inject Notes.Features.Components.Toolbar.ToolbarTexts ToolbarTexts
+@using Notes.Features.Editor
+@using Notes.Features.Markdown.Preview
+
+@{
+    // Whoever can't change anything about the file isn't offered the buttons that do (save), instead of seeing them disabled.
+    // Instead of edit they get the way to the source, which the editor shows read-only.
+    string readOnlyReason = Model.ShowsEarlierState ? HistoryTexts.CantBeChanged : Texts.CantChange;
+    List<ToolbarButton> toolbarButtons = [];
+    bool isEditing = !Model.IsBinary && !Model.ShowsPreview;
+    // First, for an image or video: the way through the media of the directory, as the grid has them
+    if (Model.MediaNeighbours is { } neighbours)
+    {
+        toolbarButtons.Add(Buttons.PreviousMedia(neighbours.Previous));
+        toolbarButtons.Add(Buttons.NextMedia(neighbours.Next));
+    }
+    // What is shown large enough to look at (audio is only its player)
+    if (Model.IsBinary && Model.Media is MediaKind.Image or MediaKind.Video or MediaKind.Pdf)
+        toolbarButtons.Add(Buttons.Fullscreen());
+    // Save is for what can be edited. Next to it the way between the two views of a markdown file: the other view is what the button leads to.
+    if (isEditing && !Model.IsReadOnly)
+        toolbarButtons.Add(Buttons.Save(Model.CanWrite ? null : readOnlyReason));
+    if (Model.IsMarkdown)
+    {
+        if (isEditing)
+            toolbarButtons.Add(Buttons.Preview());
+        else
+            toolbarButtons.Add(Model.CanWrite ? Buttons.Edit() : Buttons.ViewSource());
+    }
+    if (isEditing)
+    {
+        toolbarButtons.Add(Buttons.SimpleView());
+        // Only in the simple view, which has no Tab key on a phone (file-editor.js shows them), and only where there is something to change
+        if (Model.CanWrite)
+        {
+            toolbarButtons.Add(Buttons.Indent());
+            toolbarButtons.Add(Buttons.Outdent());
+        }
+        toolbarButtons.Add(Buttons.ZoomOut());
+        toolbarButtons.Add(Buttons.ZoomIn());
+    }
+    // The configuration (only there for those who manage it), then the history (its changes, then the choice of a time), left of the other views
+    // and the download
+    if (Model.CanConfigure)
+        toolbarButtons.Add(Buttons.Config(isFile: true));
+    if (Model.HistoryButton.IsShown)
+    {
+        toolbarButtons.Add(Buttons.Commits(Model.HistoryButton.DisabledReason));
+        if (Model.CommitChangesButton is { } commitChanges)
+            toolbarButtons.Add(commitChanges);
+        toolbarButtons.Add(Buttons.History(Model.HistoryButton.DisabledReason));
+    }
+    // Only what the browser can show has raw bytes to look at (see RawHandler)
+    if (Model.IsBinary && Model.Media != MediaKind.None)
+        toolbarButtons.Add(Buttons.Raw());
+    if (Model.ShowsPreview)
+        toolbarButtons.Add(Buttons.SaveAsPdf());
+    toolbarButtons.Add(Buttons.Download(isFile: true));
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb
+{
+    Start = BreadcrumbStarts.Of(Model.VirtualPath),
+    IsFile = true,
+    VirtualPath = Model.VirtualPath,
+    RenameDisabledReason = Model.RenameDeniedReason,
+    ParentsWithoutHistory = Model.ParentsWithoutHistory
+}"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+@if (Model.HistoryButton.CanBeUsed)
+{
+    <partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "file" }'/>
+    <partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "file" }'/>
+}
+
+@if (Model.IsBinary)
+{
+    <partial name="/Pages/Editor/BinaryView.cshtml" model="Model"/>
+    return;
+}
+
+@if (Model.ShowsPreview)
+{
+    @* What the markdown looks like. The HTML is made by MarkdownRenderer, which leaves nothing in it that could run a script. *@
+    <component-style path="@MarkdownAssets.Styles"/>
+    @* Unlike the rest of the page, the text is kept to Bootstrap's container widths: long lines over the whole screen are hard to read.
+       No padding of its own, as the page's container already has it. *@
+    <div class="markdown-frame">
+        <div class="container px-0 position-relative">
+            <article id="markdown-preview" class="markdown-body markdown-edit-gutter">
+                @if (Model.Contents.Length == 0)
+                {
+                    <p id="empty-file" class="text-muted">@Texts.FileIsEmpty</p>
+                }
+                else
+                {
+                    @Html.Raw(Model.Preview.Html)
+                }
+            </article>
+            @* Next to the part of the text that is pointed at or tapped: opens the editor where that part is written (markdown-edit-here.js),
+               read-only for whoever can't change the file *@
+            @if (Model.CanWrite)
+            {
+                <a id="edit-here-button" class="markdown-edit-here text-body" href="?edit" aria-label="@MarkdownTexts.EditHere" title="@MarkdownTexts.EditHere" hidden>
+                    <i class="fa-solid fa-pencil"></i>
+                </a>
+            }
+            else
+            {
+                <a id="view-source-here-button" class="markdown-edit-here text-body" href="?edit" aria-label="@MarkdownTexts.ViewSourceHere"
+                    title="@MarkdownTexts.ViewSourceHere" hidden>
+                    <i class="fa-regular fa-file-code"></i>
+                </a>
+            }
+        </div>
+    </div>
+    @* The scripts that render math and diagrams are large, so they are only loaded for a file that has some (and markdown.js only
+       for a file that has anything for it to do) *@
+    @if (Model.Preview.HasMath)
+    {
+        <link rel="stylesheet" href="~/_content/Notes/lib/katex/dist/katex.min.css"/>
+        <script src="~/_content/Notes/lib/katex/dist/katex.min.js"></script>
+    }
+    @if (Model.Preview.HasDiagrams)
+    {
+        <script src="~/_content/Notes/lib/mermaid/dist/mermaid.min.js"></script>
+    }
+    @if (Model.Preview.HasMath || Model.Preview.HasDiagrams || Model.Preview.HasAbbreviations)
+    {
+        <script component-asset="@MarkdownAssets.Rendering"></script>
+    }
+    <script-texts id="markdown-texts" texts="@MarkdownTexts"/>
+    <script component-asset="@MarkdownAssets.Print"></script>
+    <script component-asset="@MarkdownAssets.EditHere"></script>
+    <script component-asset="@MarkdownAssets.StartPosition"></script>
+    return;
+}
+
+@Html.AntiForgeryToken()
+<div id="editor" key="Enter"></div>
+@* The simple view: a plain text field, for phones, where Monaco is awkward to use. Only one of the two is shown. *@
+<textarea id="simple-editor" class="form-control font-monospace" spellcheck="false"
+    key="Enter" aria-label="@Texts.FileContents" hidden></textarea>
+
+@* What the script knows about the file. Serialized with < and > escaped, so the contents can't end the script element. *@
+<script type="application/json" id="file-editor-options">@(Json.Serialize(new FileEditorOptions(
+    CanWrite: Model.CanWrite,
+    Contents: Model.Contents,
+    Language: Model.Language,
+    MonacoPath: Url.Content("~/_content/Notes/lib/monaco-editor/min/vs"),
+    ReadOnlyMessage: readOnlyReason,
+    SuggestsWords: !Model.IsProse)))</script>
+<script-texts id="editor-texts" texts="@(new object[] { ToolbarTexts, Texts })"/>
+<script component-asset="@EditorAssets.Editor"></script>
+<script component-asset="@EditorAssets.StartPosition"></script>
+<script component-asset="@EditorAssets.TextAreaIndent"></script>
+<script component-asset="@EditorAssets.MarkdownLists"></script>
+<script component-asset="@FileView.Script"></script>

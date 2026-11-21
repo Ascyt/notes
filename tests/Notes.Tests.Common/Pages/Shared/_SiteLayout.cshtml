@@ -1,0 +1,20 @@
+@* The layout a site made for the notes (NotesSetup.Layout), as docs/library.md describes it: its own header and footer, and the parts of
+   the notes every layout has. *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>@ViewData["Title"]</title>
+    <partial name="/Pages/Shared/AppLayout/_Head.cshtml"/>
+</head>
+<body>
+<header id="site-header" data-site-layout>
+    <a href="/">The organization</a>
+    <ul class="navbar-nav"><partial name="/Pages/Shared/AppLayout/_MenuItems.cshtml"/></ul>
+    <partial name="/Pages/Shared/AppLayout/_AccountMenu.cshtml"/>
+</header>
+<partial name="/Pages/Shared/AppLayout/_Overlays.cshtml"/>
+<main>@RenderBody()</main>
+<partial name="/Pages/Shared/AppLayout/_Scripts.cshtml"/>
+</body>
+</html>

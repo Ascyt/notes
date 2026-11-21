@@ -1,0 +1,18 @@
+@model _MediaGroup
+@inject ListingTexts Texts
+
+@* The header is like those of the tables of the directories and files *@
+<div id="media-group" class="media-group">
+    <div class="media-group-header fw-normal small text-secondary">
+        @if (Model.Listing.CanSelect)
+        {
+            <input type="checkbox" class="form-check-input entry-select-all" data-group="media" key="!a" aria-label="@Texts.SelectAllMedia"/>
+        }@Texts.Media
+    </div>
+    <div class="media-grid">
+        @for (int i = 0; i < Model.Listing.Media.Length; i++)
+        {
+            <partial name="/Pages/Browse/MediaGrid/_MediaTile.cshtml" model="Model.Tile(Model.Listing.Media[i], i)"/>
+        }
+    </div>
+</div>

@@ -1,0 +1,19 @@
+@model _Toasts
+@inject ToastTexts Texts
+
+@* The stack of cards at the bottom of every page. Messages come in at the top of it, and go away by themselves or when clicked.
+   Anything else that wants to be a card of this stack (like the selection card) has the class "floating-card" and is moved into
+   #floating-cards: it stays at the bottom, below the messages.
+
+   From scripts:
+     notify('Saved.')                                  a message (kind: 'success' (default), 'info', 'warning' or 'danger')
+     notify('Could not save.', 'danger')
+     notifyAfterNavigation('Deleted file.')            the same, but shown by the next page that is loaded in this tab (for what is
+                                                       followed by a redirect or reload)
+   From the server: an element with data-notify="the message" (and data-notify-kind) is shown as a message when the page has loaded. *@
+
+<div id="floating-cards" class="floating-cards" aria-live="polite" data-default-duration="@Model.DefaultDurationMs"
+    data-error-duration="@Model.ErrorDurationMs"></div>
+
+<script-texts id="toast-texts" texts="@Texts"/>
+<script component-asset="@_Toasts.Script"></script>

@@ -1,0 +1,99 @@
+@using Notes.Features.Components.Breadcrumb
+@using Notes.Features.Components.Toolbar
+@using Notes.Features.HistoryViewing.Changes
+@using Notes.Features.HistoryViewing.Commits
+@using Notes.Features.HistoryViewing.Views
+@using Notes.Features.Media
+@model Notes.Features.HistoryViewing.Changes._FileChanges
+@inject Notes.Features.Components.Toolbar.ToolbarButtons Buttons
+@inject Notes.Features.Components.Breadcrumb.BreadcrumbStarts BreadcrumbStarts
+@inject HistoryTexts Texts
+@inject Notes.Features.Editor.EditorTexts EditorTexts
+@inject ToolbarTexts ToolbarTexts
+
+@{
+    // Only what reads: the history, the way back to the state of the commit, and for text the zoom of the editor
+    List<ToolbarButton> toolbarButtons = [Buttons.Commits(), Model.CommitChangesButton, Buttons.History()];
+    if (Model.ShowsText)
+    {
+        toolbarButtons.Add(Buttons.ZoomOut());
+        toolbarButtons.Add(Buttons.ZoomIn());
+    }
+    string name = System.IO.Path.GetFileName(Model.VirtualPath);
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb
+{
+    Start = BreadcrumbStarts.Of(Model.VirtualPath),
+    IsFile = true,
+    VirtualPath = Model.VirtualPath,
+    RenameDisabledReason = Texts.CantBeChanged,
+    ParentsWithoutHistory = Model.ParentsWithoutHistory
+}"/>
+<partial name="/Features/Components/Toolbar/_Toolbar.cshtml" model="new _Toolbar { Buttons = toolbarButtons }"/>
+<partial name="/Features/HistoryViewing/Views/_HistoryModal.cshtml" model='new _HistoryModal { Kind = "file" }'/>
+<partial name="/Features/HistoryViewing/Commits/_CommitSidebar.cshtml" model='Model.CommitSidebar ?? new _CommitSidebar { Kind = "file" }'/>
+
+@if (Model.ShowsText)
+{
+    @* (The diff editor shows which side is which: before the commit at the left or removed, after it at the right or added) *@
+    @if (Model.ShowsOneSide)
+    {
+        <p id="change-side-not-shown" class="text-secondary small mb-2">
+            @(Model.Before.Kind == ChangeSideKind.NotShown ? Texts.CantBeSeenBefore : Texts.CantBeSeenAfter)
+        </p>
+    }
+    <div id="changes-editor" key="Enter" data-shows-both="@(Model.ShowsOneSide ? "false" : "true")"></div>
+
+    @* What the script knows about the file. Serialized with < and > escaped, so the contents can't end the script element. *@
+    <script type="application/json"
+        id="file-changes-options">@(Json.Serialize(Model.EditorOptions(Url.Content("~/_content/Notes/lib/monaco-editor/min/vs"), Texts.CantBeChanged)))</script>
+    <script-texts id="editor-texts" texts="@(new object[] { ToolbarTexts, EditorTexts })"/>
+    <script component-asset="@Notes.Features.Editor.EditorAssets.Editor"></script>
+    <script component-asset="@_FileChanges.Script"></script>
+    return;
+}
+
+@* Binary: the two sides next to each other (under each other on a phone), each as the file's page shows it, from its own raw bytes *@
+<div class="row g-3">
+    @foreach ((string side, string title, FileChangeSide shownSide) in new[] { ("before", Texts.BeforeCommit, Model.Before), ("after", Texts.AfterCommit,
+        Model.After) })
+    {
+        <section class="col-12 col-md-6" id="change-@side" data-side-kind="@shownSide.KindName">
+            <h2 class="h6 text-secondary">@title</h2>
+            @switch (shownSide)
+            {
+                case { Kind: ChangeSideKind.NotThere }:
+                    <p class="text-muted fst-italic">@Texts.NotThere</p>
+                    break;
+                case { Kind: ChangeSideKind.NotShown }:
+                    <p class="text-muted fst-italic">@Texts.CantBeSeen</p>
+                    break;
+                case { IsBinary: false }:
+                    <p class="text-muted">@Texts.TextOtherSideBinary</p>
+                    break;
+                case { Media: MediaKind.Image }:
+                    <img src="?@shownSide.RawBytesQuery" alt="@name" class="img-fluid change-side-media"/>
+                    break;
+                case { Media: MediaKind.Video }:
+                    <video src="?@shownSide.RawBytesQuery" controls class="w-100 change-side-media"></video>
+                    break;
+                case { Media: MediaKind.Audio }:
+                    <audio src="?@shownSide.RawBytesQuery" controls class="w-100"></audio>
+                    break;
+                case { Media: MediaKind.Pdf }:
+                    <object data="?@shownSide.RawBytesQuery" type="application/pdf" class="w-100 change-side-pdf">
+                        <p class="text-muted">@Texts.BinaryCantBeShown</p>
+                    </object>
+                    break;
+                default:
+                    <p class="text-muted">@Texts.BinaryCantBeShown</p>
+                    break;
+            }
+            @if (shownSide.IsShown)
+            {
+                <p class="small text-secondary mb-0">@shownSide.FormattedSize</p>
+            }
+        </section>
+    }
+</div>

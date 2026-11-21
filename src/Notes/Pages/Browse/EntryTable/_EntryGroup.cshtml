@@ -1,0 +1,59 @@
+@using Notes.Features.Components.Create
+@using Notes.Features.HistoryViewing.Changes
+@model _EntryGroup
+@inject ListingTexts Texts
+
+@* The parts of a cell follow each other without space between them (the box, the number, the icon), so their tags break between
+   attributes rather than between tags *@
+<table id="@(Model.Group)-group" class="table entry-table @(Model.IsLast ? "mb-0" : "")">
+    @if (Model.Entries.Length > 0)
+    {
+        <thead>
+        <tr>
+            <th class="fw-normal small text-secondary">
+                @if (Model.Listing.CanSelect)
+                {
+                    <input type="checkbox" class="form-check-input entry-select-all" data-group="@Model.Group" key="@Model.SelectAllKey"
+                        aria-label="@(Model.IsDirectories ? Texts.SelectAllDirectories : Texts.SelectAllFiles)"/>
+                }@(Model.IsDirectories ? Texts.Directories : Texts.Files)
+            </th>
+        </tr>
+        </thead>
+    }
+    <tbody>
+    @for (int i = 0; i < Model.Entries.Length; i++)
+    {
+        ListedEntry entry = Model.Entries[i];
+        if (!entry.CanOpen)
+        {
+            <partial name="/Pages/Browse/EntryTable/_UnopenableEntry.cshtml" model="Model.UnopenableRow(entry, i)"/>
+            continue;
+        }
+        string virtualPath = Model.Listing.ToVirtualPath(entry.Path);
+        string name = Model.Listing.NameOf(entry.Path);
+        bool isSelected = Model.Listing.IsSelected(virtualPath);
+        @* The row can be selected by clicking anywhere on it but the link; Ctrl plus the shortcut of its link selects it as well *@
+        <tr class="entry-row @(isSelected ? "table-active" : "")" data-group="@Model.Group" data-path="@virtualPath">
+            <td>@if (Model.Listing.CanSelect)
+                {<input type="checkbox" class="form-check-input entry-select" key="@Model.SelectKey(i)" aria-label="@Texts.Select(name)"
+                    checked="@isSelected"/>}<span class="entry-index">@Model.Number(i)</span><i class="@Model.Icon"></i>
+                <a class="@_EntryGroup.LinkDecoration(entry)" href="@VirtualPaths.ToAddress(virtualPath)" key="@Model.OpenKey(i)"
+                    key-anchor="i">@name</a>@if (entry.Mark is { } mark)
+                {<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
+        </tr>
+    }
+    @if (!Model.Listing.IsReadOnly)
+    {
+        <tr>
+            <td>
+                <partial name="/Features/Components/Create/_CreateButton.cshtml" model="new _CreateButton
+                {
+                    IsFile = !Model.IsDirectories,
+                    DisabledReason = Model.Listing.CreateDeniedReason,
+                    ShowsLabel = Model.Entries.Length == 0
+                }"/>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

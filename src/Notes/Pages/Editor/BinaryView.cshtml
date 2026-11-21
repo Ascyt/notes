@@ -1,0 +1,42 @@
+@using Notes.Features.Helpers
+@using Notes.Features.Media
+@model Notes.Pages.Editor.FileView
+@inject Notes.Features.Editor.EditorTexts Texts
+@{
+    string message = Model.IsTooLarge
+        ? Texts.TooLarge(Model.FormattedSize, ByteSizes.Format(Model.MaxTextBytes))
+        : Texts.Binary(Model.FormattedSize);
+    string name = System.IO.Path.GetFileName(Model.VirtualPath);
+}
+
+@* Before the media, so that it hears of their errors from the start *@
+<script-texts id="binary-view-texts" texts="@Texts"/>
+<script component-asset="@Notes.Pages.Editor.FileView.BinaryScript"></script>
+
+@* "?raw" is the file's own address with the raw bytes (of the state that is shown); the browser does the showing *@
+<div>
+    @switch (Model.Media)
+    {
+        case MediaKind.Image:
+            <img id="media-view" src="?@Model.RawBytesQuery" alt="@name" class="img-fluid media-view" data-unviewable-on-error/>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Video:
+            <video id="media-view" src="?@Model.RawBytesQuery" controls class="w-100 media-view" data-unviewable-on-error></video>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Audio:
+            <audio src="?@Model.RawBytesQuery" controls class="w-100" data-unviewable-on-error></audio>
+            <p id="unviewable" class="text-muted" hidden>@message</p>
+            break;
+        case MediaKind.Pdf:
+            @* Browsers without a PDF viewer show what is inside the element instead *@
+            <object id="media-view" data="?@Model.RawBytesQuery" type="application/pdf" class="w-100 media-view">
+                <p id="unviewable" class="text-muted">@message</p>
+            </object>
+            break;
+        default:
+            <p id="unviewable" class="text-muted">@message</p>
+            break;
+    }
+</div>

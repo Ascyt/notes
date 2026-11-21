@@ -1,0 +1,53 @@
+﻿@inject Config Config
+@inject LayoutTexts Texts
+@* The layout of a site that is nothing but the entries (NotesSetup.Layout). It is made of the parts every layout of the app has (_Head,
+   _Overlays, _Scripts) and the optional ones of the menu; a site's own layout takes the same parts (docs/library.md). *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>@ViewData["Title"]</title>
+    <partial name="/Pages/Shared/AppLayout/_Head.cshtml"/>
+</head>
+<body>
+@* Stays at the top of the screen, and the breadcrumb of the page below it (site.css, by its id) *@
+<header id="site-header" class="sticky-top">
+    <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body border-bottom box-shadow">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/" key="Home">@Config.Title</a>
+            @* Top right: next to the menu button when the menu is collapsed, after the menu otherwise *@
+            <partial name="/Pages/Shared/AppLayout/_ThemeToggle.cshtml"/>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu"
+                    aria-expanded="false" aria-label="@Texts.Menu" title="@Texts.Menu" key="!M">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar-menu" class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                <ul class="navbar-nav flex-grow-1">
+                    <partial name="/Pages/Shared/AppLayout/_MenuItems.cshtml"/>
+                </ul>
+                <partial name="/Pages/Shared/AppLayout/_AccountMenu.cshtml"/>
+            </div>
+        </div>
+    </nav>
+</header>
+<partial name="/Pages/Shared/AppLayout/_Overlays.cshtml"/>
+<div class="container-fluid">
+    @* The gap below the navbar is the page's, not the navbar's: as a margin of the navbar it would be a gap the page shows through while scrolling *@
+    <main role="main" class="pt-3 pb-3">
+        @RenderBody()
+    </main>
+</div>
+
+<footer class="container-fluid pb-3 small text-secondary">
+    <div key-held-text="@Texts.ShortcutsShownHint">@Texts.ShortcutsHint</div>
+    @* Rarely used: one shortcut focuses the links, and Tab goes through them *@
+    <div id="footer-links" tabindex="-1" key="!+F">
+        @Texts.LicensedUnder <a class="text-secondary" href="https://github.com/Ascyt/notes/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+        • <a class="text-secondary" href="https://github.com/Ascyt/notes" target="_blank">@Texts.SourceCode</a>
+    </div>
+</footer>
+
+<partial name="/Pages/Shared/AppLayout/_Scripts.cshtml"/>
+</body>
+</html>

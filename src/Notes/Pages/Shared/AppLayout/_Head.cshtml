@@ -1,0 +1,16 @@
+@inject Notes.Features.Addresses.AppAddresses AppAddresses
+@* What the pages of the app need in the head of every layout (docs/library.md): the styles (Bootstrap among them) and the scripts that
+   the pages and their components use while they are still loading. It needs nothing of the page. *@
+
+@* The names at the root that belong to the app rather than the entries (site.js, isAppAddress) *@
+<meta name="app-root-names" content="@string.Join(' ', AppAddresses.TakenRootNames)"/>
+<link rel="stylesheet" href="~/_content/Notes/lib/bootstrap/dist/css/bootstrap.min.css"/>
+<link rel="stylesheet" href="~/_content/Notes/lib/fontawesome/css/all.min.css"/>
+<link rel="stylesheet" component-asset="@LayoutAssets.Styles"/>
+<link rel="stylesheet" component-asset="@LayoutAssets.ShortcutStyles"/>
+@* Those of the components, after the ones above, which they build on; then what the site adds, which overrides them (ComponentAssets) *@
+<component-styles/>
+@* In the head, so that what the scripts of the page and its components use of it (setButtonDisabled and the like) is there when they run *@
+@* Also in the head, so that the theme is set before anything is painted *@
+<script component-asset="@LayoutAssets.Theme"></script>
+<script component-asset="@LayoutAssets.Script"></script>

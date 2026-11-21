@@ -1,0 +1,38 @@
+/* The row of icons under the breadcrumb (_Toolbar.cshtml) */
+
+.toolbar {
+    min-height: 1.5rem;
+}
+
+.toolbar-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0.25rem;
+    background: none;
+    font-size: 0.875rem;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.toolbar-button:hover, .toolbar-button:focus-visible {
+    background: var(--bs-secondary-bg);
+}
+
+.toolbar-button .spinner-border {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+/* Can't be used: grey, whatever it is otherwise (a blue Save is what says that there is something to save) */
+.toolbar-button.is-disabled {
+    color: var(--bs-secondary-color) !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: none;
+}

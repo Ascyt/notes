@@ -1,0 +1,14 @@
+@model Notes.Features.HistoryViewing.Changes._ChangeMark
+@inject HistoryTexts Texts
+
+@{
+    (string icon, string color) = Model.Look;
+    string label = Model.Mark switch
+    {
+        ChangeMark.Added => Texts.AddedByCommit,
+        ChangeMark.Deleted => Texts.DeletedByCommit,
+        _ => Texts.ChangedByCommit
+    };
+}
+<i class="fa-solid @icon @color small ms-1" data-change-mark="@Model.Mark.ToString().ToLowerInvariant()" title="@label" aria-label="@label"
+    role="img"></i>

@@ -1,0 +1,85 @@
+@using Notes.Features.Components.Rename
+@model _Breadcrumb
+@inject BreadcrumbTexts Texts
+
+@* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.css) *@
+@* Always one line: where the parents don't fit, _Breadcrumb.js shortens them (a dot each, then "…" for the outer ones), so that the name
+   at the end keeps its room *@
+<div class="sticky-breadcrumb breadcrumb-row">
+    @* The links of the site before the start, as if they were directories above it. They lead out of the app, so an earlier state shown
+       stays behind (data-outside-app, see earlier-state-card.js), and _Breadcrumb.js never shortens them. *@
+    @foreach (BreadcrumbParent parent in Model.VirtualParents)
+    {
+        <a class="text-decoration-none breadcrumb-virtual-parent" href="@parent.Address" data-outside-app>@parent.Name</a>
+        <span class="text-secondary opacity-50">/</span>
+    }
+    @{
+        string rootName = Model.RootDirectoryName ?? Texts.Root;
+    }
+    @if (Model.IsRoot)
+    {
+        @* Nowhere to go from here, and nothing to rename *@
+        <i class="fa-regular fa-house fa-xs"></i>
+        <span>@rootName</span>
+    }
+    else
+    {
+        string? rootKey = Model.ParentVirtualPath == Model.RootVirtualPath ? "!ArrowUp Backspace" : null;
+        @* A directory without history is shown like such an entry of a listing (see _UnopenableEntry): low-emphasis, with a crossed-out
+           calendar, and a link to it as it is now (the history card keeps the time on it, and the page says why it can't be seen as it was),
+           unless it is gone. Each kind has its own element, as Razor writes a data- attribute even when its value is null. *@
+        if (Model.ParentsWithoutHistory.TryGetValue(Model.RootVirtualPath, out ParentWithoutHistory? rootWithoutHistory))
+        {
+            <a href="@Model.RootAddress" title="@rootName. @rootWithoutHistory.Reason" key="@rootKey" data-no-history-parent=""
+                class="text-secondary text-decoration-none d-flex align-items-center">
+                <i class="fa-regular fa-house fa-xs"></i><i class="fa-solid fa-calendar-xmark fa-xs ms-1" aria-label="@rootWithoutHistory.Reason"></i>
+            </a>
+        }
+        else
+        {
+            <a href="@Model.RootAddress" title="@rootName" class="text-decoration-none d-flex align-items-center" key="@rootKey">
+                <i class="fa-regular fa-house fa-xs"></i>
+            </a>
+        }
+        <span class="text-secondary opacity-50">/</span>
+        @* Stands for the outer parents once even their dots don't fit; leads to the innermost of them *@
+        <span id="breadcrumb-collapsed" class="breadcrumb-part" hidden>
+            <a class="text-decoration-none" href="@Model.RootAddress" aria-label="@Texts.DirectoriesAbove">…</a>
+            <span class="text-secondary opacity-50">/</span>
+        </span>
+        @foreach ((string name, string virtualPath) in Model.Parents)
+        {
+            string? key = virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null;
+            string address = VirtualPaths.ToAddress(virtualPath);
+            @* The name, or in its place a dot (_Breadcrumb.js), which has the name as its tooltip *@
+            Func<object?, object> dot = @<i class="fa-solid fa-circle breadcrumb-dot" title="@name" aria-label="@name" hidden></i>;
+            <span class="breadcrumb-part breadcrumb-parent" data-name="@name" data-address="@address">
+                @if (!Model.ParentsWithoutHistory.TryGetValue(virtualPath, out ParentWithoutHistory? withoutHistory))
+                {
+                    <a class="text-decoration-none" href="@address" key="@key"><span class="breadcrumb-name">@name</span>@dot(null)</a>
+                }
+                else
+                {
+                    Func<object?, object> nameWithoutHistory =
+                        @<span class="breadcrumb-name">@name<i class="fa-solid fa-calendar-xmark fa-xs ms-1"
+                        aria-label="@withoutHistory.Reason"></i></span>;
+                    if (withoutHistory.ExistsNow)
+                    {
+                        <a class="text-secondary text-decoration-none" href="@address" key="@key" title="@withoutHistory.Reason"
+                            data-no-history-parent="@virtualPath">@nameWithoutHistory(null)@dot(null)</a>
+                    }
+                    else
+                    {
+                        <span class="text-secondary" title="@withoutHistory.Reason"
+                            data-no-history-parent="@virtualPath">@nameWithoutHistory(null)@dot(null)</span>
+                    }
+                }
+                <span class="text-secondary opacity-50">/</span>
+            </span>
+        }
+        <i class="fa-s @Model.Icon"></i>
+        <partial name="/Features/Components/Rename/_RenameInput.cshtml"
+            model="new _RenameInput { Name = Model.Name, DisabledReason = Model.RenameDisabledReason }"/>
+        <script component-asset="@_Breadcrumb.Script"></script>
+    }
+</div>

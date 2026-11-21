@@ -1,0 +1,26 @@
+/* What all parts of the listing of a directory share (DirectoryView.cshtml): the numbers of the entries and the boxes to select them */
+
+/* Position of an entry in the listing, shown left of its icon */
+.entry-index {
+    display: inline-block;
+    min-width: 2ch;
+    margin-right: 0.5rem;
+    text-align: right;
+    font-size: 0.75em;
+    opacity: 0.5;
+}
+
+/* Selection boxes, in the rows and above them */
+.entry-select:not(.media-select), .entry-select-all {
+    margin-top: 0; /* Bootstrap's own offset (for checkboxes next to a label) puts it below the text */
+    margin-right: 0.5rem;
+    vertical-align: middle;
+    position: relative;
+    top: -2px; /* what is left of "middle" being the middle of the lowercase letters, not of the line */
+    cursor: pointer;
+}
+
+/* The box of an entry that can't be opened, which only keeps the names in line */
+.entry-select:disabled, .media-select:disabled {
+    cursor: not-allowed;
+}

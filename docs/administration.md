@@ -10,3 +10,4 @@ Setting up and running a site of the app, and what admins can do in it. Admins a
 - [Bridges](administration/bridges.md): directories of the notes kept in folders of their own (another folder, another drive).
 - [Kill switch](administration/kill-switch.md): shutting the whole site down at once, and bringing it back.
 - [Limits](administration/limits.md): how large uploads, texts, paths and converted images may be.
+- [Background jobs](administration/jobs.md): what runs by itself, and when.

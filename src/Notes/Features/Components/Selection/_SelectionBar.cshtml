@@ -1,0 +1,67 @@
+@model _SelectionBar
+@inject SelectionTexts Texts
+
+@{
+    // The text around what the confirmation says is selected (filled in by the script)
+    string[] aroundWhat = Texts.WillBeDeleted.Split("{what}");
+}
+
+@* The card at the bottom of a directory listing, and the script behind all of the selecting: the checkboxes of the listing
+   (.entry-row with a .entry-select, and a .entry-select-all above each group of them: rows of the tables, tiles of the media) are plain
+   markup in DirectoryView. *@
+
+@* The card is one of the floating cards (see _Toasts): the script moves it into their stack, below the messages. *@
+
+@Html.AntiForgeryToken()
+<div id="selection-bar" class="floating-card card shadow" data-directory="@Model.DirectoryPath" data-create-denied="@Model.CreateDeniedReason" hidden>
+    <div class="card-body d-flex align-items-center flex-wrap gap-3 py-2 px-3">
+        <span id="selection-count"></span>
+        <div id="selection-actions" class="d-flex gap-2">
+            @* Either Copy and Move (selection from elsewhere) or Delete (selection in this very directory), never both. Which ones there are
+               is up to the script, which also gives them their shortcuts (data-key) only while they are there. Those that are there but
+               can't be used (permissions) are disabled with the reason, like the toolbar buttons (site.js). *@
+            <button type="button" id="selection-copy" class="btn btn-sm btn-outline-primary d-none" data-key="v" data-label="@Texts.CopyHere">
+                <i class="fa-regular fa-copy"></i> @Texts.CopyHere
+            </button>
+            <button type="button" id="selection-move" class="btn btn-sm btn-outline-primary d-none" data-key="+v" data-label="@Texts.MoveHere">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> @Texts.MoveHere
+            </button>
+            <button type="button" id="selection-delete" class="btn btn-sm btn-outline-secondary btn-danger-on-hover d-none" data-key="Delete"
+                data-label="@Texts.Delete">
+                <i class="fa-regular fa-trash-can"></i> @Texts.Delete
+            </button>
+        </div>
+        <span id="selection-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-label="@Texts.Working"></span>
+        @* While a copy, move or delete runs: how much of it is done (striped and moving, so it shows it is working even while it is at 0) *@
+        <div id="selection-progress" class="progress d-none" role="progressbar" aria-label="@Texts.Progress"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-secondary" style="width: 0%;"></div>
+        </div>
+        <button type="button" id="selection-clear" class="btn-close" aria-label="@Texts.ClearSelection" title="@Texts.ClearSelection" data-key="Escape"></button>
+    </div>
+</div>
+
+<div class="modal" id="selection-delete-modal" tabindex="-1" aria-labelledby="selection-delete-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="selection-delete-title">@Texts.ConfirmDeletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
+            </div>
+            <div class="modal-body">
+                @aroundWhat[0]<strong id="selection-delete-count"></strong><span id="selection-delete-inside"></span>@(aroundWhat.Length > 1 ? aroundWhat[1] : "")
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">@Texts.Cancel</button>
+                <button type="button" id="selection-delete-confirm" class="btn btn-danger" key="Enter">
+                    <i class="fa-regular fa-trash-can"></i> @Texts.DeleteSelected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* What the selection is when the page is made, for the script *@
+<script type="application/json" id="selection-state">@Json.Serialize(Model.Selection)</script>
+<script-texts id="selection-texts" texts="@Texts"/>
+<script component-asset="@_SelectionBar.Script"></script>

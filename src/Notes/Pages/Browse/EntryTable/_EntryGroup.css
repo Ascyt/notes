@@ -1,0 +1,6 @@
+/* The tables of the directories and files of a listing (_EntryGroup.cshtml) */
+
+/* The lines separate rows, so there is none below the last one (whether that is an entry or the + button) */
+.entry-table > tbody > tr:last-child > td {
+    border-bottom-width: 0;
+}

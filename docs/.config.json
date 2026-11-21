@@ -18,6 +18,7 @@
     "files": [
         { "name": "administration.md", "perms": { "inherit": true } },
         { "name": "development.md", "perms": { "inherit": true } },
+        { "name": "library.md", "perms": { "inherit": true } },
         { "name": "usage.md", "perms": { "inherit": true } }
     ]
 }

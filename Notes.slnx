@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Notes.Host/Notes.Host.csproj" />
+    <Project Path="src/Notes/Notes.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Notes.Tests.Common/Notes.Tests.Common.csproj" />
+    <Project Path="tests/Notes.Tests.Integration/Notes.Tests.Integration.csproj" />
+    <Project Path="tests/Notes.Tests.Ui/Notes.Tests.Ui.csproj" />
+    <Project Path="tests/Notes.Tests.Unit/Notes.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

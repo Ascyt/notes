@@ -1,0 +1,26 @@
+@model _RenameInput
+@inject RenameTexts Texts
+
+@* The buttons are shown by _RenameInput.js once the name differs from the one the entry has *@
+<div id="rename" class="input-group input-group-sm">
+    @Html.AntiForgeryToken()
+    @if (Model.DisabledReason is not null)
+    {
+        <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="@Texts.Name" readonly
+            title="@Texts.Rename: @Model.DisabledReason" data-disabled-reason="@Model.DisabledReason"/>
+    }
+    else
+    {
+        <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="@Texts.Name" autocomplete="off"
+            spellcheck="false" key="F2"/>
+    }
+    <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="@Texts.Reset" key="Escape">
+        <i class="fa-solid fa-xmark"></i>
+    </button>
+    <button id="rename-confirm" type="button" class="btn btn-success" style="display: none;" title="@Texts.Rename" key="Enter">
+        <i class="fa-solid fa-check"></i>
+    </button>
+</div>
+
+<script-texts id="rename-texts" texts="@Texts"/>
+<script component-asset="@_RenameInput.Script"></script>

@@ -1,0 +1,15 @@
+@using Notes.Features.Auth
+@inject NotesSetup Setup
+@inject Notes.Features.Addresses.AppAddresses AppAddresses
+@inject LayoutTexts Texts
+@* The pages of the app as items of a Bootstrap menu (in a <ul class="navbar-nav">), for a layout that wants them (docs/library.md): About,
+   and for admins Hangfire's dashboard where the site has it. It needs nothing of the page. *@
+<li class="nav-item">
+    <a class="nav-link text-body" asp-area="" asp-page="/App/About" key="F1">@Texts.About</a>
+</li>
+@if (User.IsInRole(AppAccess.AdminRole) && Setup.HangfireDashboard)
+{
+    <li class="nav-item">
+        <a class="nav-link text-body" href="@AppAddresses.Of("Hangfire")" key="^+H">@Texts.Hangfire</a>
+    </li>
+}

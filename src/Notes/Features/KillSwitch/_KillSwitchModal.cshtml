@@ -1,0 +1,23 @@
+@model Notes.Features.KillSwitch._KillSwitchModal
+@inject KillSwitchTexts Texts
+
+@* The confirmation behind the kill switch of the navigation bar (admins only) *@
+
+<div class="modal" id="kill-switch-modal" tabindex="-1" aria-labelledby="kill-switch-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" asp-page="/App/Shutdown">
+            <div class="modal-header">
+                <h5 class="modal-title" id="kill-switch-modal-title">@Texts.Title</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>@Texts.WhatItDoes</p>
+                <p class="mb-0">@Texts.HowItComesBack</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">@Texts.Cancel</button>
+                <button type="submit" class="btn btn-danger" key="Enter"><i class="fa-solid fa-power-off"></i> @Texts.ShutDown</button>
+            </div>
+        </form>
+    </div>
+</div>

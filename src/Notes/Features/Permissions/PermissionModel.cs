@@ -1,0 +1,170 @@
+using System.Runtime.CompilerServices;
+using System.Security.Claims;
+using Notes.Features.Auth;
+using Notes.Features.Configuration;
+
+namespace Notes.Features.Permissions;
+
+// What the permissions mean, and how they are resolved, is specified in docs/administration/permissions.md. Keep the two in step.
+
+/// <summary>
+/// Who a permission is for. Written in the configuration as <c>u:name</c> (a user), <c>g:name</c> (a Keycloak group) or <c>r:name</c> (a
+/// realm role); this is the one place that knows how those are spelled and how they are compared.
+/// </summary>
+public static class Principal
+{
+    public const int MaxLength = 256;
+
+    /// <summary>
+    /// Written <c>a</c>: all users, logged in or not. So a user who is logged in never gets less than one who is not. It can't be given
+    /// anything that changes the entries, as those who are not logged in may not change anything, see <see cref="ConfigParser"/>.
+    /// </summary>
+    public const string Everyone = "a";
+
+    /// <summary>Written <c>l</c>: all users who are logged in, so that a group that has everyone in it needn't be made in Keycloak.</summary>
+    public const string LoggedIn = "l";
+
+    /// <summary>
+    /// The canonical spelling of a principal as written in the configuration: user names are not case sensitive (Keycloak makes them
+    /// lower case), group and role names are. Returns null (with the reason) if it isn't a principal.
+    /// </summary>
+    /// <param name="texts">How the reason is worded: the site's, where it is shown; the app's own without.</param>
+    public static string? Normalize(string text, out string? error, ConfigTexts? texts = null)
+    {
+        texts ??= ConfigTexts.Default;
+        error = null;
+        if (text is Everyone or LoggedIn)
+            return text;
+
+        if (text.Length < 3 || text[1] != ':' || text[0] is not ('u' or 'g' or 'r'))
+        {
+            error = texts.NotAPrincipal(text);
+            return null;
+        }
+
+        string name = text[2..];
+        if (name != name.Trim() || name.Any(char.IsControl))
+        {
+            error = texts.SpacesAroundName(text);
+            return null;
+        }
+
+        if (text.Length > MaxLength)
+        {
+            error = texts.PrincipalTooLong(text[..32]);
+            return null;
+        }
+
+        return text[0] == 'u' ? "u:" + name.ToLowerInvariant() : text;
+    }
+}
+
+/// <summary>
+/// Everything that identifies a user for the permissions: their user name and id, their groups and their realm roles (all from the
+/// claims of the session, see <see cref="UserClaims"/>), each spelled as <see cref="Principal"/> does.
+/// </summary>
+public sealed class PrincipalSet
+{
+    private static readonly ConditionalWeakTable<ClaimsPrincipal, PrincipalSet> Cache = new();
+
+    private readonly HashSet<string> _values;
+
+    private PrincipalSet(HashSet<string> values)
+    {
+        _values = values;
+    }
+
+    /// <summary>Whether the user is any of those in the list.</summary>
+    public bool IsAnyOf(IReadOnlySet<string> principals)
+        => principals.Count > 0 && principals.Overlaps(_values);
+
+    public static PrincipalSet Of(ClaimsPrincipal user)
+        => Cache.GetValue(user, Build);
+
+    private static PrincipalSet Build(ClaimsPrincipal user)
+    {
+        // Someone who is not logged in is only "everyone", whatever claims they may carry. Someone who is logged in is that and "logged in" as well.
+        HashSet<string> values = new(StringComparer.Ordinal) { Principal.Everyone };
+        if (user.Identity?.IsAuthenticated != true)
+            return new PrincipalSet(values);
+
+        _ = values.Add(Principal.LoggedIn);
+
+        foreach (Claim claim in user.Claims)
+        {
+            string? prefix = claim.Type switch
+            {
+                UserClaims.UserName or UserClaims.UserId => "u:",
+                UserClaims.Groups => "g:",
+                UserClaims.Roles => "r:",
+                _ => null
+            };
+            if (prefix is not null && Principal.Normalize(prefix + claim.Value, out _) is { } principal)
+                _ = values.Add(principal);
+        }
+
+        return new PrincipalSet(values);
+    }
+}
+
+/// <summary>
+/// The permissions one configuration block gives: nine lists of principals, and whether what the block says nothing about is decided by the
+/// block above it. The lists are the spellings of <see cref="Principal.Normalize"/>.
+/// </summary>
+/// <param name="Inherit">Whether, for a principal none of the lists mention, the permissions of the folder (for a folder: the one above it)
+/// apply.</param>
+public sealed record PermsBlock(
+    bool Inherit,
+    IReadOnlySet<string> RwAllow,
+    IReadOnlySet<string> RwReadOnly,
+    IReadOnlySet<string> RwDeny,
+    IReadOnlySet<string> CdAllow,
+    IReadOnlySet<string> CdCreateOnly,
+    IReadOnlySet<string> CdDeny,
+    IReadOnlySet<string> HistoryAllow,
+    IReadOnlySet<string> HistoryExistingOnly,
+    IReadOnlySet<string> HistoryDeny)
+{
+    private static readonly IReadOnlySet<string> None = new HashSet<string>();
+
+    /// <summary>What a block without any list says: nothing, and the block above decides.</summary>
+    public static PermsBlock Inheriting { get; } = new(true, None, None, None, None, None, None, None, None, None);
+
+    /// <summary>
+    /// What the block says about seeing the history for the user, or null if it says nothing about it. Decided like <see cref="DecideRead"/>.
+    /// </summary>
+    public HistoryAccess? DecideHistory(PrincipalSet user)
+    {
+        if (user.IsAnyOf(HistoryDeny))
+            return HistoryAccess.None;
+        if (user.IsAnyOf(HistoryAllow))
+            return HistoryAccess.ExistingAndDeleted;
+        return user.IsAnyOf(HistoryExistingOnly) ? HistoryAccess.Existing : null;
+    }
+
+    /// <summary>
+    /// What the block says about reading and writing for the user, or null if it says nothing about them. A deny beats an allow, and an
+    /// allow beats read-only (for a user who is in several of the lists through different groups).
+    /// </summary>
+    public ReadAccess? DecideRead(PrincipalSet user)
+    {
+        if (user.IsAnyOf(RwDeny))
+            return ReadAccess.None;
+        if (user.IsAnyOf(RwAllow))
+            return ReadAccess.ReadAndWrite;
+        return user.IsAnyOf(RwReadOnly) ? ReadAccess.Read : null;
+    }
+
+    /// <summary>
+    /// What the block says about creating and deleting for the user, or null if it says nothing about them. Decided like
+    /// <see cref="DecideRead"/>.
+    /// </summary>
+    public CreateAccess? DecideCreate(PrincipalSet user)
+    {
+        if (user.IsAnyOf(CdDeny))
+            return CreateAccess.None;
+        if (user.IsAnyOf(CdAllow))
+            return CreateAccess.CreateAndDelete;
+        return user.IsAnyOf(CdCreateOnly) ? CreateAccess.Create : null;
+    }
+}

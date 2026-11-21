@@ -1,0 +1,13 @@
+﻿@page "/_/About"
+@model Notes.Pages.App.AboutModel
+@inject AppPageTexts Texts
+@{
+    Layout = NotesSetup.Layout;
+    ViewData["Title"] = Texts.About;
+}
+<h1>@ViewData["Title"]</h1>
+
+@foreach (string paragraph in Texts.AboutTheApp)
+{
+    <p>@paragraph</p>
+}

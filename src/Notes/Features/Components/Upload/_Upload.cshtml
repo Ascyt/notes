@@ -1,0 +1,50 @@
+@model _Upload
+@inject UploadTexts Texts
+
+@* Uploading to the current directory: the file picker, the drop target, the progress and the script behind the Upload button of the toolbar
+   (#upload-button, see ToolbarButtons.Upload) *@
+
+@Html.AntiForgeryToken()
+<input type="file" id="upload-input" multiple hidden data-chunk-size="@Model.ChunkSize" data-upload-denied="@Model.DisabledReason"/>
+
+<div id="upload-drop-overlay" class="upload-drop-overlay" hidden>
+    <div class="upload-drop-message"><i class="fa-solid fa-upload"></i> @Texts.DropFiles</div>
+</div>
+
+<div class="modal" id="upload-modal" tabindex="-1" aria-labelledby="upload-modal-title" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="upload-modal-title">@Texts.Title</h5>
+            </div>
+            <div class="modal-body">
+                <ul id="upload-list" class="list-group"></ul>
+                <div id="upload-progress" class="mt-3" hidden>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="spinner-border spinner-border-sm text-secondary" aria-hidden="true"></span>
+                        <span id="upload-status" class="small"></span>
+                    </div>
+                    <div class="progress" role="progressbar" aria-label="@Texts.Progress">
+                        <div id="upload-bar" class="progress-bar" style="width: 0"></div>
+                    </div>
+                </div>
+                <div id="upload-error" class="alert alert-danger mt-3 mb-0" hidden></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" id="upload-add-more" class="btn btn-outline-secondary" key="U">
+                    <i class="fa-solid fa-plus"></i> @Texts.AddMore
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" id="upload-cancel" class="btn btn-secondary" key="Escape">@Texts.Cancel</button>
+                    <button type="button" id="upload-confirm" class="btn btn-primary" key="Enter">
+                        <i class="fa-solid fa-upload"></i> @Texts.Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script-texts id="upload-texts" texts="@Texts"/>
+<script component-asset="@_Upload.Script"></script>

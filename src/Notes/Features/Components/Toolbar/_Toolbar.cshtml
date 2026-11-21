@@ -1,0 +1,31 @@
+@model _Toolbar
+
+@* The row of small icons under the breadcrumb. They are buttons, but look like icons (no frame, no text): the label is the tooltip.
+   The buttons are made by the page (with ToolbarButtons); the scripts of the page and of its components find them by id and use
+   setButtonDisabled / setButtonBusy (site.js) to change what they can do. *@
+
+
+<div class="toolbar d-flex align-items-center gap-1 mb-2" role="toolbar">
+    @foreach (ToolbarButton button in Model.Buttons)
+    {
+        string tone = button.Tone == ToolbarTone.Primary ? "text-primary" : "text-body";
+        bool disabled = button.DisabledReason is not null;
+        @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
+        if (button.Href is not null)
+        {
+            <a id="@button.Id" href="@button.Href" download="@(button.IsDownload ? "" : null)" class="toolbar-button @tone" key="@button.Key"
+                aria-label="@button.Label" data-label="@button.Label" data-disabled-reason="@button.DisabledReason"
+                aria-disabled="@(disabled ? "true" : "false")" hidden="@button.IsHidden">
+                <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
+            </a>
+        }
+        else
+        {
+            <button id="@button.Id" type="button" class="toolbar-button @tone" key="@button.Key" aria-label="@button.Label"
+                data-label="@button.Label" data-disabled-reason="@button.DisabledReason" aria-disabled="@(disabled ? "true" : "false")"
+                hidden="@button.IsHidden">
+                <i class="@button.Icon btn-icon"></i><span class="spinner-border btn-spinner d-none" aria-hidden="true"></span>
+            </button>
+        }
+    }
+</div>

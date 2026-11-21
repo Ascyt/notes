@@ -3,7 +3,7 @@
     image: notes
     build:
       context: .
-      dockerfile: notes/Dockerfile
+      dockerfile: src/Notes.Host/Dockerfile
     restart: unless-stopped
     depends_on:
       - keycloak

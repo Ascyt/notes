@@ -5,9 +5,9 @@ How the format of `.config.json` is changed without breaking the files of existi
 ## Adding a migration
 
 1. The format is changed in the code (`ConfigParser`, `ConfigSchema`, `ConfigText.Default`, …) and in [Configuration](../administration/configuration.md), which also lists the migrations.
-2. A class implements `IConfigMigration` (`notes/Features/Configuration/Migrations`): `Version` (what a file is at afterwards), `Description`, and `Apply(JsonObject root)`, which changes the file's root object in place. It sees the format of the version before it, and does not set `version`. It throws an `InvalidOperationException` if the file isn't what it can work with: nothing is saved then.
-3. It is added to `ConfigMigrations.All`, and `Config:Version` in `appsettings.json` is raised to its version (or higher; the app doesn't start if a migration leads past it, or if two lead to the same version). The version follows what changed: major for what old files can't be read as, minor for something new, patch for a fix.
-4. A test reads a file of the old format (`ConfigMigratorTests` shows how), and `Cfg.Version` in the tests becomes the new version.
+2. A class implements `IConfigMigration` (`src/Notes/Features/Configuration/Migrations`): `Version` (what a file is at afterwards), `Description`, and `Apply(JsonObject root)`, which changes the file's root object in place. It sees the format of the version before it, and does not set `version`. It throws an `InvalidOperationException` if the file isn't what it can work with: nothing is saved then.
+3. It is added to `ConfigMigrations.All`, and `ConfigVersions.Current` (`src/Notes/Features/Configuration/Migrations/ConfigVersions.cs`) is raised to its version (or higher; the app doesn't start if a migration leads past it, or if two lead to the same version). The version follows what changed: major for what old files can't be read as, minor for something new, patch for a fix.
+4. A test reads a file of the old format (`ConfigMigratorTests` shows how). The tests write their files with the current version (`Cfg.Version`) by themselves.
 
 For example, a migration that moves `perms` into an object `access`:
 

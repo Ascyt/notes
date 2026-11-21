@@ -1,0 +1,72 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <!-- The notes as a library: its pages, features, scripts and styles, for a site to use (see Notes.Host). Its files in wwwroot are served
+         at _content/Notes/. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <!-- The implicit usings of a web project (Microsoft.NET.Sdk.Web), which a Razor library doesn't get by itself -->
+    <ItemGroup>
+        <Using Include="System.Net.Http.Json" />
+        <Using Include="Microsoft.AspNetCore.Builder" />
+        <Using Include="Microsoft.AspNetCore.Hosting" />
+        <Using Include="Microsoft.AspNetCore.Http" />
+        <Using Include="Microsoft.AspNetCore.Routing" />
+        <Using Include="Microsoft.Extensions.Configuration" />
+        <Using Include="Microsoft.Extensions.DependencyInjection" />
+        <Using Include="Microsoft.Extensions.Hosting" />
+        <Using Include="Microsoft.Extensions.Logging" />
+    </ItemGroup>
+
+    <!-- The styles and scripts of the components, in their folders next to their views (Features/…, Pages/…), served like those of
+         wwwroot: at _content/Notes/ and their path, such as _content/Notes/Features/Components/Toolbar/_Toolbar.css. (The SDK's own
+         *.cshtml.css are scoped styles, which a site couldn't override, so these have names of their own.) -->
+    <ItemGroup>
+        <ComponentAsset Include="Features/**/*.css;Features/**/*.js;Pages/**/*.css;Pages/**/*.js"
+            Exclude="**/*.cshtml.css;**/*.cshtml.js;**/*.razor.css;**/*.razor.js" />
+        <Content Remove="@(ComponentAsset)" />
+        <None Remove="@(ComponentAsset)" />
+    </ItemGroup>
+
+    <Target Name="DefineComponentAssets" AfterTargets="ResolveProjectStaticWebAssets" Condition="'$(NoBuild)' != 'true'">
+        <DefineStaticWebAssets
+            CandidateAssets="@(ComponentAsset)"
+            RelativePathPattern="**"
+            SourceType="Discovered"
+            SourceId="$(PackageId)"
+            ContentRoot="$(MSBuildProjectDirectory)\"
+            BasePath="$(StaticWebAssetBasePath)"
+            AssetMergeSource="$(StaticWebAssetMergeTarget)"
+            FingerprintCandidates="$(StaticWebAssetsFingerprintContent)"
+            FingerprintPatterns="@(StaticWebAssetFingerprintPattern)">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+            <Output TaskParameter="Assets" ItemName="_ComponentStaticWebAsset" />
+        </DefineStaticWebAssets>
+        <DefineStaticWebAssetEndpoints
+            CandidateAssets="@(_ComponentStaticWebAsset)"
+            ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+    </Target>
+
+    <ItemGroup>
+        <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+        <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
+        <PackageReference Include="LibGit2Sharp" Version="0.32.0" />
+        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.1.0" />
+        <PackageReference Include="Markdig" Version="1.6.0" />
+        <PackageReference Include="Markdown.ColorCode" Version="3.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="Semver" Version="3.0.0" />
+    </ItemGroup>
+
+</Project>

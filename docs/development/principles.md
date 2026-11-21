@@ -14,7 +14,7 @@ The app keeps changing, and so does everything around it. Code, comments and doc
 
 ### 2. Modular and customizable
 
-Each feature is self-contained (see [principle 18](#18-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, texts, which features are there) is configuration, not code. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
+Each feature is self-contained (see [principle 18](#18-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
 
 ## Security
 
@@ -36,7 +36,7 @@ These are guidelines rather than laws: where breaking one makes the interface cl
 
 ### 6. Everything works with the keyboard
 
-Every action has a shortcut: a `key` attribute on the button, link or field (the top of `wwwroot/shortcuts/shortcuts.js` says how to write one). Holding Right Ctrl shows all shortcuts of the page.
+Every action has a shortcut: a `key` attribute on the button, link or field (the top of `Features/Shortcuts/shortcuts.js` says how to write one). Holding Right Ctrl shows all shortcuts of the page.
 
 - **The rarer an action, the longer its shortcut.** A single key is for what is done all the time on that page (`e` to edit, `Delete`, the numbers for the entries). Something done now and then gets a modifier (Alt+PageDown to download). Something rare or dangerous gets several (Ctrl+Alt+Shift+Delete for the kill switch).
 - **A group of rarely used links gets one shortcut for all of them.** The shortcut is on the element around them (`tabindex="-1"`), which it focuses, and Tab and Enter go from there. The links in the footer work like this.
@@ -76,7 +76,7 @@ No animations: things appear, move and go away at once, without sliding, fading 
 
 ### 13. Addresses are the notes
 
-Every address is a path of the notes (a virtual directory or file), except those that start with `/_/`, which belong to the app itself (`/_/Login`, `/_/About`, …). These are written in PascalCase.
+Every address of the notes is their path (a virtual directory or file): `/docs/a.md` is `docs/a.md`, also where a site shows only some of them (`Config:Exposed`); addresses are never translated. The pages of the app itself are at its own address (`Config:AppPath`, `/_/Login`, `/_/About`, … by default), which comes first, and are written in PascalCase. Code never writes these addresses out: links are made with `VirtualPaths.ToAddress` and `asp-page`, the app's own with `AppAddresses`.
 
 ### 14. Another view is not another address
 
@@ -86,13 +86,13 @@ Different ways to look at the same thing share its address. They are told apart 
 
 Notes are files and folders on disk, and what the app keeps about them lives with them: the configuration of a folder (such as its permissions) in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads, or their history) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
 
-Some virtual directories are stored in physical directories of their own ([bridges](../administration/bridges.md)), each with its own `_`. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root: which directory an entry is in, and what is in a directory, is asked of `NotesLocations` (`notes/Features/Bridges`), not read off the physical paths.
+Some virtual directories are stored in physical directories of their own ([bridges](../administration/bridges.md)), each with its own `_`. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root: which directory an entry is in, and what is in a directory, is asked of `EntryLocations` (`src/Notes/Features/Bridges`), not read off the physical paths.
 
 ### 16. The app serves its own files
 
 Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with LibMan), never from a CDN at runtime, so the browser only talks to the app and to Keycloak. Content that users put into their notes, such as an image in a Markdown file, may come from anywhere.
 
-Scripts are files in `wwwroot/js`, never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`). What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block, and a toolbar button gets its listener with `onClickOf` (`site.js`).
+Scripts and styles are files next to the component they belong to (`_Name.js`, `_Name.css`, see [Components](components.md)), served as static assets of the app. Scripts are never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`), and no `<style>` in a view. What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block (its texts with `<script-texts>`), and a toolbar button gets its listener with `onClickOf` (`site.js`).
 
 ### 17. Existing installations keep working
 
@@ -108,7 +108,7 @@ A change to a format that is stored raises its version and comes with a migratio
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
 - Files stay short. One that grows past around 250 lines is split up along what its parts do (deciding, storing, looking up, …), not into a first and a second half; tests are split by topic, with what they share in a base class. This is a guide, not a limit: a file that clearly reads better in one piece stays one.
 - Folders stay small too: ideally around five files each (a view and its model, `_Card.cshtml` and `_Card.cshtml.cs`, count as one). A part of a feature that has grown files of its own gets a folder of its own inside the feature's, as the list of changes of the history has (`Features/HistoryViewing/Commits`). Again a guide, not a limit.
-- Namespaces always follow the folders: what is in `notes/Features/HistoryViewing/Commits` is in `notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
+- Namespaces always follow the folders: what is in `src/Notes/Features/HistoryViewing/Commits` is in `Notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
 ### 19. Few dependencies
