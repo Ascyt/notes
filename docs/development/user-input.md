@@ -50,7 +50,7 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 
 ## The query
 
-`IndexModel` decides what a request is by which parameters it has. Every parameter may be given **only once**: `?rename=a&rename=b` would otherwise be read as `a,b`, which is a valid name. A repeated parameter is answered with 400.
+`IndexModel` decides what a request is by which parameters it has. Every parameter may be given **only once**: `?rename=a&rename=b` would otherwise be read as `a,b`, which is a valid name. A repeated parameter is answered with 400. A request also asks for **at most one action** (`?selection=clear&create=file` would otherwise do one of them and not say which), or for one thing to read of an earlier state (`?raw&download`): more than one is answered with 400.
 
 | Parameter | Allowed values | Otherwise |
 |---|---|---|
@@ -73,11 +73,11 @@ Parameters the page doesn't know are ignored.
 
 | Body | Of | Rules |
 |---|---|---|
-| Text of a file | `POST /file` (save) | UTF-8, at most `Config:Limits:MaxTextBytes` (413 otherwise). Read completely before anything is checked or written. |
+| Text of a file | `POST /file` (save) | UTF-8, at most `Config:Limits:MaxTextBytes` (413 otherwise). Read completely before anything is checked or written. Bytes that aren't valid UTF-8 are refused with 400, not replaced. |
 | Chunk of an upload | `POST /dir?upload=<id>&…` | Raw bytes, each at most the server's request limit; the whole file at most `Config:Limits:MaxUploadBytes` (413, and the upload is discarded). Chunks of one upload come one after the other (409 for one that arrives while another is written). |
 | Paths to select or unselect | `POST /?selection=add\|remove` | JSON (`Content-Type: application/json`) `{ "paths": [...] }`, at most 10,000 paths. Paths that can't be selected are left out. |
 | Version of the selection | `POST /dir?transfer=…` | JSON `{ "version": <number> }`. A transfer only runs if it is the version the user's selection has. |
-| A configuration | `POST /entry?config` | At most 1 MiB of text, parsed completely by `ConfigParser` (strict JSON with comments: unknown or repeated properties, wrong types and misspelled principals are errors; a principal is at most 256 characters) before anything is written. |
+| A configuration | `POST /entry?config` | At most 1 MiB of text, in UTF-8 (400 otherwise, not replaced), parsed completely by `ConfigParser` (strict JSON with comments: unknown or repeated properties, wrong types and misspelled principals are errors; a principal is at most 256 characters) before anything is written. |
 
 ## Contents of the notes
 
@@ -94,7 +94,7 @@ A note is written by whoever may change it and read by everyone who may read it,
 - The login cookie (`.notes.auth`) and the antiforgery cookie are protected by ASP.NET's data protection: one that was changed is no cookie.
 - The notice cookies (`.notes.notice`, `.notes.history-notice`) only carry a key; what is shown is the text the app has for that key, and any other value shows nothing.
 - `X-Forwarded-For` and `X-Forwarded-Proto` are trusted, as the app is only reachable through its reverse proxy (see [Deployment](../administration/deployment.md)). Running it reachable in another way would let anyone claim another address or HTTPS.
-- Every answer tells the browser (`SecurityHeaders`): no other site may show the app in a frame (`frame-ancestors 'self'`, `X-Frame-Options: SAMEORIGIN`), so that nobody can make a user click its buttons unawares; never to guess a type (`nosniff`); no `<base>` that would send links elsewhere; and not to tell other sites which address of the notes a request came from (`Referrer-Policy: same-origin`).
+- Every answer tells the browser (`SecurityHeaders`): no other site may show the app in a frame (`frame-ancestors 'self'`, `X-Frame-Options: SAMEORIGIN`), so that nobody can make a user click its buttons unawares; never to guess a type (`nosniff`); no `<base>` that would send links elsewhere; to run only the app's own script files (`script-src 'self'`: no inline scripts or handlers, nothing from other sites), so that markup in a note that ever got past the Markdown renderer still couldn't run; and not to tell other sites which address of the notes a request came from (`Referrer-Policy: same-origin`).
 
 ## Users
 
@@ -124,11 +124,11 @@ How much disk space all users together may take is not limited by the app: that 
 
 Requests run at the same time, and a check is only worth something if what it checked can't change before it is acted on.
 
-- **Changes of structure hold one lock.** Create, upload (while placing the finished file), rename, copy, move, delete, saving a file and saving a configuration hold the `StructureLock` from their checks until they are done, and check again under it whatever they looked at before (a file being saved is still there and still writable; the directory an upload goes into is still there and still readable). Saving reads the text first, as the client may send it slowly, but writes only into the file that is there: it never makes one where a file was renamed or deleted in the meantime.
+- **Changes of structure hold one lock.** Create, upload (while placing the finished file), rename, copy, move, delete, saving a file and saving a configuration hold the `StructureLock` from their checks until they are done, and check again under it whatever they looked at before (a file being saved is still there and still writable; the directory an upload goes into is still there and still readable). Saving reads the text first, as the client may send it slowly, but only ever replaces the file that is there: it never makes one where a file was renamed or deleted in the meantime.
 - **Reading holds no lock, so nothing may ever be seen half done.** Every change is made so that someone reading at any moment sees the state before or the state after:
   - deleting moves the entries into the app's data (`_`) in one rename each and only then removes them there, so a directory never stands without its `.config.json` while its files are still there;
   - copying and moving copy into the app's data first and then rename the finished copy into place, with its `.config.json` inside it;
-  - a configuration is written to a temporary file and renamed over the old one;
+  - a configuration and the text of a saved file are written to a temporary file and put in place of the old one (`File.Replace`), so that whoever reads them meanwhile gets all of the old text or all of the new one. A reader that already has the file open goes on reading the old text. On Windows, a file held open by something that doesn't allow it to be replaced (another program, or a download that is still running) isn't saved: 409 for a file, 500 for a configuration;
   - a renamed file gets the entry of its new name in the configuration (a copy of its own) *before* it is renamed, and the old entry goes after, so it is never under a name without its own permissions;
   - the cache of the configurations doesn't keep what it read while a configuration was being written.
 - **Names are the same in any case.** On a file system that tells cases apart (Linux, so the Docker image), `Secret.md` next to `secret.md` would share the entry of `secret.md` in the configuration (entries are found ignoring case), and deleting it would take that entry away, opening `secret.md` to everyone the folder lets in. So a new entry never gets a name that is there in another case.
@@ -152,7 +152,7 @@ Requests run at the same time, and a check is only worth something if what it ch
 | Names of new entries | `notes/Features/Helpers/NewNames.cs` |
 | Links to entries | `notes/Features/Helpers/VirtualPaths.cs` |
 | The limits | `notes/Features/Helpers/LimitsConfig.cs` |
-| The query, repeated parameters | `notes/Pages/Index.cshtml.cs` |
+| The query, repeated parameters, one action per request | `notes/Pages/Index.cshtml.cs`, `notes/Features/EntryActions/EntryActions.cs` |
 | Headers of every answer | `notes/Extensions/SecurityHeaders.cs` |
 | Names in any case | `NotesLocations.IsFree` (`notes/Features/Bridges/NotesLocations.cs`) |
 | The tests | `tests/notes.Tests.Integration/NewNameTests.cs`, `UserInputTests.cs`, `LimitsTests.cs`, `PathTraversalTests.cs`, `RequestProtectionTests.cs` |

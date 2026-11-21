@@ -2,18 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Auth;
 using notes.Features.Bridges;
-using notes.Features.Components.Create;
-using notes.Features.Components.Delete;
-using notes.Features.Components.Download;
-using notes.Features.Components.Rename;
 using notes.Features.Components.Selection;
-using notes.Features.Components.Transfer;
-using notes.Features.Components.Upload;
 using notes.Features.Configuration;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
-using notes.Features.History;
 using notes.Features.HistoryViewing.Changes;
-using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.Views;
 using notes.Pages.Browse;
@@ -23,36 +16,25 @@ using notes.Pages.Editor;
 namespace notes.Pages;
 
 /// <summary>
-/// The page for every file and directory of the notes. It only finds what the address points at and passes the
-/// request on to the feature that answers it (the query string says which one).
+/// The page for every file and directory of the notes. It only finds what the address points at and passes the request on to the feature
+/// that answers it: the history (<see cref="HistoryRequests"/>), or the <see cref="IEntryAction"/> the query asks for. Without one, a GET
+/// shows the entry.
 /// </summary>
 /// <remarks>
 /// There is no gate in front of it: anyone may ask for anything, and what they get is decided per entry. Whatever the request, the user must
 /// be allowed to know of the entry it is for (<see cref="AccessTree.IsKnown"/>); one they aren't is answered exactly like one that doesn't exist.
-/// Opening it (its page, its bytes, a download) also needs read access to it, otherwise 403.
-/// Everything beyond that is up to the feature, see docs/development/security-specification.md.
+/// The action says what else it needs (<see cref="AccessNeeded"/>), which is checked here; everything beyond that is up to the action, see
+/// docs/development/security-specification.md.
 /// </remarks>
 public sealed class IndexModel(Config config,
     NotesLocations locations,
     IPathService path,
     AccessTree tree,
+    EntryActions actions,
     ConfigHandler configHandler,
-    DownloadHandler downloadHandler,
-    RawHandler rawHandler,
-    ThumbnailHandler thumbnailHandler,
-    CreateHandler createHandler,
-    UploadHandler uploadHandler,
-    RenameHandler renameHandler,
-    SaveHandler saveHandler,
-    DeleteHandler deleteHandler,
-    SelectionHandler selectionHandler,
-    TransferHandler transferHandler,
-    ISelectionService selectionService,
-    HistoryService history,
-    EarlierStateRequests earlierStateRequests,
-    EarlierStateViews earlierStateViews,
-    CommitChangesRequests commitChangesRequests,
-    CommitChangesViews commitChangesViews) : PageModel
+    HistoryRequests historyRequests,
+    HistoryButtons historyButtons,
+    ISelectionService selectionService) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -76,65 +58,58 @@ public sealed class IndexModel(Config config,
         if (HasRepeatedParameter)
             return BadRequest();
 
-        VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
+        VirtualPath = VirtualPathOfRequest();
         // No body, so the error page is shown instead
         if (VirtualPath.StartsWith("_/"))
             return NotFound();
 
-        // Earlier states have their own rules, also for paths that aren't there any more (docs/development/history-specification.md). The list
-        // of changes is asked for with the state that is shown, so it goes first.
-        if (Request.Query.ContainsKey(_CommitSidebar.CommitListParameter))
-            return OnGetCommitsThatChangedEntry();
-        // The changes are those of a commit: without one they are of nothing
-        if (Request.Query.ContainsKey(CommitChangesRequests.ChangesParameter) && !Request.Query.ContainsKey(EarlierStateParameter.Commit))
-            return BadRequest();
-        if (EarlierStateParameter.IsIn(Request.Query))
-            return await OnGetEarlierStateAsync();
-        if (Request.Query.ContainsKey(_HistoryModal.VisibleTimesParameter))
-            return OnGetTimesAtWhichEntryCanBeSeen();
+        // Earlier states have their own rules, also for paths that aren't there any more
+        if (HistoryRequests.IsFor(Request.Query))
+            return ShowOrAnswer(await historyRequests.AnswerAsync(HttpContext, VirtualPath));
 
         string? physicalPath = path.ToPhysicalPath(VirtualPath);
-        if (physicalPath is null || !System.IO.Path.Exists(physicalPath))
+        if (physicalPath is null || !System.IO.Path.Exists(physicalPath) || !tree.IsKnown(User, physicalPath))
             return NotFound();
-
         PhysicalPath = physicalPath;
 
-        if (!tree.IsKnown(User, PhysicalPath))
-            return NotFound();
+        // The editor of the configuration is another view of the entry, not an action, but no more than one of them is asked for either
+        ActionChoice<IEntryGetAction> choice = actions.Choose<IEntryGetAction>(Request.Query);
+        bool asksForConfig = Request.Query.ContainsKey(ConfigHandler.ConfigParameter);
+        if (choice.NamesSeveral || (asksForConfig && choice.Action is not null))
+            return BadRequest();
 
-        // The configuration is for those who manage it. For everyone else there is no such thing, which is answered like a missing one.
-        if (Request.Query.ContainsKey("config"))
+        if (asksForConfig)
         {
-            if (!tree.CanManageConfiguration(User))
-                return NotFound();
-
+            if (Refusal(AccessNeeded.ManagesConfiguration, forChange: false) is { } refused)
+                return refused;
             ConfigEditor = configHandler.CreateView(VirtualPath, PhysicalPath);
             return Page();
         }
 
-        if (Request.Query.ContainsKey("selection"))
-            return selectionHandler.HandleGet(User);
+        if (choice.Action is { } action)
+        {
+            return Refusal(action.Needs, forChange: false) is { } refused
+                ? refused
+                : await action.GetAsync(new EntryRequest(HttpContext, VirtualPath, PhysicalPath, choice.Value));
+        }
 
-        // The root page is the one everybody may open (it carries the login button); it shows nothing of the notes to those who may not read it.
-        // Any other entry the user knows of but may not read (only logged-in users know of such) is listed in its directory, but can't be opened.
+        return await ShowEntryAsync();
+    }
+
+    /// <summary>
+    /// The page of the entry as it is now. The root page is the one everybody may open (it carries the login button); it shows nothing of
+    /// the notes to those who may not read it. Any other entry the user knows of but may not read (only logged-in users know of such) is
+    /// listed in its directory, but can't be opened.
+    /// </summary>
+    private async Task<IActionResult> ShowEntryAsync()
+    {
         EntryAccessInfo access = tree.GetAccess(User, PhysicalPath);
-        bool canOpen = access.CanRead;
-        bool isRoot = VirtualPath == "";
-        if (!canOpen && !isRoot)
+        if (!access.CanRead && VirtualPath != "")
             return StatusCode(StatusCodes.Status403Forbidden);
-
-        if (Request.Query.ContainsKey("download"))
-            return canOpen ? downloadHandler.Handle(User, VirtualPath, PhysicalPath) : NotFound();
-
-        if (Request.Query.ContainsKey("raw"))
-            return canOpen ? rawHandler.Handle(Response, PhysicalPath) : NotFound();
-
-        if (Request.Query.ContainsKey("thumbnail"))
-            return canOpen ? await thumbnailHandler.HandleAsync(Response, PhysicalPath) : NotFound();
 
         EarlierStateMessage = EarlierStateNotice.TakeMessage(HttpContext);
         bool isDirectory = System.IO.Directory.Exists(PhysicalPath);
-        HistoryButtonState historyButton = DecideHistoryButtonState(access, isDirectory);
+        HistoryButtonState historyButton = historyButtons.For(User, PhysicalPath, access, isDirectory);
 
         if (isDirectory)
         {
@@ -144,7 +119,7 @@ public sealed class IndexModel(Config config,
                 VirtualPath = VirtualPath,
                 PhysicalPath = PhysicalPath,
                 Viewer = User,
-                CanBrowse = canOpen,
+                CanBrowse = access.CanRead,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
@@ -174,175 +149,27 @@ public sealed class IndexModel(Config config,
         return Page();
     }
 
-    /// <summary>
-    /// Whether the page has the way to the earlier states of the entry. Those who manage the configuration have it wherever there is a
-    /// history, disabled with the reason where the configuration leaves the entry out of it. Everyone else only has it where they can use
-    /// it: they aren't to know about the configuration.
-    /// </summary>
-    private HistoryButtonState DecideHistoryButtonState(EntryAccessInfo access, bool isDirectory)
+    /// <summary>The page of an earlier state, or the answer that the history gave instead.</summary>
+    private IActionResult ShowOrAnswer(HistoryAnswer answer)
     {
-        if (!config.History.Enabled || !access.CanViewHistory)
-            return HistoryButtonState.Hidden;
+        if (answer.Page is not { } shown)
+            return answer.Result!;
 
-        // The history of a bridge is recorded in a repository of its own, which can't be viewed yet. Bridges are how the site is run, so
-        // everyone else sees no sign of one: for them, there is no history here, as without the permission.
-        NotesLocation? location = locations.LocationOf(PhysicalPath);
-        if (location is not { IsRoot: true })
-        {
-            return tree.CanManageConfiguration(User)
-                ? new HistoryButtonState(IsShown: true, location?.KeepsHistory == true
-                    ? "This is in a bridge (Config:Bridges), whose history is recorded but can't be viewed in the app yet."
-                    : "This is in a bridge (Config:Bridges) without a history (History:Enabled is false).")
-                : HistoryButtonState.Hidden;
-        }
-
-        if (history.IsKept(PhysicalPath, isDirectory))
-            return HistoryButtonState.Usable;
-
-        return tree.CanManageConfiguration(User)
-            ? new HistoryButtonState(IsShown: true, $"The configuration leaves this {(isDirectory ? "directory" : "file")} out of the history (gitignore).")
-            : HistoryButtonState.Hidden;
-    }
-
-    /// <summary>An address with <c>?before=</c> or <c>?commit=</c>: the entry as it was, if the user may see it so.</summary>
-    private async Task<IActionResult> OnGetEarlierStateAsync()
-    {
-        // They are about the notes as they are now; and a page shows one state, not two
-        if (Request.Query.ContainsKey("config") || Request.Query.ContainsKey("selection")
-            || (Request.Query.ContainsKey(EarlierStateParameter.Before) && Request.Query.ContainsKey(EarlierStateParameter.Commit)))
-            return BadRequest();
-
-        // The changes of a commit (they are no state that could be downloaded)
-        string? commit = Request.Query[EarlierStateParameter.Commit];
-        bool showsChanges = Request.Query.ContainsKey(CommitChangesRequests.ChangesParameter);
-        if (showsChanges && Request.Query.ContainsKey("download"))
-            return BadRequest();
-
-        EarlierStateAnswer answer = showsChanges
-            ? commitChangesRequests.AnswerRequestForChanges(User, VirtualPath, commit!)
-            : earlierStateRequests.AnswerRequestForEarlierState(User, VirtualPath, Request.Query[EarlierStateParameter.Before], commit);
-        switch (answer)
-        {
-            case AnswerWithStatus status:
-                return StatusCode(status.StatusCode);
-            case RedirectToNow redirect:
-                EarlierStateNotice.Set(HttpContext, redirect.Notice);
-                return Redirect(AddressOfNow());
-            case RedirectToStateOfCommit redirect:
-                EarlierStateNotice.Set(HttpContext, redirect.Notice);
-                string now = AddressOfNow();
-                return Redirect(now + (now.Contains('?') ? "&" : "?") + EarlierStateParameter.ForCommit(commit!.ToLowerInvariant()).QueryPart);
-            case ShowEntryAsItWas shown:
-                // The state is read from until the response is sent (a zip is written while it is sent)
-                Response.RegisterForDispose(shown.State);
-                return await ShowEntryAsItWasAsync(shown);
-            case ShowChangesOfCommit changes:
-                Response.RegisterForDispose(changes.State);
-                if (changes.Previous is not null)
-                    Response.RegisterForDispose(changes.Previous);
-                return await ShowChangesOfCommitAsync(changes);
-            default:
-                throw new InvalidOperationException("Unknown answer to a request for an earlier state.");
-        }
-    }
-
-    private async Task<IActionResult> ShowChangesOfCommitAsync(ShowChangesOfCommit shown)
-    {
-        PhysicalPath = shown.PhysicalPath;
-
-        // The bytes of a side of the change, for the browser to show it
-        if (Request.Query.ContainsKey("raw"))
-            return CommitChangesRequests.RawBytesOfSide(Response, shown, previous: Request.Query.ContainsKey(CommitChangesRequests.PreviousParameter));
-        if (Request.Query.ContainsKey("thumbnail"))
-            return (Request.Query.ContainsKey(CommitChangesRequests.PreviousParameter) ? shown.Before : shown.After).Entry is { Blob: { } sideBlob } side
-                ? await thumbnailHandler.HandleContentsAsync(Response, side.Name, sideBlob.Size, () => EarlierStateRequests.ReadAllBytes(sideBlob))
-                : NotFound();
-
-        string addressOfNow = AddressOfNow();
-        EarlierStateCard = earlierStateViews.CreateCard(User, shown.State, shown.Shown, addressOfNow, showsChanges: true);
-        if (shown.IsDirectory)
-            Directory = commitChangesViews.CreateDirectoryView(User, VirtualPath, shown, addressOfNow);
-        else
-            FileChanges = await commitChangesViews.CreateFileChangesAsync(User, VirtualPath, shown, addressOfNow);
+        EarlierStateCard = shown.Card;
+        Directory = shown.Directory;
+        File = shown.File;
+        FileChanges = shown.FileChanges;
         return Page();
     }
 
-    private async Task<IActionResult> ShowEntryAsItWasAsync(ShowEntryAsItWas shown)
-    {
-        PhysicalPath = shown.PhysicalPath;
+    public Task<IActionResult> OnPostAsync()
+        => ChangeAsync<IEntryPostAction>((action, request) => action.PostAsync(request));
 
-        // The bytes and the download of the entry as it was, like those of the entry as it is
-        if (Request.Query.ContainsKey("raw"))
-            return EarlierStateRequests.RawBytesAsTheyWere(Response, shown);
-        if (Request.Query.ContainsKey("thumbnail"))
-            return shown.Entry.Blob is { } blob
-                ? await thumbnailHandler.HandleContentsAsync(Response, shown.Entry.Name, blob.Size, () => EarlierStateRequests.ReadAllBytes(blob))
-                : NotFound();
-        if (Request.Query.ContainsKey("download"))
-            return earlierStateRequests.DownloadAsItWas(User, VirtualPath, shown);
+    public Task<IActionResult> OnDeleteAsync()
+        => ChangeAsync<IEntryDeleteAction>((action, request) => action.DeleteAsync(request));
 
-        // Otherwise its page, in which nothing can be changed (?edit shows the source of a markdown file, read-only)
-        string addressOfNow = AddressOfNow();
-        EarlierStateCard = earlierStateViews.CreateCard(User, shown.State, shown.Shown, addressOfNow);
-        if (shown.Entry.IsDirectory)
-            Directory = earlierStateViews.CreateDirectoryView(User, VirtualPath, shown, addressOfNow);
-        else
-            File = await earlierStateViews.CreateFileViewAsync(User, VirtualPath, shown, addressOfNow, Request.Query.ContainsKey("edit"), Request.Host.Host);
-        return Page();
-    }
-
-    /// <summary><c>?history</c>: the times at which the entry can be seen as it was, for the dialog of the history button.</summary>
-    private IActionResult OnGetTimesAtWhichEntryCanBeSeen()
-    {
-        if (earlierStateRequests.TimesAtWhichEntryCanBeSeen(User, VirtualPath) is not { } ranges)
-            return NotFound();
-
-        return new JsonResult(new
-        {
-            ranges = ranges.Select(range => new { after = EarlierStateTime.Format(range.After), until = range.Until is { } until ? EarlierStateTime.Format(until) : null })
-        });
-    }
-
-    /// <summary>
-    /// <c>?commits</c>: a page (<c>&amp;page=</c>, from 1) of the commits that changed the entry, for the sidebar of the list of changes (as its
-    /// HTML), from the state that is shown (the <c>?before=</c> or <c>?commit=</c> it is asked with) back; with <c>&amp;newer</c>, the lines of
-    /// those right after that state instead.
-    /// </summary>
-    private IActionResult OnGetCommitsThatChangedEntry()
-    {
-        int page = int.TryParse(Request.Query[_CommitSidebar.PageParameter], out int asked) && asked >= 1 ? asked : 1;
-        string? commit = Request.Query[EarlierStateParameter.Commit].FirstOrDefault();
-        string? before = Request.Query[EarlierStateParameter.Before].FirstOrDefault();
-        // The page asks with the state it shows, which is a valid one (otherwise it would have been sent to now)
-        if ((commit is not null && !EarlierStateParameter.IsCommitId(commit)) || (commit is null && before is not null && !EarlierStateTime.TryParse(before, out _)))
-            return BadRequest();
-        EarlierStateParameter? shown = commit is not null
-            ? EarlierStateParameter.ForCommit(commit.ToLowerInvariant())
-            : before is not null ? new EarlierStateParameter(EarlierStateParameter.Before, before) : null;
-        bool newer = Request.Query.ContainsKey(_CommitSidebar.NewerParameter);
-        if (earlierStateRequests.CommitsThatChangedEntry(User, VirtualPath, shown, page, newer) is not { } found)
-            return NotFound();
-
-        string? shownCommitId = shown is { IsCommit: true } ? shown.Value : null;
-        return newer
-            ? Partial("/Features/HistoryViewing/Commits/_CommitLines.cshtml", _CommitLines.Of(found, shownCommitId))
-            : Partial("/Features/HistoryViewing/Commits/_CommitList.cshtml", _CommitList.Of(found, shownCommitId));
-    }
-
-    /// <summary>
-    /// The address of this page without <c>?before=</c>, <c>?commit=</c> and what goes with a commit (<c>&amp;changes</c>, <c>&amp;previous</c>;
-    /// the rest of the query as it is): the entry as it is now.
-    /// </summary>
-    public string AddressOfNow()
-    {
-        string[] stateParameters = [EarlierStateParameter.Before, EarlierStateParameter.Commit, CommitChangesRequests.ChangesParameter, CommitChangesRequests.PreviousParameter];
-        // The other parts of the query are kept as they were written (not encoded again), so that only the state goes
-        string[] kept = [.. (Request.QueryString.Value ?? "").TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Where(part => part.Split('=')[0] is var name && !stateParameters.Contains(name, StringComparer.OrdinalIgnoreCase))];
-        return Request.PathBase.ToUriComponent() + Request.Path.ToUriComponent() + (kept.Length > 0 ? "?" + string.Join('&', kept) : "");
-    }
-
-    public async Task<IActionResult> OnPostAsync()
+    /// <summary>A POST or DELETE: the action the query asks for (or the default one of the method), for an entry the user may know of.</summary>
+    private async Task<IActionResult> ChangeAsync<TAction>(Func<TAction, EntryRequest, Task<IActionResult>> run) where TAction : class, IEntryAction
     {
         if (HasRepeatedParameter)
             return BadRequest(RepeatedParameterMessage);
@@ -351,50 +178,43 @@ public sealed class IndexModel(Config config,
         if (EarlierStateParameter.IsIn(Request.Query))
             return BadRequest(EarlierStateViews.CantBeChangedReason);
 
-        IActionResult? notFound = ResolveForChange();
-        if (notFound is not null)
-            return notFound;
+        ActionChoice<TAction> choice = actions.Choose<TAction>(Request.Query);
+        if (choice.NamesSeveral)
+            return BadRequest("The address asks for more than one action.");
 
-        if (Request.Query.ContainsKey("config"))
-            return tree.CanManageConfiguration(User) ? await configHandler.SaveAsync(Request, PhysicalPath) : NotFound("Path not found.");
+        VirtualPath = VirtualPathOfRequest();
+        if (VirtualPath.StartsWith("_/"))
+            return NotFound("Page not found.");
 
-        string? selection = Request.Query["selection"];
-        if (selection is not null)
-            return await selectionHandler.HandlePostAsync(Request, User, selection);
+        // Whether the entry has to exist is up to the action (an upload finds out what is in the directory under the lock)
+        string? physicalPath = path.ToPhysicalPath(VirtualPath);
+        if (physicalPath is null || !tree.IsKnown(User, physicalPath))
+            return NotFound("Path not found.");
+        PhysicalPath = physicalPath;
 
-        string? transfer = Request.Query["transfer"];
-        if (transfer is not null)
-            return await transferHandler.HandleAsync(Request, User, PhysicalPath, transfer);
-
-        string? create = Request.Query["create"];
-        if (create is not null)
-            return await createHandler.HandleAsync(User, PhysicalPath, create);
-
-        string? upload = Request.Query["upload"];
-        if (upload is not null)
-            return await uploadHandler.HandleAsync(Request, User, PhysicalPath, upload);
-
-        string? rename = Request.Query["rename"];
-        if (rename is not null)
-            return await renameHandler.HandleAsync(User, VirtualPath, PhysicalPath, rename);
-
-        return await saveHandler.HandleAsync(User, PhysicalPath, Request.Body);
+        if (choice.Action is not { } action)
+            return BadRequest("The address asks for nothing that can be done.");
+        return Refusal(action.Needs, forChange: true) is { } refused
+            ? refused
+            : await run(action, new EntryRequest(HttpContext, VirtualPath, PhysicalPath, choice.Value));
     }
 
-    public async Task<IActionResult> OnDeleteAsync()
+    /// <summary>The answer if the user lacks what the action needs beyond knowing of the entry, or null if they have it.</summary>
+    /// <param name="forChange">For a POST or DELETE, whose answers say why in their body (the page's scripts show it).</param>
+    private IActionResult? Refusal(AccessNeeded needs, bool forChange) => needs switch
     {
-        if (HasRepeatedParameter)
-            return BadRequest(RepeatedParameterMessage);
+        AccessNeeded.Known => null,
+        // The root is known to everybody, so not being allowed to read it tells nothing either
+        AccessNeeded.Readable => tree.GetAccess(User, PhysicalPath).CanRead ? null
+            : VirtualPath == "" ? NotFound() : StatusCode(StatusCodes.Status403Forbidden),
+        // For everyone else there is no such thing, which is answered like a missing one
+        AccessNeeded.ManagesConfiguration => tree.CanManageConfiguration(User) ? null
+            : forChange ? NotFound("Path not found.") : NotFound(),
+        _ => throw new InvalidOperationException($"Unknown access {needs}.")
+    };
 
-        if (EarlierStateParameter.IsIn(Request.Query))
-            return BadRequest(EarlierStateViews.CantBeChangedReason);
-
-        IActionResult? notFound = ResolveForChange();
-        if (notFound is not null)
-            return notFound;
-
-        return await deleteHandler.HandleAsync(User, VirtualPath, PhysicalPath);
-    }
+    private string VirtualPathOfRequest()
+        => Request.Path.Value!.TrimStart('/').TrimEnd('/');
 
     private const string RepeatedParameterMessage = "A parameter of the address is given more than once.";
 
@@ -403,22 +223,4 @@ public sealed class IndexModel(Config config,
     /// would be read as the values joined by a comma ("a,b"), which is a valid name: such a request is refused instead of guessed at.
     /// </summary>
     private bool HasRepeatedParameter => Request.Query.Any(parameter => parameter.Value.Count > 1);
-
-    /// <summary>
-    /// Finds the entry a POST or DELETE is for. Returns the answer if there is none the user may know of. Whether they may read it (and
-    /// whatever else the operation needs) is up to the operation.
-    /// </summary>
-    private IActionResult? ResolveForChange()
-    {
-        VirtualPath = Request.Path.Value!.TrimStart('/').TrimEnd('/');
-        if (VirtualPath.StartsWith("_/"))
-            return NotFound("Page not found.");
-
-        string? physicalPath = path.ToPhysicalPath(VirtualPath);
-        if (physicalPath is null || !tree.IsKnown(User, physicalPath))
-            return NotFound("Path not found.");
-
-        PhysicalPath = physicalPath;
-        return null;
-    }
 }

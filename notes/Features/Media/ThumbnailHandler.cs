@@ -3,19 +3,26 @@ using System.Security.Cryptography;
 using ImageMagick;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using notes.Features.EntryActions;
 using notes.Features.ImageConversion;
 
-namespace notes.Pages.Editor;
+namespace notes.Features.Media;
 
 /// <summary>
 /// Answers <c>?thumbnail</c>: a small picture of an image, for the grid of media in its directory (see <see cref="ImageForBrowser.ThumbnailAsync"/>).
 /// It is only made of images, read as the format their extension names; anything else is a 404, an image that can't be read or is too large
 /// to be read a 422, which the grid shows as a tile with an icon instead.
 /// </summary>
-public sealed class ThumbnailHandler(Config config, ILogger<ThumbnailHandler> logger)
+public sealed class ThumbnailHandler(Config config, ILogger<ThumbnailHandler> logger) : IEntryGetAction
 {
-    public async Task<IActionResult> HandleAsync(HttpResponse response, string physicalPath)
+    public const string ThumbnailParameter = "thumbnail";
+
+    public string Parameter => ThumbnailParameter;
+    public AccessNeeded Needs => AccessNeeded.Readable;
+
+    public async Task<IActionResult> GetAsync(EntryRequest request)
     {
+        string physicalPath = request.PhysicalPath;
         FileInfo file = new(physicalPath);
         if (!file.Exists || !ConvertedImageFormats.TryGetForThumbnail(physicalPath, out MagickFormat format))
             return new NotFoundResult();
@@ -25,7 +32,7 @@ public sealed class ThumbnailHandler(Config config, ILogger<ThumbnailHandler> lo
         // Tagged with the size and time of the file, so that an unchanged one isn't even read again: a directory shows many at once
         EntityTagHeaderValue tag = new('"' + file.Length.ToString(CultureInfo.InvariantCulture) + "-"
             + file.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture) + "-" + ImageForBrowser.ThumbnailSide.ToString(CultureInfo.InvariantCulture) + '"');
-        return await AnswerAsync(response, file.Name, tag, () => ReadAllBytes(physicalPath), format);
+        return await AnswerAsync(request.Response, file.Name, tag, () => ReadAllBytes(physicalPath), format);
     }
 
     /// <summary>
@@ -66,10 +73,10 @@ public sealed class ThumbnailHandler(Config config, ILogger<ThumbnailHandler> lo
         return new FileContentResult(thumbnail.Contents, thumbnail.ContentType) { EntityTag = tag };
     }
 
-    /// <summary>The whole file, also while something else has it open for writing.</summary>
+    /// <summary>The whole file, also while something else has it open for writing or replaces it (a save, see <see cref="Editor.SaveHandler"/>).</summary>
     private static byte[] ReadAllBytes(string physicalPath)
     {
-        using FileStream stream = new(physicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using FileStream stream = new(physicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using MemoryStream contents = new();
         stream.CopyTo(contents);
         return contents.ToArray();

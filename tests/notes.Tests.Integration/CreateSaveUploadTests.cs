@@ -94,6 +94,44 @@ public sealed class CreateSaveUploadTests(NotesAppFactory app) : IntegrationTest
     public async Task Write_without_create_still_saves()
         => await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/shelf/item.md", "changed"));
 
+    [Fact]
+    public async Task Text_that_isnt_utf8_is_refused_not_cleaned_up()
+    {
+        // A lone continuation byte, and the start of a character that never ends
+        await AssertStatus(HttpStatusCode.BadRequest, await Client.PostBytesAsync(Users.Alice, "/docs/a.md", [0x61, 0x80, 0x62]));
+        await AssertStatus(HttpStatusCode.BadRequest, await Client.PostBytesAsync(Users.Alice, "/docs/a.md", [0x61, 0xE2, 0x82]));
+
+        Assert.Equal("a", Tree.Read("docs/a.md"));
+    }
+
+    [Fact]
+    public async Task Saving_replaces_the_file_in_one_step_and_leaves_nothing_behind()
+    {
+        string physical = Tree.Physical("docs/a.md");
+        // Someone reading the file while it is saved gets the old text whole, not part of the new one
+        await using FileStream reader = new(physical, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/docs/a.md", "new text"));
+
+        using (StreamReader old = new(reader))
+            Assert.Equal("a", await old.ReadToEndAsync());
+        Assert.Equal("new text", Tree.Read("docs/a.md"));
+        string temp = Path.Combine(Tree.Physical(""), "_", "temp", "save");
+        Assert.True(!Directory.Exists(temp) || Directory.GetFileSystemEntries(temp).Length == 0);
+    }
+
+    [Fact]
+    public async Task A_file_held_open_against_replacing_isnt_saved_and_says_so()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Holding a file open only stops it from being replaced on Windows.");
+        await using FileStream reader = new(Tree.Physical("docs/a.md"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+        await AssertStatus(HttpStatusCode.Conflict, await Client.PostAsync(Users.Alice, "/docs/a.md", "new text"));
+
+        Assert.Equal("a", Tree.Read("docs/a.md"));
+    }
+
     // ---- Upload
 
     private async Task<string> StartUploadAsync(TestUser user, string directory)

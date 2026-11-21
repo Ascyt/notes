@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Configuration.Migrations;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 using notes.Features.History;
 using notes.Features.Permissions;
@@ -15,8 +16,19 @@ namespace notes.Features.Configuration;
 /// the configuration. The text is checked completely before anything is written (<see cref="ConfigParser"/>), and what is saved is the text as
 /// it was sent, with its comments, plus the entries that the files of the folder need.
 /// </summary>
-public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history, ILogger<ConfigHandler> logger)
+/// <remarks>
+/// Only the POST is an action: the GET is another view of the entry (principle 14), which the page of the entry shows (<see cref="CreateView"/>).
+/// </remarks>
+public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history, ILogger<ConfigHandler> logger) : IEntryPostAction
 {
+    public const string ConfigParameter = "config";
+
+    public string Parameter => ConfigParameter;
+    public AccessNeeded Needs => AccessNeeded.ManagesConfiguration;
+
+    public Task<IActionResult> PostAsync(EntryRequest request)
+        => SaveAsync(request.Request, request.PhysicalPath);
+
     public ConfigEditorView CreateView(string virtualPath, string physicalPath)
     {
         bool isFile = File.Exists(physicalPath);
@@ -58,9 +70,17 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
     }
 
     /// <summary>Saves the text in the body. Answers with the text as it is saved, which the editor then shows.</summary>
-    public async Task<IActionResult> SaveAsync(HttpRequest request, string physicalPath)
+    private async Task<IActionResult> SaveAsync(HttpRequest request, string physicalPath)
     {
-        string? sent = await ReadBodyAsync(request.Body);
+        string? sent;
+        try
+        {
+            sent = await ReadBodyAsync(request.Body);
+        }
+        catch (DecoderFallbackException)
+        {
+            return Failed(StatusCodes.Status400BadRequest, "The configuration isn't valid UTF-8. Nothing was saved.");
+        }
         if (sent is null)
             return Failed(StatusCodes.Status413PayloadTooLarge, "The configuration is too long.");
 
@@ -164,10 +184,13 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
     private static ObjectResult Failed(int statusCode, string message)
         => new(message) { StatusCode = statusCode };
 
-    /// <summary>The body as text, or null if it is longer than any configuration may be.</summary>
+    /// <summary>
+    /// The body as text, or null if it is longer than any configuration may be. Throws <see cref="DecoderFallbackException"/> if it isn't
+    /// UTF-8: it is refused, not read with U+FFFD in place of what doesn't fit.
+    /// </summary>
     private static async Task<string?> ReadBodyAsync(Stream body)
     {
-        using StreamReader reader = new(body, Encoding.UTF8);
+        using StreamReader reader = new(body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true));
         StringBuilder text = new();
         char[] buffer = new char[8192];
         int read;

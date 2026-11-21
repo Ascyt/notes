@@ -4,7 +4,6 @@ using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Configuration;
 using notes.Features.Helpers;
-using notes.Pages.Editor;
 
 namespace notes.Features.Components.Upload;
 
@@ -94,7 +93,7 @@ public sealed class UploadService(NotesLocations locations, IPathService path, S
                 temp.SetLength(0);
                 await temp.DisposeAsync();
                 File.Delete(tempPath);
-                throw new UploadRefusedException(StatusCodes.Status413PayloadTooLarge, $"The file is too large to be uploaded (at most {FileView.FormatSize(limits.MaxUploadBytes)}).");
+                throw new UploadRefusedException(StatusCodes.Status413PayloadTooLarge, $"The file is too large to be uploaded (at most {ByteSizes.Format(limits.MaxUploadBytes)}).");
             }
         }
 

@@ -15,12 +15,12 @@ public enum ToolbarTone
 /// An icon of the toolbar, which works as a button. What the user may not do at all is left out by the page; a button that is there but can't
 /// be used right now is disabled (with the reason) or shows a spinner.
 /// </summary>
-/// <param name="Id">Id of the element, for the scripts of the page to find it.</param>
+/// <param name="Id">Id of the element, for the scripts of the page to find it. A button without <paramref name="Href"/> does what the script
+/// of the page attaches to it (<c>onClickOf</c> in site.js).</param>
 /// <param name="Icon">Font Awesome classes of the icon, e.g. "fa-solid fa-download".</param>
 /// <param name="Label">What the button does. Shown as its tooltip, as there is no text on it.</param>
 /// <param name="Key">Shortcut (see shortcuts.js), if any.</param>
 /// <param name="Href">Makes the button a link to this address.</param>
-/// <param name="OnClick">Script to run when clicked. Buttons that the page's scripts attach their own listener to need none.</param>
 /// <param name="IsDownload">Whether the link downloads what it points at.</param>
 /// <param name="Tone">Colors the icon.</param>
 /// <param name="DisabledReason">Disables the button from the start, and is what its tooltip says. Scripts change it with setButtonDisabled.</param>
@@ -31,7 +31,6 @@ public sealed record ToolbarButton(
     string Label,
     string? Key = null,
     string? Href = null,
-    string? OnClick = null,
     bool IsDownload = false,
     ToolbarTone Tone = ToolbarTone.Normal,
     string? DisabledReason = null,
@@ -41,7 +40,7 @@ public sealed record ToolbarButton(
 
     /// <param name="disabledReason">Why the file can never be saved here; without one it can be whenever there are changes.</param>
     public static ToolbarButton Save(string? disabledReason = null)
-        => new(Id: "save-button", Icon: "fa-solid fa-floppy-disk", Label: "Save", Key: "^s", OnClick: "saveFile()", Tone: ToolbarTone.Primary, DisabledReason: disabledReason ?? "There is nothing to save.");
+        => new(Id: "save-button", Icon: "fa-solid fa-floppy-disk", Label: "Save", Key: "^s", Tone: ToolbarTone.Primary, DisabledReason: disabledReason ?? "There is nothing to save.");
 
     /// <summary>From the rendered markdown to its editor.</summary>
     public static ToolbarButton Edit()
@@ -60,26 +59,26 @@ public sealed record ToolbarButton(
     /// icon and label to those of the view it leads to, and keeps the choice.
     /// </summary>
     public static ToolbarButton SimpleView()
-        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", Key: "!+E", OnClick: "toggleSimpleView()");
+        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: "Switch to the simple editor (for phones)", Key: "!+E");
 
     /// <summary>
     /// Indents the lines of the selection, or inserts an indent at the cursor: what Tab does in the code editor, for the simple view, where
     /// a phone has no Tab key. The page's script shows the two only in the simple view (in the code editor, Ctrl+] and Ctrl+[ are Monaco's own).
     /// </summary>
     public static ToolbarButton Indent()
-        => new(Id: "indent-button", Icon: "fa-solid fa-indent", Label: "Indent", Key: "^]", OnClick: "indentSimpleView(false)", IsHidden: true);
+        => new(Id: "indent-button", Icon: "fa-solid fa-indent", Label: "Indent", Key: "^]", IsHidden: true);
 
     /// <summary>Takes an indent away from the lines of the selection, or the line of the cursor: what Shift+Tab does in the code editor.</summary>
     public static ToolbarButton Outdent()
-        => new(Id: "outdent-button", Icon: "fa-solid fa-outdent", Label: "Outdent", Key: "^[", OnClick: "indentSimpleView(true)", IsHidden: true);
+        => new(Id: "outdent-button", Icon: "fa-solid fa-outdent", Label: "Outdent", Key: "^[", IsHidden: true);
 
     /// <summary>Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.</summary>
     public static ToolbarButton ZoomIn()
-        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!=", OnClick: "editorZoom.zoomIn()");
+        => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: "Zoom in", Key: "!=");
 
     /// <summary>Makes the text of the editor smaller.</summary>
     public static ToolbarButton ZoomOut()
-        => new(Id: "zoom-out-button", Icon: "fa-solid fa-magnifying-glass-minus", Label: "Zoom out", Key: "!-", OnClick: "editorZoom.zoomOut()");
+        => new(Id: "zoom-out-button", Icon: "fa-solid fa-magnifying-glass-minus", Label: "Zoom out", Key: "!-");
 
     /// <summary>
     /// From a media file to the one before it in the grid of its directory, disabled at the first. The arrow keys are left to a video or audio
@@ -98,7 +97,7 @@ public sealed record ToolbarButton(
 
     /// <summary>Shows an image, video or PDF over the whole screen (BinaryView), and leaves it again.</summary>
     public static ToolbarButton Fullscreen()
-        => new(Id: "fullscreen-button", Icon: "fa-solid fa-expand", Label: "Fullscreen", Key: "f", OnClick: "toggleMediaFullscreen()");
+        => new(Id: "fullscreen-button", Icon: "fa-solid fa-expand", Label: "Fullscreen", Key: "f");
 
     /// <summary>
     /// The bytes of a media file as the browser shows them, instead of the page around them. Every file has them (<c>?raw</c>), but only on
@@ -112,7 +111,7 @@ public sealed record ToolbarButton(
     /// through it too, so that the PDF always looks the same.
     /// </summary>
     public static ToolbarButton SaveAsPdf()
-        => new(Id: "pdf-button", Icon: "fa-solid fa-file-pdf", Label: "Save as PDF (print)", Key: "^p", OnClick: "printMarkdown()");
+        => new(Id: "pdf-button", Icon: "fa-solid fa-file-pdf", Label: "Save as PDF (print)", Key: "^p");
 
     public static ToolbarButton Download(bool isFile)
         => new(Id: "download-button", Icon: "fa-solid fa-download", Label: isFile ? "Download this file" : "Download this directory as a zip", Key: "!PageDown", Href: "?download", IsDownload: true);
@@ -134,14 +133,14 @@ public sealed record ToolbarButton(
     /// </summary>
     /// <param name="disabledReason">Why there are no earlier states to see (only for admins, who may know about the configuration).</param>
     public static ToolbarButton History(string? disabledReason = null)
-        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!H", OnClick: "openHistoryModal()", DisabledReason: disabledReason);
+        => new(Id: "history-button", Icon: "fa-solid fa-calendar", Label: "View an earlier state", Key: "!H", DisabledReason: disabledReason);
 
     /// <summary>
     /// Shows or hides the list of the changes of the entry (_CommitSidebar), its shortcut also focuses it; in the view of a commit, where the list
     /// is always shown, it focuses it or leaves it. It is there wherever the history button is (left of it), and disabled for the same reason.
     /// </summary>
     public static ToolbarButton Commits(string? disabledReason = null)
-        => new(Id: "commits-button", Icon: "fa-brands fa-git-alt", Label: "Show the changes", Key: "h", OnClick: "toggleCommitSidebar()", DisabledReason: disabledReason);
+        => new(Id: "commits-button", Icon: "fa-brands fa-git-alt", Label: "Show the changes", Key: "h", DisabledReason: disabledReason);
 
     /// <summary>
     /// In the view of a commit, the way between its state and what it changed of the entry (docs/development/history-specification.md, "The
@@ -157,7 +156,7 @@ public sealed record ToolbarButton(
 
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public static ToolbarButton ResetConfig()
-        => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: "Reset to the default configuration (Save keeps it)", Key: "^!r", OnClick: "resetConfig()");
+        => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: "Reset to the default configuration (Save keeps it)", Key: "^!r");
 
     /// <summary>From the configuration page back to the file or directory itself.</summary>
     public static ToolbarButton BackToEntry(string kind, string href)

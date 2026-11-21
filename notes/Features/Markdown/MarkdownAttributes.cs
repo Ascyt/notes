@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Markdig.Extensions.CustomContainers;
 using Markdig.Renderers.Html;
 
-namespace notes.Pages.Editor.Markdown;
+namespace notes.Features.Markdown;
 
 /// <summary>
 /// The attributes of the rendered markdown: what a note sets itself (<c>{#id .class}</c>) is cut down to what can't touch the page,

@@ -19,6 +19,37 @@ public sealed class UserInputTests(NotesAppFactory app) : IntegrationTest(app)
         Assert.Equal(before, Tree.Snapshot());
     }
 
+    // ---- One action per request
+
+    [Theory]
+    [InlineData("/docs?selection=clear&create=file")]
+    [InlineData("/docs/a.md?rename=b.md&config")]
+    [InlineData("/docs?create=directory&transfer=copy")]
+    public async Task A_change_that_asks_for_two_actions_is_refused_instead_of_choosing_one(string url)
+    {
+        string before = Tree.Snapshot();
+
+        await AssertStatus(HttpStatusCode.BadRequest, await Client.PostAsync(Users.Admin, url));
+
+        Assert.Equal(before, Tree.Snapshot());
+    }
+
+    [Theory]
+    [InlineData("/docs/a.md?raw&download")]
+    [InlineData("/docs/a.md?config&download")]
+    [InlineData("/docs/a.md?selection&thumbnail")]
+    [InlineData("/docs/a.md?before=2026-01-01T00:00:00Z&raw&download")]
+    public async Task Reading_two_things_at_once_is_refused(string url)
+        => await AssertStatus(HttpStatusCode.BadRequest, await Client.GetAsync(Users.Admin, url));
+
+    [Fact]
+    public async Task Parameters_that_go_with_an_action_or_a_view_are_no_second_action()
+    {
+        // ?edit is a view of the file, not an action: the POST of the file is still its save
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/docs/a.md?edit", "saved"));
+        Assert.Equal("saved", Tree.Read("docs/a.md"));
+    }
+
     // ---- Links to entries whose names mean something in an address
 
     [Theory]
@@ -61,13 +92,16 @@ public sealed class UserInputTests(NotesAppFactory app) : IntegrationTest(app)
     [InlineData("/docs/a.md")]
     [InlineData("/does/not/exist")]
     [InlineData("/_/About")]
-    public async Task Every_answer_forbids_framing_by_other_sites_and_sniffing(string url)
+    public async Task Every_answer_forbids_framing_by_other_sites_sniffing_and_scripts_of_its_own(string url)
     {
         HttpResponseMessage response = await Client.GetAsync(Users.Alice, url);
 
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal("SAMEORIGIN", response.Headers.GetValues("X-Frame-Options").Single());
-        Assert.Contains("frame-ancestors 'self'", response.Headers.GetValues("Content-Security-Policy").Single());
+        string policy = response.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("frame-ancestors 'self'", policy);
+        // Only the app's script files: nothing inline (which a note could carry), nothing from elsewhere
+        Assert.Contains("script-src 'self';", policy);
         Assert.Equal("same-origin", response.Headers.GetValues("Referrer-Policy").Single());
     }
 }

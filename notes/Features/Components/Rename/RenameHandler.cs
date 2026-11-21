@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using notes.Features.Bridges;
 using notes.Features.Components.Transfer;
 using notes.Features.Configuration;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 using notes.Features.History;
 
@@ -12,10 +13,16 @@ namespace notes.Features.Components.Rename;
 /// Answers <c>?rename=&lt;name&gt;</c>: renames the file or directory and returns where it is now (as an address). Renaming is moving within
 /// the same directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
-public sealed class RenameHandler(NotesLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history)
+public sealed class RenameHandler(NotesLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock, FolderConfigStore configs, HistoryService history) : IEntryPostAction
 {
-    public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath, string requestedName)
+    public const string RenameParameter = "rename";
+
+    public string Parameter => RenameParameter;
+    public AccessNeeded Needs => AccessNeeded.Known;
+
+    public async Task<IActionResult> PostAsync(EntryRequest request)
     {
+        (ClaimsPrincipal user, string virtualPath, string physicalPath, string requestedName) = (request.User, request.VirtualPath, request.PhysicalPath, request.Value);
         if (virtualPath == "")
             return new BadRequestObjectResult("Cannot rename the root directory.");
         if (NewNames.Check(requestedName, out string newName) is { } invalid)

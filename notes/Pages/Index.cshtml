@@ -51,5 +51,5 @@ else if (Model.FileChanges is not null)
 @* Why the page was sent here instead of to an earlier state (see EarlierStateNotice) *@
 @if (Model.EarlierStateMessage is not null)
 {
-    <script>document.addEventListener('DOMContentLoaded', () => notify(@Json.Serialize(Model.EarlierStateMessage), 'danger'));</script>
+    <span id="earlier-state-message" hidden data-notify="@Model.EarlierStateMessage" data-notify-kind="danger"></span>
 }

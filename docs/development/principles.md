@@ -92,6 +92,8 @@ Some virtual directories are stored in physical directories of their own ([bridg
 
 Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with LibMan), never from a CDN at runtime, so the browser only talks to the app and to Keycloak. Content that users put into their notes, such as an image in a Markdown file, may come from anywhere.
 
+Scripts are files in `wwwroot/js`, never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`). What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block, and a toolbar button gets its listener with `onClickOf` (`site.js`).
+
 ### 17. Existing installations keep working
 
 A change to a format that is stored raises its version and comes with a migration, as for `.config.json` (see [Configuration](../administration/configuration.md#versions-and-migrations)). Keycloak imports the realm file only once, so a change to `keycloak/notes-realm.json` comes with the steps to make it by hand on a realm imported before (see [Deployment](../administration/deployment.md#a-realm-that-was-imported-before)).
@@ -106,7 +108,7 @@ A change to a format that is stored raises its version and comes with a migratio
 - Code is grouped by feature (`Features/<feature>/`), not by kind (all controllers in one place, all services in another).
 - Files stay short. One that grows past around 250 lines is split up along what its parts do (deciding, storing, looking up, …), not into a first and a second half; tests are split by topic, with what they share in a base class. This is a guide, not a limit: a file that clearly reads better in one piece stays one.
 - Folders stay small too: ideally around five files each (a view and its model, `_Card.cshtml` and `_Card.cshtml.cs`, count as one). A part of a feature that has grown files of its own gets a folder of its own inside the feature's, as the list of changes of the history has (`Features/HistoryViewing/Commits`). Again a guide, not a limit.
-- Namespaces always follow the folders: what is in `notes/Pages/Editor/Markdown` is in `notes.Pages.Editor.Markdown`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
+- Namespaces always follow the folders: what is in `notes/Features/HistoryViewing/Commits` is in `notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
 ### 19. Few dependencies

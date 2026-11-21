@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Bridges;
+using notes.Features.EntryActions;
 
 namespace notes.Features.Components.Download;
 
@@ -9,9 +10,17 @@ namespace notes.Features.Components.Download;
 /// Answers <c>?download</c>: a file as it is, a directory as a zip. The zip leaves out the entries the user may not read (with what is in
 /// them), like a copy does. The caller has made sure the user may open the entry itself.
 /// </summary>
-public sealed class DownloadHandler(Config config, NotesLocations locations, IZipService zipService, AccessTree tree)
+public sealed class DownloadHandler(Config config, NotesLocations locations, IZipService zipService, AccessTree tree) : IEntryGetAction
 {
-    public IActionResult Handle(ClaimsPrincipal user, string virtualPath, string physicalPath)
+    public const string DownloadParameter = "download";
+
+    public string Parameter => DownloadParameter;
+    public AccessNeeded Needs => AccessNeeded.Readable;
+
+    public Task<IActionResult> GetAsync(EntryRequest request)
+        => Task.FromResult(Download(request.User, request.VirtualPath, request.PhysicalPath));
+
+    private IActionResult Download(ClaimsPrincipal user, string virtualPath, string physicalPath)
     {
         if (File.Exists(physicalPath))
             return new PhysicalFileResult(physicalPath, "application/octet-stream")

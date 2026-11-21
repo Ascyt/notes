@@ -111,6 +111,8 @@
     };
 
     // The zoom buttons of the toolbar (ToolbarButton.ZoomIn/ZoomOut), on the pages that have them
+    onClickOf('zoom-in-button', () => window.editorZoom.zoomIn());
+    onClickOf('zoom-out-button', () => window.editorZoom.zoomOut());
     window.editorZoom.onChange(function () {
         const zoomInButton = document.getElementById('zoom-in-button');
         const zoomOutButton = document.getElementById('zoom-out-button');

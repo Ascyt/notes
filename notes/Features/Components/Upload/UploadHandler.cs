@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 using notes.Features.History;
 
@@ -11,10 +12,16 @@ namespace notes.Features.Components.Upload;
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
 /// or proxies cap the file size. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
-public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history)
+public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history) : IEntryPostAction
 {
-    public async Task<IActionResult> HandleAsync(HttpRequest request, ClaimsPrincipal user, string physicalPath, string upload)
+    public const string UploadParameter = "upload";
+
+    public string Parameter => UploadParameter;
+    public AccessNeeded Needs => AccessNeeded.Known;
+
+    public async Task<IActionResult> PostAsync(EntryRequest entryRequest)
     {
+        (HttpRequest request, ClaimsPrincipal user, string physicalPath, string upload) = (entryRequest.Request, entryRequest.User, entryRequest.PhysicalPath, entryRequest.Value);
         if (!Directory.Exists(physicalPath))
             return new NotFoundObjectResult("Directory not found.");
         // Uploading into a directory the user may not read would tell them which names are taken in it

@@ -10,6 +10,8 @@ public static class SecurityHeaders
     /// <item>The browser takes the type it is told, and never guesses another (an uploaded file that looks like HTML is not a page of the app).</item>
     /// <item>No base address that would make the relative links of a page lead elsewhere.</item>
     /// <item>Other sites aren't told which address of the notes a request came from (an image of a note from elsewhere), as the path of a note may be private.</item>
+    /// <item>Only the app's own script files run: no inline scripts or handlers, nothing from other sites, no eval. Should something of a note
+    /// ever get past the Markdown renderer as markup, it still can't run. Monaco starts its workers from blob: addresses.</item>
     /// </list>
     /// Set when the answer starts, so that they survive the error page, which clears the headers of what failed.
     /// </summary>
@@ -21,7 +23,7 @@ public static class SecurityHeaders
                 IHeaderDictionary headers = context.Response.Headers;
                 headers.XContentTypeOptions = "nosniff";
                 headers.XFrameOptions = "SAMEORIGIN";
-                headers.ContentSecurityPolicy = "frame-ancestors 'self'; base-uri 'self'; object-src 'self'";
+                headers.ContentSecurityPolicy = "frame-ancestors 'self'; base-uri 'self'; object-src 'self'; script-src 'self'; worker-src 'self' blob:";
                 headers["Referrer-Policy"] = "same-origin";
                 return Task.CompletedTask;
             });

@@ -2,9 +2,10 @@ using System.Security.Cryptography;
 using ImageMagick;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using notes.Features.EntryActions;
 using notes.Features.ImageConversion;
 
-namespace notes.Pages.Editor;
+namespace notes.Features.Media;
 
 /// <summary>
 /// Answers <c>?raw</c>: the bytes of a media file, to be shown inline by the file's page. An image the browser can't show is converted
@@ -12,9 +13,17 @@ namespace notes.Pages.Editor;
 /// Any other file is refused (403, with the reason): sent as what it is, an HTML or SVG file of the notes would be a page of this site, with
 /// its scripts, and for what isn't media there is nothing the browser would show better than the file's page (or a download) does.
 /// </summary>
-public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
+public sealed class RawHandler(Config config, ILogger<RawHandler> logger) : IEntryGetAction
 {
-    public IActionResult Handle(HttpResponse response, string physicalPath)
+    public const string RawParameter = "raw";
+
+    public string Parameter => RawParameter;
+    public AccessNeeded Needs => AccessNeeded.Readable;
+
+    public Task<IActionResult> GetAsync(EntryRequest request)
+        => Task.FromResult(Raw(request.Response, request.PhysicalPath));
+
+    private IActionResult Raw(HttpResponse response, string physicalPath)
     {
         if (!File.Exists(physicalPath))
             return new NotFoundResult();
@@ -99,10 +108,10 @@ public sealed class RawHandler(Config config, ILogger<RawHandler> logger)
     // The browser must not second-guess the type, e.g. by treating a renamed HTML file as a page of this site
     private static void ForbidSniffing(HttpResponse response) => response.Headers.XContentTypeOptions = "nosniff";
 
-    /// <summary>The whole file, also while something else has it open for writing.</summary>
+    /// <summary>The whole file, also while something else has it open for writing or replaces it (a save, see <see cref="Editor.SaveHandler"/>).</summary>
     private static byte[] ReadAllBytes(string physicalPath)
     {
-        using FileStream stream = new(physicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using FileStream stream = new(physicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using MemoryStream contents = new();
         stream.CopyTo(contents);
         return contents.ToArray();

@@ -38,7 +38,24 @@ window.setButtonBusy = function (button, busy) {
     refreshButton(button);
 };
 
-// Swallows every click on such a button before anything else (inline handlers, listeners, shortcuts) gets to see it
+// Runs the function when the element with that id is clicked, if the page has one. The scripts of the page attach their buttons with
+// it (there are no inline handlers: the policy of the site doesn't run them), also those that come later in the page than the script.
+window.onClickOf = function (id, handler) {
+    const attach = () => document.getElementById(id)?.addEventListener('click', () => handler());
+    if (document.readyState === 'loading')
+        document.addEventListener('DOMContentLoaded', attach);
+    else
+        attach();
+};
+
+// An image or video with data-hidden-on-error is hidden if it can't be loaded (what is behind it shows instead). Errors of what is
+// loaded don't bubble, so they are caught on their way down; and this script is in the head, so none comes before it.
+document.addEventListener('error', function (e) {
+    if (e.target instanceof Element && e.target.hasAttribute('data-hidden-on-error'))
+        e.target.hidden = true;
+}, true);
+
+// Swallows every click on such a button before anything else (listeners, shortcuts) gets to see it
 document.addEventListener('click', function (e) {
     if (e.target instanceof Element && e.target.closest('[aria-disabled="true"]')) {
         e.preventDefault();

@@ -2,11 +2,12 @@ using System.Security.Claims;
 using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Components.Toolbar;
+using notes.Features.Editor;
 using notes.Features.Helpers;
 using notes.Features.HistoryViewing.States;
 using notes.Features.HistoryViewing.Views;
+using notes.Features.Media;
 using notes.Pages.Browse;
-using notes.Pages.Editor;
 
 namespace notes.Features.HistoryViewing.Changes;
 
@@ -70,9 +71,9 @@ public sealed class CommitChangesViews(Config config, NotesLocations locations, 
 
         bool isBinary;
         await using (Stream contents = blob.GetContentStream())
-            isBinary = blob.Size > maxTextBytes || await FileView.LooksBinaryAsync(contents);
+            isBinary = blob.Size > maxTextBytes || await TextFiles.LooksBinaryAsync(contents);
         MediaKind media = MediaTypes.KindOf(side.Entry.Name);
         return new FileChangeSide(side.Kind, isBinary, isBinary ? "" : EarlierState.ReadText(blob), isBinary ? media : MediaKind.None,
-            FileView.FormatSize(blob.Size), rawBytesQuery);
+            ByteSizes.Format(blob.Size), rawBytesQuery);
     }
 }

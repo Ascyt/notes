@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Toolbar;
 using notes.Features.HistoryViewing.Commits;
+using notes.Features.Editor;
 using notes.Features.HistoryViewing.Views;
-using notes.Pages.Editor;
+using notes.Features.Media;
 
 namespace notes.Features.HistoryViewing.Changes;
 
@@ -49,7 +50,7 @@ public class _FileChanges : PageModel
     /// <summary>Whether it is text on every side that is shown, which the diff editor shows; otherwise the sides are shown next to each other.</summary>
     public bool ShowsText => !Before.IsBinary && !After.IsBinary;
 
-    public string Language => FileView.LanguageOf(VirtualPath);
+    public string Language => TextFiles.LanguageOf(VirtualPath);
 
     /// <summary>Where only one side of text is shown, why the other one isn't; null where both are.</summary>
     public string? OneSideNotShownReason => Before.Kind == ChangeSideKind.NotShown

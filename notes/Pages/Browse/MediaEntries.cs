@@ -2,7 +2,7 @@ using System.Security.Claims;
 using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Helpers;
-using notes.Pages.Editor;
+using notes.Features.Media;
 
 namespace notes.Pages.Browse;
 

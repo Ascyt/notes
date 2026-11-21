@@ -2,7 +2,7 @@ using System.Text;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 
-namespace notes.Pages.Editor.Markdown;
+namespace notes.Features.Markdown;
 
 /// <summary>The links and images of the rendered markdown: where they may lead, and which of them open a new tab.</summary>
 internal static class MarkdownLinks

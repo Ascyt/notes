@@ -1,8 +1,9 @@
-@using notes.Pages.Editor
+@using notes.Features.Helpers
+@using notes.Features.Media
 @model notes.Pages.Editor.FileView
 @{
     string message = Model.IsTooLarge
-        ? $"This file is too large ({Model.FormattedSize}) to be shown here (text is shown up to {FileView.FormatSize(Model.MaxTextBytes)}). It may be downloaded using the download button above."
+        ? $"This file is too large ({Model.FormattedSize}) to be shown here (text is shown up to {ByteSizes.Format(Model.MaxTextBytes)}). It may be downloaded using the download button above."
         : $"This file is binary ({Model.FormattedSize}) and cannot be viewed here. It may be downloaded using the download button above.";
     string name = System.IO.Path.GetFileName(Model.VirtualPath);
 }
@@ -26,42 +27,23 @@
     }
 </style>
 
-<script>
-    // Whatever the browser fails to show (a format it doesn't know, a broken file) gets the message instead
-    function showUnviewable(element) {
-        element.hidden = true;
-        document.getElementById('unviewable').hidden = false;
-        const fullscreenButton = document.getElementById('fullscreen-button');
-        if (fullscreenButton)
-            setButtonDisabled(fullscreenButton, "The file can't be shown.");
-    }
-
-    // The toolbar's fullscreen button (ToolbarButton.Fullscreen), which leaves fullscreen again too
-    function toggleMediaFullscreen() {
-        const media = document.getElementById('media-view');
-        if (document.fullscreenElement)
-            document.exitFullscreen();
-        else if (media.requestFullscreen)
-            media.requestFullscreen();
-        else if (media.webkitEnterFullscreen)
-            media.webkitEnterFullscreen(); // the only fullscreen of a video on an iPhone
-    }
-</script>
+@* Before the media, so that it hears of their errors from the start *@
+<script src="~/js/editor/binary-view.js" asp-append-version="true"></script>
 
 @* "?raw" is the file's own address with the raw bytes (of the state that is shown); the browser does the showing *@
 <div>
     @switch (Model.Media)
     {
         case MediaKind.Image:
-            <img id="media-view" src="?@Model.RawBytesQuery" alt="@name" class="img-fluid media-view" onerror="showUnviewable(this)"/>
+            <img id="media-view" src="?@Model.RawBytesQuery" alt="@name" class="img-fluid media-view" data-unviewable-on-error/>
             <p id="unviewable" class="text-muted" hidden>@message</p>
             break;
         case MediaKind.Video:
-            <video id="media-view" src="?@Model.RawBytesQuery" controls class="w-100 media-view" onerror="showUnviewable(this)"></video>
+            <video id="media-view" src="?@Model.RawBytesQuery" controls class="w-100 media-view" data-unviewable-on-error></video>
             <p id="unviewable" class="text-muted" hidden>@message</p>
             break;
         case MediaKind.Audio:
-            <audio src="?@Model.RawBytesQuery" controls class="w-100" onerror="showUnviewable(this)"></audio>
+            <audio src="?@Model.RawBytesQuery" controls class="w-100" data-unviewable-on-error></audio>
             <p id="unviewable" class="text-muted" hidden>@message</p>
             break;
         case MediaKind.Pdf:
@@ -75,13 +57,3 @@
             break;
     }
 </div>
-
-<script>
-    // Where the browser has no fullscreen for it (an image or a PDF on an iPhone), the button says so
-    (function () {
-        const media = document.getElementById('media-view');
-        const button = document.getElementById('fullscreen-button');
-        if (media && button && !media.requestFullscreen && !media.webkitEnterFullscreen)
-            setButtonDisabled(button, "This browser can't show it in fullscreen.");
-    })();
-</script>

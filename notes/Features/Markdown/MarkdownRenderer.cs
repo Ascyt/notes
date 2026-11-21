@@ -7,7 +7,7 @@ using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using Markdown.ColorCode;
 
-namespace notes.Pages.Editor.Markdown;
+namespace notes.Features.Markdown;
 
 /// <summary>The HTML of a markdown file, and which scripts of the page it needs to be shown in full.</summary>
 /// <param name="Html">What the preview shows.</param>

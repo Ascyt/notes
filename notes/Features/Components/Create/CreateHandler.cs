@@ -3,16 +3,23 @@ using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Configuration;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 using notes.Features.History;
 
 namespace notes.Features.Components.Create;
 
 /// <summary>Answers <c>?create=file</c> and <c>?create=directory</c>: makes a timestamp-named entry in the directory and redirects to it (a file to its editor).</summary>
-public sealed class CreateHandler(NotesLocations locations, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, HistoryService history, LimitsConfig limits, TimeProvider time)
+public sealed class CreateHandler(NotesLocations locations, IPathService path, AccessTree tree, StructureLock structureLock, FolderConfigStore configs, HistoryService history, LimitsConfig limits, TimeProvider time) : IEntryPostAction
 {
-    public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string physicalDirectory, string create)
+    public const string CreateParameter = "create";
+
+    public string Parameter => CreateParameter;
+    public AccessNeeded Needs => AccessNeeded.Known;
+
+    public async Task<IActionResult> PostAsync(EntryRequest request)
     {
+        (ClaimsPrincipal user, string physicalDirectory, string create) = (request.User, request.PhysicalPath, request.Value);
         if (create is not ("file" or "directory"))
             return new BadRequestObjectResult("Invalid create kind.");
 

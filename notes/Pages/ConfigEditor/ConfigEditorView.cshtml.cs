@@ -2,6 +2,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace notes.Pages.ConfigEditor;
 
+/// <summary>What the editor's script (config-editor.js) is told about the configuration.</summary>
+/// <param name="MonacoPath">Where Monaco is served from.</param>
+/// <param name="Schema">The JSON schema, as text.</param>
+public sealed record ConfigEditorOptions(string MonacoPath, string Contents, string DefaultContents, string Schema);
+
 /// <summary>The page that edits the configuration of a folder or a file (<c>?config</c>), for those who may manage it.</summary>
 public class ConfigEditorView : PageModel
 {
@@ -24,4 +29,6 @@ public class ConfigEditorView : PageModel
 
     /// <summary>What is wrong with the saved configuration (which until it is fixed leaves everyone but admins without access), or null if nothing.</summary>
     public string? Warning { get; init; }
+
+    public ConfigEditorOptions EditorOptions(string monacoPath) => new(monacoPath, Contents, DefaultContents, Schema);
 }

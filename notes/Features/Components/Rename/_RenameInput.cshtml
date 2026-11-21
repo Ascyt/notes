@@ -10,67 +10,12 @@
     {
         <input id="rename-input" type="text" class="form-control" value="@Model.Name" aria-label="Name" autocomplete="off" spellcheck="false" key="F2"/>
     }
-    <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="Reset" onclick="resetRename()" key="Escape">
+    <button id="rename-cancel" type="button" class="btn btn-outline-secondary" style="display: none;" title="Reset" key="Escape">
         <i class="fa-solid fa-xmark"></i>
     </button>
-    <button id="rename-confirm" type="button" class="btn btn-success" style="display: none;" title="Rename" onclick="renameEntry()" key="Enter">
+    <button id="rename-confirm" type="button" class="btn btn-success" style="display: none;" title="Rename" key="Enter">
         <i class="fa-solid fa-check"></i>
     </button>
 </div>
 
-<script>
-    const originalName = @Json.Serialize(Model.Name);
-    const renameInput = document.getElementById('rename-input');
-
-    function updateRenameButtons() {
-        const changed = renameInput.value !== originalName;
-        document.getElementById('rename-confirm').style.display = changed ? '' : 'none';
-        document.getElementById('rename-cancel').style.display = changed ? '' : 'none';
-    }
-
-    function resetRename() {
-        renameInput.value = originalName;
-        updateRenameButtons();
-    }
-
-    async function renameEntry() {
-        const newName = renameInput.value;
-        if (newName === originalName)
-            return;
-
-        // A page may veto renaming (e.g. a file with unsaved changes)
-        if (typeof window.beforeRename === 'function' && window.beforeRename() === false)
-            return;
-
-        const token = document.querySelector('#rename input[name="__RequestVerificationToken"]').value;
-        let response;
-        try {
-            response = await fetch(window.location.pathname + '?rename=' + encodeURIComponent(newName), {
-                method: 'POST',
-                headers: { 'RequestVerificationToken': token }
-            });
-        } catch {
-            response = { ok: false, status: 'network error' };
-        }
-        if (!response.ok) {
-            // The server says what went wrong (e.g. a permission that is missing)
-            const message = typeof response.text === 'function' ? await response.text() : '';
-            notify(message || ('Failed to rename (' + response.status + ').'), 'danger');
-            return;
-        }
-
-        notifyAfterNavigation('Renamed to ' + newName + '.');
-        // The same view of it as before (another view is a query of the same address, e.g. ?edit)
-        window.location.href = (await response.text()) + window.location.search;
-    }
-
-    renameInput.addEventListener('input', updateRenameButtons);
-    renameInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            renameEntry();
-        } else if (e.key === 'Escape') {
-            resetRename();
-        }
-    });
-</script>
+<script src="~/js/components/rename.js" asp-append-version="true"></script>

@@ -7,7 +7,7 @@ using notes.Features.Helpers;
 using notes.Features.History;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.States;
-using notes.Pages.Editor;
+using notes.Features.Media;
 
 namespace notes.Features.HistoryViewing.Requests;
 

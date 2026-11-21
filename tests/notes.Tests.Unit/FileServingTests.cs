@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using System.Text;
 using notes.Features.Components.Download;
+using notes.Features.Editor;
+using notes.Features.Media;
 using notes.Pages.Editor;
 
 namespace notes.Tests.Unit;
@@ -116,6 +118,48 @@ public sealed class FileServingTests : IDisposable
         FileView view = new() { VirtualPath = name, PhysicalPath = path };
         await view.InitAsync();
         return view;
+    }
+
+    /// <summary>A stream with no end, like a file that keeps growing while it is read.</summary>
+    private sealed class EndlessStream : Stream
+    {
+        public long ReadSoFar { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => ReadSoFar; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Array.Fill(buffer, (byte)'a', offset, count);
+            ReadSoFar += count;
+            return count;
+        }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task Reading_text_stops_at_the_limit_however_much_there_is()
+    {
+        EndlessStream endless = new();
+
+        Assert.Null(await TextFiles.ReadAtMostAsync(endless, 1000));
+        Assert.True(endless.ReadSoFar < 1_000_000, "it didn't go on reading");
+        Assert.Equal(1000, (await TextFiles.ReadAtMostAsync(new MemoryStream(new byte[1000]), 1000))?.Length);
+    }
+
+    [Fact]
+    public async Task Text_larger_than_the_limit_is_shown_as_too_large()
+    {
+        string path = _notes.Files.File("big.md", new string('a', 2000));
+        FileView view = new() { VirtualPath = "big.md", PhysicalPath = path, MaxTextBytes = 1000 };
+        await view.InitAsync();
+
+        Assert.True(view.IsTooLarge);
+        Assert.Equal("", view.Contents);
     }
 
     [Fact]

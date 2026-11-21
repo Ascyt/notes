@@ -63,4 +63,5 @@
         await window.markdownDiagramsRendered; // only there for a file with diagrams
         window.print();
     };
+    onClickOf('pdf-button', () => window.printMarkdown());
 })();

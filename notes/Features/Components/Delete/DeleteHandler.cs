@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Components.Transfer;
+using notes.Features.EntryActions;
 
 namespace notes.Features.Components.Delete;
 
@@ -8,15 +8,19 @@ namespace notes.Features.Components.Delete;
 /// Answers a DELETE request: removes the file, or the directory and everything in it. It is a delete of a one-entry selection, so it is
 /// checked and done exactly like one (all or nothing; nothing hidden from the user may be inside).
 /// </summary>
-public sealed class DeleteHandler(ITransferService transfer)
+public sealed class DeleteHandler(ITransferService transfer) : IEntryDeleteAction
 {
-    public async Task<IActionResult> HandleAsync(ClaimsPrincipal user, string virtualPath, string physicalPath)
+    /// <summary>The DELETE of the entry itself, without a parameter.</summary>
+    public string? Parameter => null;
+    public AccessNeeded Needs => AccessNeeded.Known;
+
+    public async Task<IActionResult> DeleteAsync(EntryRequest request)
     {
-        if (virtualPath == "")
+        if (request.IsRoot)
             return new BadRequestObjectResult("Cannot delete the root directory.");
 
         // The target directory plays no part in a delete
-        TransferResult result = await transfer.RunAsync(user, TransferKind.Delete, physicalPath, [virtualPath]);
+        TransferResult result = await transfer.RunAsync(request.User, TransferKind.Delete, request.PhysicalPath, [request.VirtualPath]);
         return result.IsSuccess
             ? new OkResult()
             : new ObjectResult(result.Message) { StatusCode = result.StatusCode };

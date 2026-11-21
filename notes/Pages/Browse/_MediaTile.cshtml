@@ -7,7 +7,7 @@
     string? reason = Model.Entry.CanOpen ? null
         : isLocked ? "No read access to this file."
         : Model.Href is null ? "Insufficient permissions to see this entry as it was. It is not there any more." : "Insufficient permissions to see this entry as it was.";
-    bool isVideo = Model.Kind == notes.Pages.Editor.MediaKind.Video;
+    bool isVideo = Model.Kind == notes.Features.Media.MediaKind.Video;
 }
 
 @* Like a row of the other groups: an .entry-row (which the selection script picks up) only for what can be opened, and for what can't the data
@@ -22,11 +22,11 @@
                 @if (isVideo)
                 {
                     @* Its first frame, which preload="metadata" is enough for; the video itself is never played here *@
-                    <video src="@Model.PictureSource" preload="metadata" muted playsinline disablepictureinpicture tabindex="-1" aria-hidden="true" onerror="this.hidden = true;"></video>
+                    <video src="@Model.PictureSource" preload="metadata" muted playsinline disablepictureinpicture tabindex="-1" aria-hidden="true" data-hidden-on-error></video>
                 }
                 else if (Model.PictureSource is not null)
                 {
-                    <img src="@Model.PictureSource" alt="" loading="lazy" onerror="this.hidden = true;"/>
+                    <img src="@Model.PictureSource" alt="" loading="lazy" data-hidden-on-error/>
                 }
                 @if (isVideo)
                 {

@@ -6,27 +6,19 @@ using Microsoft.Extensions.Caching.Memory;
 using notes;
 using notes.Features.Auth;
 using notes.Features.Bridges;
-using notes.Features.Components.Create;
-using notes.Features.Components.Delete;
-using notes.Features.Components.Download;
-using notes.Features.Components.Rename;
-using notes.Features.Components.Selection;
-using notes.Features.Components.Transfer;
+using notes.Features.Components;
 using notes.Features.Components.Upload;
 using notes.Features.Configuration;
-using notes.Features.Configuration.Migrations;
+using notes.Features.Editor;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 using notes.Features.History;
 using notes.Extensions;
+using notes.Features.HistoryViewing;
 using notes.Features.ImageConversion;
-using notes.Features.HistoryViewing.Changes;
-using notes.Features.HistoryViewing.Commits;
-using notes.Features.HistoryViewing.Requests;
-using notes.Features.HistoryViewing.States;
-using notes.Features.HistoryViewing.Views;
 using notes.Features.KillSwitch;
+using notes.Features.Media;
 using notes.Pages;
-using notes.Pages.Editor;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -56,58 +48,32 @@ builder.Services.AddSingleton(TimeProvider.System);
 // Where the notes are on disk: the root and the bridges (docs/administration/bridges.md). A configuration that isn't valid stops the app here.
 builder.Services.AddSingleton(new NotesLocations(config));
 builder.Services.AddSingleton<IPathService, PathService>();
-builder.Services.AddSingleton<IZipService, ZipService>();
-builder.Services.AddSingleton<IUploadService, UploadService>();
-// The selections live in memory of this process only: fine for a single instance, but a restart forgets them and several instances
-// would not share them. For that, ISelectionService needs a shared store (e.g. a distributed cache).
 builder.Services.AddMemoryCache();
 // The cache expires entries (the selections) by the app's clock
 builder.Services.AddOptions<MemoryCacheOptions>().Configure<TimeProvider>((options, time) => options.Clock = new TimeProviderClock(time));
 // Permissions: what they mean and who checks them where is specified in docs/development/security-specification.md
-// The version of the app is set in appsettings (Config:Version); .config.json files from older versions are migrated when read.
-// Neither a version that isn't one nor migrations that don't fit it let the app start.
-builder.Services.AddSingleton(services => new ConfigMigrator(ConfigVersions.Parse(config.Version), ConfigMigrations.All, services.GetRequiredService<ILogger<ConfigMigrator>>()));
-builder.Services.AddSingleton<FolderConfigStore>();
 builder.Services.AddSingleton<IEntryAccess, EntryAccess>();
 builder.Services.AddSingleton<AccessTree>();
 // One lock across the app (and so a single instance only) for everything that adds, removes or renames entries
 builder.Services.AddSingleton<StructureLock>();
-builder.Services.AddSingleton<ISelectionService, SelectionService>();
-builder.Services.AddSingleton<TransferPlanner>();
-builder.Services.AddSingleton<TransferExecutor>();
-builder.Services.AddSingleton<ITransferService, TransferService>();
-builder.Services.AddSingleton<SelectionHandler>();
-builder.Services.AddSingleton<TransferHandler>();
-builder.Services.AddSingleton<DownloadHandler>();
-builder.Services.AddSingleton<RawHandler>();
-builder.Services.AddSingleton<ThumbnailHandler>();
-builder.Services.AddSingleton<UploadHandler>();
-builder.Services.AddSingleton<CreateHandler>();
-builder.Services.AddSingleton<RenameHandler>();
-builder.Services.AddSingleton<SaveHandler>();
-builder.Services.AddSingleton<DeleteHandler>();
-builder.Services.AddSingleton<ConfigHandler>();
 builder.Services.AddSingleton<KillSwitchService>();
-// The history of the notes: a git repository in _/history, see docs/administration/history.md
-builder.Services.AddSingleton<HistoryService>();
-// Earlier states of the notes (?before=), and who may see them: docs/development/history-specification.md
-builder.Services.AddSingleton<EarlierStateReader>();
-builder.Services.AddSingleton<EarlierStatePermissions>();
-builder.Services.AddSingleton<EarlierStateCommits>();
-builder.Services.AddSingleton<EarlierStateRequests>();
-builder.Services.AddSingleton<EarlierStateViews>();
-// What a commit changed (?commit=&changes)
-builder.Services.AddSingleton<CommitChanges>();
-builder.Services.AddSingleton<CommitChangesRequests>();
-builder.Services.AddSingleton<CommitChangesViews>();
+
+// The features, each with the actions of the page of the entries that it answers (?download, ?rename=, …)
+builder.Services.AddEntryActions();
+builder.Services.AddConfiguration();
+builder.Services.AddComponents();
+builder.Services.AddEditor();
+builder.Services.AddMedia();
+builder.Services.AddHistory();
+builder.Services.AddHistoryViewing();
 
 // Background jobs. Their schedule is registered at every startup, so in-memory storage loses nothing that matters.
 builder.Services.AddHangfire(options => options.UseInMemoryStorage());
 builder.Services.AddHangfireServer();
-builder.Services.AddScoped<ClearStaleUploadsJob>();
-builder.Services.AddScoped<CommitIdleChangesJob>();
 
 WebApplication app = builder.Build();
+// Two actions with the same parameter don't let the app start
+_ = app.Services.GetRequiredService<EntryActions>();
 string dir = Path.GetFullPath(config.Dir);
 
 if (!Directory.Exists(dir))

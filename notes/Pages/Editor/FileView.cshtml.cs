@@ -1,12 +1,13 @@
-﻿using System.Buffers;
-using System.Text.Unicode;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using notes.Features.Components.Breadcrumb;
 using notes.Features.Components.Toolbar;
+using notes.Features.Editor;
+using notes.Features.Helpers;
 using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.Views;
-using notes.Pages.Editor.Markdown;
+using notes.Features.Markdown;
+using notes.Features.Media;
 
 namespace notes.Pages.Editor;
 
@@ -23,9 +24,6 @@ public sealed record EarlierFile(EarlierStateParameter Shown, long Size, Func<St
 
 public class FileView : PageModel
 {
-    /// <summary>How much of the start of a file is looked at to tell text from binary (the same amount git looks at).</summary>
-    private const int SniffLength = 8000;
-
     public string VirtualPath { get; init; } = "";
     public string PhysicalPath { get; init; } = "";
 
@@ -79,8 +77,8 @@ public class FileView : PageModel
     /// <summary>Whether the address asked for the editor (<c>?edit</c>). Only a markdown file has anything else to show.</summary>
     public bool EditRequested { get; init; }
 
-    /// <summary>The largest text that is shown (<see cref="notes.Features.Helpers.LimitsConfig.MaxTextBytes"/>).</summary>
-    public int MaxTextBytes { get; init; } = new notes.Features.Helpers.LimitsConfig().MaxTextBytes;
+    /// <summary>The largest text that is shown (<see cref="LimitsConfig.MaxTextBytes"/>).</summary>
+    public int MaxTextBytes { get; init; } = new LimitsConfig().MaxTextBytes;
 
     public string Contents { get; private set; } = "";
 
@@ -108,40 +106,21 @@ public class FileView : PageModel
     /// <summary>What a binary file is shown as. <see cref="MediaKind.None"/> if the browser has nothing to show it with.</summary>
     public MediaKind Media { get; private set; }
 
-    public string Language => LanguageOf(VirtualPath);
+    public string Language => TextFiles.LanguageOf(VirtualPath);
 
     /// <summary>Text written as prose (notes, plain text), where the editor's suggestions of words are more in the way than of help.</summary>
     public bool IsProse => Path.GetExtension(VirtualPath).ToLowerInvariant() is ".md" or ".txt";
 
-    /// <summary>How the editor highlights a file of that name.</summary>
-    public static string LanguageOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch
-    {
-        ".md" => "markdown",
-        ".json" => "json",
-        _ => "plaintext"
-    };
-
-    public string FormattedSize => FormatSize(Size);
-
-    public static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
-        double size = bytes;
-        int unit = 0;
-        while (size >= 1024 && unit < units.Length - 1)
-        {
-            size /= 1024;
-            unit++;
-        }
-        return unit == 0 ? $"{bytes} B" : $"{size:0.#} {units[unit]}";
-    }
+    public string FormattedSize => ByteSizes.Format(Size);
 
     public async Task InitAsync()
     {
         Size = Earlier?.Size ?? new FileInfo(PhysicalPath).Length;
 
         bool looksBinary = await LooksBinaryAsync();
-        if (looksBinary || Size > MaxTextBytes)
+        // The file may grow after its size was looked at: what is read stops at the limit too
+        byte[]? bytes = looksBinary || Size > MaxTextBytes ? null : await ReadAtMostAsync();
+        if (bytes is null)
         {
             IsBinary = true;
             IsTooLarge = !looksBinary;
@@ -149,35 +128,25 @@ public class FileView : PageModel
             return;
         }
 
-        using (StreamReader reader = new(OpenContents(), detectEncodingFromByteOrderMarks: true))
+        using (StreamReader reader = new(new MemoryStream(bytes), detectEncodingFromByteOrderMarks: true))
             Contents = await reader.ReadToEndAsync();
         if (ShowsPreview)
             Preview = MarkdownRenderer.Render(Contents, SiteHost, RawBytesQuery);
     }
 
-    /// <summary>The contents of the file that is shown: as the earlier state has it, or on disk.</summary>
+    /// <summary>The contents of the file that is shown: as the earlier state has it, or on disk (which a save may replace meanwhile).</summary>
     private Stream OpenContents()
-        => Earlier?.OpenContents() ?? new FileStream(PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        => Earlier?.OpenContents() ?? new FileStream(PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
     private async Task<bool> LooksBinaryAsync()
     {
         await using Stream stream = OpenContents();
-        return await LooksBinaryAsync(stream);
+        return await TextFiles.LooksBinaryAsync(stream);
     }
 
-    /// <summary>A file is binary if its start has a NUL byte or isn't valid UTF-8, which is all the editor can show.</summary>
-    public static async Task<bool> LooksBinaryAsync(Stream stream)
+    private async Task<byte[]?> ReadAtMostAsync()
     {
-        byte[] buffer = new byte[SniffLength];
-        int length = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
-
-        ReadOnlySpan<byte> bytes = buffer.AsSpan(0, length);
-        if (bytes.Contains((byte)0))
-            return true;
-
-        // The cut-off may fall inside a character, which only counts as invalid if the file ends there
-        char[] chars = new char[length];
-        OperationStatus status = Utf8.ToUtf16(bytes, chars, out _, out _, replaceInvalidSequences: false, isFinalBlock: length < SniffLength);
-        return status == OperationStatus.InvalidData;
+        await using Stream stream = OpenContents();
+        return await TextFiles.ReadAtMostAsync(stream, MaxTextBytes);
     }
 }

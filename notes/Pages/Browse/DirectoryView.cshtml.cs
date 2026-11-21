@@ -12,6 +12,7 @@ using notes.Features.HistoryViewing.Commits;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.States;
 using notes.Features.HistoryViewing.Views;
+using notes.Features.Media;
 
 namespace notes.Pages.Browse;
 
@@ -194,7 +195,7 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
     {
         string virtualPath = ToVirtualPath(entry.Path);
         string name = NameOf(entry.Path);
-        Editor.MediaKind kind = Editor.MediaTypes.KindOf(name);
+        MediaKind kind = MediaTypes.KindOf(name);
         // Of the state that is shown, and in the changes of a commit of the side that is there: before it, for what it deleted
         string state = (Shown is { } shown ? "&" + shown.QueryPart : "")
             + (ShowsChanges ? "&" + CommitChangesRequests.ChangesParameter + (entry.Mark == ChangeMark.Deleted ? "&" + CommitChangesRequests.PreviousParameter : "") : "");
@@ -207,8 +208,8 @@ public class DirectoryView(NotesLocations locations, IPathService path, AccessTr
             // A video shows its first frame, which the browser takes from the video itself (a little after the start, which is often black)
             PictureSource = kind switch
             {
-                Editor.MediaKind.Image => VirtualPaths.ToAddress(virtualPath) + "?thumbnail" + state,
-                Editor.MediaKind.Video => VirtualPaths.ToAddress(virtualPath) + "?raw" + state + "#t=0.5",
+                MediaKind.Image => VirtualPaths.ToAddress(virtualPath) + "?thumbnail" + state,
+                MediaKind.Video => VirtualPaths.ToAddress(virtualPath) + "?raw" + state + "#t=0.5",
                 _ => null
             },
             Number = NumberText(index, Media.Length),

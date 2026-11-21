@@ -96,13 +96,29 @@ public abstract class UiTest : IAsyncLifetime
             headers[TestUser.HeaderName] = header;
         IBrowserContext context = await Fixture.Browser!.NewContextAsync(new BrowserNewContextOptions { BaseURL = Fixture.BaseUrl, ExtraHTTPHeaders = headers });
         context.SetDefaultTimeout(10_000);
+        // What the site's policy blocked (an inline script or handler, a script from elsewhere) is only said in the console, and the test
+        // would pass if it doesn't use what didn't run. So every test also checks that nothing was blocked.
+        context.Console += (_, message) =>
+        {
+            if (message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase))
+                lock (_blockedByPolicy)
+                    _blockedByPolicy.Add(message.Text);
+        };
         return context;
     }
+
+    private readonly List<string> _blockedByPolicy = [];
+    private bool _blockingAllowed;
+
+    /// <summary>For a test of an attack, which the policy may stop as well: that it blocked something is no failure then.</summary>
+    protected void AllowBlockingByPolicy() => _blockingAllowed = true;
 
     public async ValueTask DisposeAsync()
     {
         if (Context is not null)
             await Context.DisposeAsync();
+        lock (_blockedByPolicy)
+            Assert.True(_blockingAllowed || _blockedByPolicy.Count == 0, "The Content Security Policy blocked something:\n" + string.Join("\n", _blockedByPolicy));
     }
 
     protected async Task OpenAsync(string path)

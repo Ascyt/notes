@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using notes.Features.Auth;
 using notes.Features.Bridges;
 using notes.Features.Configuration;
+using notes.Features.EntryActions;
 using notes.Features.Helpers;
 
 namespace notes.Features.Components.Selection;
@@ -15,26 +16,33 @@ public sealed record SelectionRequest(string[]? Paths);
 /// Answers <c>?selection</c>. A GET returns the user's selection; a POST changes it: <c>?selection=add</c> and <c>?selection=remove</c>
 /// take the virtual paths in the body, <c>?selection=clear</c> unselects everything. Every answer is the selection as it is afterwards.
 /// </summary>
-public sealed class SelectionHandler(NotesLocations locations, IPathService path, AccessTree tree, ISelectionService selection)
+/// <remarks>The selection is of the whole notes, so it doesn't matter which entry it is asked of.</remarks>
+public sealed class SelectionHandler(NotesLocations locations, IPathService path, AccessTree tree, ISelectionService selection) : IEntryGetAction, IEntryPostAction
 {
     /// <summary>More entries than this in one request is not something a page does.</summary>
     private const int MaxPathsPerRequest = 10_000;
+
+    public const string SelectionParameter = "selection";
+
+    public string Parameter => SelectionParameter;
+    public AccessNeeded Needs => AccessNeeded.Known;
 
     /// <summary>The user's id (Keycloak's "sub" claim), or null if there is none. The selection is stored under it.</summary>
     public static string? UserIdOf(ClaimsPrincipal user)
         => user.FindFirst("sub")?.Value;
 
-    public IActionResult HandleGet(ClaimsPrincipal user)
+    public Task<IActionResult> GetAsync(EntryRequest request)
     {
-        string? userId = UserIdOf(user);
-        if (userId is null || !tree.CanOpen(user, locations.Root.PhysicalPath))
-            return new NotFoundResult();
+        string? userId = UserIdOf(request.User);
+        if (userId is null || !tree.CanOpen(request.User, locations.Root.PhysicalPath))
+            return Task.FromResult<IActionResult>(new NotFoundResult());
 
-        return new JsonResult(selection.Get(userId));
+        return Task.FromResult<IActionResult>(new JsonResult(selection.Get(userId)));
     }
 
-    public async Task<IActionResult> HandlePostAsync(HttpRequest request, ClaimsPrincipal user, string action)
+    public async Task<IActionResult> PostAsync(EntryRequest entryRequest)
     {
+        (HttpRequest request, ClaimsPrincipal user, string action) = (entryRequest.Request, entryRequest.User, entryRequest.Value);
         string? userId = UserIdOf(user);
         if (userId is null || !tree.CanOpen(user, locations.Root.PhysicalPath))
             return new NotFoundResult();

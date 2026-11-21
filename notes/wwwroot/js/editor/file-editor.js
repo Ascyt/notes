@@ -1,6 +1,7 @@
 // The editor of a text file: the code editor (Monaco, see editor.js) or the simple view, a plain text field for phones, saving, and
 // what the components of the page (rename) ask of it. What the page knows about the file comes from #file-editor-options.
-// The toolbar's buttons call saveFile(), toggleSimpleView() and indentSimpleView(outdent); the way to the preview leads to the cursor's place.
+// The toolbar's buttons run saveFile(), toggleSimpleView() and indentSimpleView(outdent), which are also there for other scripts; the
+// way to the preview leads to the cursor's place.
 (function () {
     const SIMPLE_VIEW_KEY = 'notes.simpleEditor';
     const options = JSON.parse(document.getElementById('file-editor-options').textContent);
@@ -110,6 +111,7 @@
         savedValue = normalize(value);
         updateDirty();
     };
+    onClickOf('save-button', () => window.saveFile());
 
     // ---- The two views ----
 
@@ -175,6 +177,8 @@
         else
             textAreaIndent.indent(simpleElement);
     };
+    onClickOf('indent-button', () => window.indentSimpleView(false));
+    onClickOf('outdent-button', () => window.indentSimpleView(true));
 
     // ---- The way to the preview ----
 
@@ -216,6 +220,7 @@
             showMonaco();
         updateDirty();
     };
+    onClickOf('simple-view-button', () => window.toggleSimpleView());
 
     // ---- Room above a phone's keyboard ----
 

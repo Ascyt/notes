@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.Components.Selection;
+using notes.Features.EntryActions;
 
 namespace notes.Features.Components.Transfer;
 
@@ -14,10 +15,16 @@ public sealed record TransferRequest(long Version);
 /// Answers when it is all done; the selection is cleared after a success and kept after a failure. A success answers
 /// <c>{ "leftOutUnreadable": bool }</c>: whether a copy left out entries the user may not read.
 /// </summary>
-public sealed class TransferHandler(ISelectionService selection, ITransferService transfer)
+public sealed class TransferHandler(ISelectionService selection, ITransferService transfer) : IEntryPostAction
 {
-    public async Task<IActionResult> HandleAsync(HttpRequest request, ClaimsPrincipal user, string physicalDirectory, string kindName)
+    public const string TransferParameter = "transfer";
+
+    public string Parameter => TransferParameter;
+    public AccessNeeded Needs => AccessNeeded.Known;
+
+    public async Task<IActionResult> PostAsync(EntryRequest entryRequest)
     {
+        (HttpRequest request, ClaimsPrincipal user, string physicalDirectory, string kindName) = (entryRequest.Request, entryRequest.User, entryRequest.PhysicalPath, entryRequest.Value);
         TransferKind kind;
         switch (kindName)
         {

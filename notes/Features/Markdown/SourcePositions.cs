@@ -4,7 +4,7 @@ using Markdig.Renderers;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 
-namespace notes.Pages.Editor.Markdown;
+namespace notes.Features.Markdown;
 
 /// <summary>
 /// Marks the blocks of the rendered markdown with where they start in the text (line and column, both counted from 1), so that the

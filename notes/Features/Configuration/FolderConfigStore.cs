@@ -71,7 +71,7 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
         string text;
         try
         {
-            text = File.ReadAllText(path);
+            text = ReadFile(path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -100,7 +100,7 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
     public string? ReadText(string physicalDirectory)
     {
         string path = ConfigPathOf(physicalDirectory);
-        return File.Exists(path) ? migrator.Migrate(File.ReadAllText(path)).Text : null;
+        return File.Exists(path) ? migrator.Migrate(ReadFile(path)).Text : null;
     }
 
     /// <summary>
@@ -135,7 +135,7 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
 
             try
             {
-                string text = File.ReadAllText(path);
+                string text = ReadFile(path);
                 MigrationResult migrated = migrator.Migrate(text);
                 if (migrated.Error is not null)
                     logger.LogError("The configuration {path} was not migrated: {error}", path, migrated.Error);
@@ -161,24 +161,39 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
     /// </summary>
     public void WriteText(string physicalDirectory, string text)
     {
-        // Written into the app's data of its location (the root or a bridge), where no listing shows it, and moved over the file (same
-        // volume, so it is a rename)
+        // Written into the app's data of its location (the root or a bridge), where no listing shows it, and put in place of the file (same
+        // volume, so it is a rename). File.Replace rather than a move over it: only it replaces a file on Windows that is being read (by a
+        // reader that allows that, as ReadFile does), but it needs a file to replace, so a folder's first configuration is moved in.
+        string path = ConfigPathOf(physicalDirectory);
         string temp = Path.Combine(locations.TempDirectoryFor(physicalDirectory, "config"), Guid.NewGuid().ToString("N"));
         _ = Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
         File.WriteAllText(temp, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         try
         {
-            File.Move(temp, ConfigPathOf(physicalDirectory), overwrite: true);
+            if (File.Exists(path))
+                File.Replace(temp, path, destinationBackupFileName: null);
+            else
+                File.Move(temp, path);
         }
-        catch
+        finally
         {
+            // Left behind only if it wasn't put in place
             File.Delete(temp);
-            throw;
         }
 
         // (After the file is in place: a read that began before it may have read the old one)
         _ = Interlocked.Increment(ref _writes);
         _ = _cache.TryRemove(Path.TrimEndingDirectorySeparator(physicalDirectory), out _);
+    }
+
+    /// <summary>
+    /// The text of a configuration file. While it is read, <see cref="WriteText"/> may still replace it: the reading goes on with the old file.
+    /// </summary>
+    private static string ReadFile(string path)
+    {
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using StreamReader reader = new(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
     }
 
     /// <summary>The names of the files in the folder, which is what the entries of its configuration are for.</summary>
@@ -228,7 +243,7 @@ public sealed class FolderConfigStore(NotesLocations locations, ConfigMigrator m
                 return;
 
             // Edited as the current version has it (a file from an older one is written as the current one then)
-            string text = File.ReadAllText(path);
+            string text = ReadFile(path);
             MigrationResult migrated = migrator.Migrate(text);
             if (migrated.Error is not null)
             {

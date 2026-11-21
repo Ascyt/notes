@@ -29,7 +29,7 @@ public sealed class ConvertedImageTests(NotesAppFactory app) : IntegrationTest(a
         Assert.Equal(tiff, await download.Content.ReadAsByteArrayAsync(Cancellation));
 
         // The page shows it as an image, from ?raw
-        Assert.Contains("<img src=\"?raw\"", await BodyOf(await Client.GetAsync(Users.Alice, "/docs/scan.tiff")));
+        Assert.Matches("<img id=\"media-view\"[^>]*src=\"\\?raw\"", await BodyOf(await Client.GetAsync(Users.Alice, "/docs/scan.tiff")));
     }
 
     [Fact]

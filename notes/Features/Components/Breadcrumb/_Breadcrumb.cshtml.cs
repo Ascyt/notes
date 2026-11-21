@@ -32,7 +32,7 @@ public class _Breadcrumb : PageModel
     public string Name => IsRoot ? "" : Names[^1];
 
     /// <summary>The icon before the name: a folder, a file, or for media what kind it is.</summary>
-    public string Icon => IsFile ? Pages.Browse.MediaEntries.IconOf(Pages.Editor.MediaTypes.KindOf(Name)) : "fa-solid fa-folder";
+    public string Icon => IsFile ? Pages.Browse.MediaEntries.IconOf(Media.MediaTypes.KindOf(Name)) : "fa-solid fa-folder";
 
     /// <summary>Virtual path of the parent directory ("" for the root), or null when the current entry is the root.</summary>
     public string? ParentVirtualPath => IsRoot ? null : string.Join('/', Names[..^1]);

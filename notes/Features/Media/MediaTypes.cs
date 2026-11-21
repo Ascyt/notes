@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.StaticFiles;
 using notes.Features.ImageConversion;
 
-namespace notes.Pages.Editor;
+namespace notes.Features.Media;
 
 public enum MediaKind { None, Image, Video, Audio, Pdf }
 

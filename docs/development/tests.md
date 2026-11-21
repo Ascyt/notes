@@ -18,6 +18,8 @@ The integration tests check the app against the [security specification](securit
 - One project: `dotnet test --project tests/notes.Tests.Integration`
 - UI tests with another browser: `NOTES_UI_BROWSER` set to `chrome` or `chromium`; to watch them, `NOTES_UI_HEADED=1`.
 
+Every UI test also fails if the site's Content Security Policy blocked something on its pages (an inline script or handler, a script from elsewhere), which would otherwise only be said in the browser's console. A test of an attack that the policy stops as well says so with `AllowBlockingByPolicy()`.
+
 Tests tagged `Category=Timing` are about time running out (stale uploads, selection lifetime, session renewal, changes during a running download or transfer).
 
 ## Screenshots

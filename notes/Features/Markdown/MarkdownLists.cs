@@ -1,7 +1,7 @@
 using System.Globalization;
 using Markdig.Syntax;
 
-namespace notes.Pages.Editor.Markdown;
+namespace notes.Features.Markdown;
 
 /// <summary>
 /// Lists as notes are written: a blank line between two items ends the list and starts another one right after it, instead of making the

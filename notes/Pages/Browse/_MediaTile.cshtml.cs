@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using notes.Features.Media;
 
 namespace notes.Pages.Browse;
 
@@ -9,7 +10,7 @@ public class _MediaTile : PageModel
     public string Name { get; init; } = "";
     public string VirtualPath { get; init; } = "";
     /// <summary>Image, video or audio.</summary>
-    public Editor.MediaKind Kind { get; init; }
+    public MediaKind Kind { get; init; }
 
     /// <summary>Where its picture comes from: the thumbnail of an image, the video itself (of the state that is shown). Null for audio, which has none.</summary>
     public string? PictureSource { get; init; }

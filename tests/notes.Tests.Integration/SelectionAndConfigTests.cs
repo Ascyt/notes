@@ -195,6 +195,35 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
     }
 
     [Fact]
+    public async Task A_configuration_that_isnt_utf8_is_refused_not_cleaned_up()
+    {
+        string before = Tree.Snapshot();
+        // Valid but for the one byte at the end, in a comment
+        byte[] text = [.. System.Text.Encoding.UTF8.GetBytes($$"""{ "version": "{{Cfg.Version}}", "perms": { "inherit": true }, "gitignore": false, "files": [] } // """), 0x80];
+
+        await AssertStatus(HttpStatusCode.BadRequest, await Client.PostBytesAsync(Users.Admin, "/docs?config", text));
+
+        Assert.Equal(before, Tree.Snapshot());
+    }
+
+    [Fact]
+    public async Task The_first_configuration_of_a_folder_is_saved_and_one_being_read_is_replaced()
+    {
+        string valid = $$"""{ "version": "{{Cfg.Version}}", "perms": { "inherit": true }, "gitignore": false, "files": [] }""";
+        File.Delete(Tree.Physical("docs/.config.json"));
+
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Admin, "/docs?config", valid));
+        Assert.NotNull(Tree.ReadConfig("docs"));
+
+        // Someone reading it while it is saved again goes on reading the old one
+        await using FileStream reader = new(Tree.Physical("docs/.config.json"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Admin, "/docs?config", valid.Replace("\"inherit\": true", "\"inherit\": false")));
+        Assert.Contains("\"inherit\": false", Tree.ReadConfig("docs"));
+        using StreamReader old = new(reader);
+        Assert.Contains("\"inherit\": true", await old.ReadToEndAsync());
+    }
+
+    [Fact]
     public async Task A_configuration_of_an_older_version_is_saved_as_the_current_one()
     {
         HttpResponseMessage response = await Client.PostAsync(Users.Admin, "/docs?config", """{ "version": "0.5.0", "perms": { "inherit": true }, "files": [] }""");

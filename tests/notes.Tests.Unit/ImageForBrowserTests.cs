@@ -1,6 +1,6 @@
 using ImageMagick;
 using notes.Features.ImageConversion;
-using notes.Pages.Editor;
+using notes.Features.Media;
 
 namespace notes.Tests.Unit;
 

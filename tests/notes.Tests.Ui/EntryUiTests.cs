@@ -248,6 +248,8 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await Task.Delay(300, TestContext.Current.CancellationToken);
 
         Assert.True(await Page.EvaluateAsync<bool>("() => window.pwned === undefined"));
+        // While mermaid draws it, the label is markup for a moment, whose handler the site's policy stops on top of that
+        AllowBlockingByPolicy();
     }
 
     [Fact]

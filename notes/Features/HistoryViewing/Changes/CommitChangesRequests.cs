@@ -2,7 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using notes.Features.HistoryViewing.Requests;
 using notes.Features.HistoryViewing.States;
-using notes.Pages.Editor;
+using notes.Features.Media;
 
 namespace notes.Features.HistoryViewing.Changes;
 

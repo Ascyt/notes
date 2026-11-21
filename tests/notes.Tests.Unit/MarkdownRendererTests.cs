@@ -1,4 +1,4 @@
-using notes.Pages.Editor.Markdown;
+using notes.Features.Markdown;
 
 namespace notes.Tests.Unit;
 
