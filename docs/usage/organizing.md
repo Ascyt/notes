@@ -14,7 +14,7 @@ If a name is taken (also in another case: `Plan.md` is the same name as `plan.md
 
 ## Renaming
 
-The name at the end of the breadcrumb is a text field (F2 goes there). A changed name is confirmed with Enter or the check mark, and reset with Escape; the view stays the same (a file being edited stays in the editor). A file with unsaved changes has to be saved first.
+The name at the end of the breadcrumb is a text field (F2 goes there). A changed name is confirmed with Enter or the check mark, and reset with Escape; the view stays the same (a file being edited stays in the editor). A file with unsaved changes has to be saved first. While it is renamed (a directory with much in it may take a moment), the page is covered and can't be left.
 
 ## Deleting
 
@@ -28,7 +28,7 @@ The boxes in front of the entries select them, also several at once:
 - Ctrl and the number of an entry (Ctrl+Shift for files),
 - the box above the directories (`a`) or above the files (Shift+A) for all of them. If some of them are selected already (the box shows a dash), it unselects them instead.
 
-A card at the bottom says how many entries are selected. The selection is kept while going to other directories (for half an hour). In another directory, the card offers to copy (`v`) or move (Shift+V) the selected entries there; in their own directory, it offers to delete them. Escape clears the selection.
+A card at the bottom says how many entries are selected. The selection is kept while going to other directories (for half an hour); a directory with something selected inside it (at any depth) shows a dash in its box. As with the box above a group, using a box with a dash (or pressing on its row) unselects everything inside the directory; using it again then selects the directory. In another directory, the card offers to copy (`v`) or move (Shift+V) the selected entries there; in their own directory, it offers to delete them. Everywhere it offers to download them (Alt+Shift+PageDown): one selected file as it is, anything else as an archive, which a dialog asks how to make (see [Downloading](viewing-and-editing.md#downloading)). While a copy, move or delete runs, the card shows how far it is and the page is covered and can't be left. Escape clears the selection.
 
 | Desktop | Phone |
 |---|---|

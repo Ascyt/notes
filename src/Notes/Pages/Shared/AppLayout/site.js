@@ -38,6 +38,61 @@ window.setButtonBusy = function (button, busy) {
     refreshButton(button);
 };
 
+// Something long that the page waits for (renaming, preparing an archive) shows that it is working, and the page asks before it is left
+// meanwhile, as its answer would be lost. With blockPage, the page is covered until it is done (_BusyOverlay), with what is going on:
+//
+//   const response = await whileBusy(() => fetch(…), { blockPage: true, message: texts.renaming });
+//
+// It returns what the work returns (and throws what it throws). Leaving the page afterwards (to show the result) asks nothing, as long as
+// nothing else is still running.
+(function () {
+    let running = 0;
+    let blocking = 0;
+
+    function showOverlay(message) {
+        const overlay = document.getElementById('busy-overlay');
+        if (!overlay)
+            return;
+        document.getElementById('busy-overlay-message').textContent = message || '';
+        overlay.hidden = blocking === 0;
+        if (blocking > 0)
+            overlay.focus(); // so that Enter doesn't press the button that started it again
+    }
+
+    window.whileBusy = async function (work, options) {
+        const { blockPage = false, message = '' } = options || {};
+        running++;
+        if (blockPage) {
+            blocking++;
+            showOverlay(message);
+        }
+        try {
+            return await work();
+        } finally {
+            running--;
+            if (blockPage) {
+                blocking--;
+                showOverlay('');
+            }
+        }
+    };
+
+    window.isBusy = () => running > 0;
+
+    window.addEventListener('beforeunload', function (e) {
+        if (running > 0)
+            e.preventDefault();
+    });
+
+    // While the page is covered, its shortcuts do nothing either (this runs before those of shortcuts.js, which listen on the document)
+    window.addEventListener('keydown', function (e) {
+        if (blocking > 0) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    }, true);
+})();
+
 // Whether an address of this site (a path, "/…") is the app's own rather than one of the entries: its first name is one the app takes at
 // the root (the layout's app-root-names, such as "_" for /_/Login). Names are compared ignoring case, as the server does.
 window.isAppAddress = function (pathname) {

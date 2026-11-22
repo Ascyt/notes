@@ -10,6 +10,7 @@ using Notes.Features.Addresses;
 using Notes.Features.Auth;
 using Notes.Features.Bridges;
 using Notes.Features.Components;
+using Notes.Features.Components.Archive;
 using Notes.Features.Components.Breadcrumb;
 using Notes.Features.Components.Upload;
 using Notes.Features.Configuration;
@@ -239,6 +240,8 @@ public static class NotesHosting
         IRecurringJobManager recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
         Schedule(nameof(JobsConfig.ClearStaleUploads), jobs.ClearStaleUploads,
             schedule => recurringJobs.AddOrUpdate<ClearStaleUploadsJob>(ClearStaleUploadsJob.Id, job => job.Run(), schedule));
+        Schedule(nameof(JobsConfig.ClearStaleArchives), jobs.ClearStaleArchives,
+            schedule => recurringJobs.AddOrUpdate<ClearStaleArchivesJob>(ClearStaleArchivesJob.Id, job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.CommitIdleChanges), jobs.CommitIdleChanges,
             schedule => recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), schedule));
     }

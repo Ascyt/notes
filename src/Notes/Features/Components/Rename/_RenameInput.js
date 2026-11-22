@@ -26,25 +26,28 @@ async function renameEntry() {
         return;
 
     const token = document.querySelector('#rename input[name="__RequestVerificationToken"]').value;
-    let response;
-    try {
-        response = await fetch(window.location.pathname + '?rename=' + encodeURIComponent(newName), {
-            method: 'POST',
-            headers: { 'RequestVerificationToken': token }
-        });
-    } catch {
-        response = { ok: false, status: 'network error' };
-    }
-    if (!response.ok) {
+    // A directory with much in it takes a while: the page is covered meanwhile, and can't be left before the answer is there
+    const { ok, status, text } = await whileBusy(async function () {
+        try {
+            const response = await fetch(window.location.pathname + '?rename=' + encodeURIComponent(newName), {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token }
+            });
+            return { ok: response.ok, status: response.status, text: await response.text() };
+        } catch {
+            return { ok: false, status: 'network error', text: '' };
+        }
+    }, { blockPage: true, message: fillIn(renameTexts.renaming, { name: newName }) });
+
+    if (!ok) {
         // The server says what went wrong (e.g. a permission that is missing)
-        const message = typeof response.text === 'function' ? await response.text() : '';
-        notify(message || fillIn(renameTexts.renameFailed, { status: response.status }), 'danger');
+        notify(text || fillIn(renameTexts.renameFailed, { status }), 'danger');
         return;
     }
 
     notifyAfterNavigation(fillIn(renameTexts.renamed, { name: newName }));
     // The same view of it as before (another view is a query of the same address, e.g. ?edit)
-    window.location.href = (await response.text()) + window.location.search;
+    window.location.href = text + window.location.search;
 }
 
 document.getElementById('rename-cancel').addEventListener('click', resetRename);

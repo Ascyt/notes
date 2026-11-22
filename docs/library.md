@@ -128,7 +128,7 @@ By default the pages of the notes are shown in the notes' own layout: a menu wit
 | Part | Where | What it is |
 |---|---|---|
 | `/Pages/Shared/AppLayout/_Head.cshtml` | in `<head>`, needed | The styles (Bootstrap and those of the components, `<component-styles/>`) and the scripts the pages use while they load. |
-| `/Pages/Shared/AppLayout/_Overlays.cshtml` | at the start of `<body>`, needed | The stack of messages, the notice of a session that ended, the dialog of the kill switch for admins. |
+| `/Pages/Shared/AppLayout/_Overlays.cshtml` | at the start of `<body>`, needed | The stack of messages, what covers the page while something long runs, the notice of a session that ended, the dialog of the kill switch for admins. |
 | `/Pages/Shared/AppLayout/_Scripts.cshtml` | at the end of `<body>`, needed | Bootstrap's script and the keyboard shortcuts. |
 | `/Pages/Shared/AppLayout/_MenuItems.cshtml` | in a `<ul class="navbar-nav">`, optional | About, and for admins Hangfire's dashboard. |
 | `/Pages/Shared/AppLayout/_AccountMenu.cshtml` | optional | Logging in and out, and who is logged in. |

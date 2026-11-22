@@ -36,10 +36,15 @@ public sealed class DownloadHandler(Config config, EntryLocations locations, IZi
 
     /// <summary>The folder as a zip download, named after the directory at <paramref name="virtualPath"/> (after the site for the root).</summary>
     public IActionResult ZipDownload(ZipFolderEntry folder, string virtualPath)
+        => new ZipDirectoryResult(zipService, folder, DownloadNameOf(virtualPath, folder.Name) + ".zip");
+
+    /// <summary>
+    /// The name an archive of the directory at <paramref name="virtualPath"/> is downloaded as, without its extension: the directory's name, or
+    /// the site's title for the root, which has no name of its own.
+    /// </summary>
+    public string DownloadNameOf(string virtualPath, string directoryName)
     {
-        // The root has no name of its own
-        string directoryName = virtualPath == "" ? config.Title : folder.Name;
-        directoryName = Path.GetInvalidFileNameChars().Aggregate(directoryName, (current, invalid) => current.Replace(invalid, '_'));
-        return new ZipDirectoryResult(zipService, folder, directoryName + ".zip");
+        string name = virtualPath == "" ? config.Title : directoryName;
+        return Path.GetInvalidFileNameChars().Aggregate(name, (current, invalid) => current.Replace(invalid, '_'));
     }
 }

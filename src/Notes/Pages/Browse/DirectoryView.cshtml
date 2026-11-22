@@ -1,3 +1,4 @@
+@using Notes.Features.Components.Archive
 @using Notes.Features.Components.Breadcrumb
 @using Notes.Features.Components.Selection
 @using Notes.Features.Components.Toolbar
@@ -28,8 +29,11 @@
             toolbarButtons.Add(commitChanges);
         toolbarButtons.Add(Buttons.History(Model.HistoryButton.DisabledReason));
     }
-    // The changes of a commit are no state of the directory that could be downloaded
-    if (!Model.ShowsChanges)
+    // The changes of a commit are no state of the directory that could be downloaded. As it is now, a logged-in user chooses how the archive is
+    // made; an earlier state, and anyone without an account, gets it as a zip at once.
+    if (Model.OffersArchiveOptions)
+        toolbarButtons.Add(Buttons.DownloadAsArchive());
+    else if (!Model.ShowsChanges)
         toolbarButtons.Add(Buttons.Download(isFile: false));
     if (!Model.IsReadOnly)
         toolbarButtons.Add(Buttons.Upload(Model.CreateDeniedReason));
@@ -85,7 +89,12 @@
     <partial name="/Features/Components/Upload/_Upload.cshtml" model="new _Upload { DisabledReason = Model.CreateDeniedReason }"/>
 }
 
-@* Selecting is for copying, moving and deleting, which need an account: without one there is nothing to select for *@
+@if (Model.OffersArchiveOptions)
+{
+    <partial name="/Features/Components/Archive/_ArchiveModal.cshtml" model="new _ArchiveModal { OpensFromToolbar = true }"/>
+}
+
+@* Selecting is for copying, moving, deleting and downloading, which need an account: without one there is nothing to select for *@
 @if (Model.CanSelect)
 {
     <partial name="/Features/Components/Selection/_SelectionBar.cshtml" model="new _SelectionBar

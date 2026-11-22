@@ -1,0 +1,14 @@
+@model _BusyOverlay
+@inject BusyTexts Texts
+
+@* What covers the page while something long that started on it runs (whileBusy in site.js, which shows and hides it): the page can't be used
+   meanwhile, only seen. The messages (_Toasts) stay above it. *@
+
+<div id="busy-overlay" class="busy-overlay" tabindex="-1" hidden>
+    <div class="busy-overlay-box card">
+        <div class="card-body d-flex align-items-center gap-3">
+            <span class="spinner-border text-secondary" role="status" aria-label="@Texts.Working"></span>
+            <span id="busy-overlay-message"></span>
+        </div>
+    </div>
+</div>

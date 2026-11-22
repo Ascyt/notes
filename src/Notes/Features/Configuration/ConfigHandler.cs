@@ -17,7 +17,7 @@ namespace Notes.Features.Configuration;
 /// it was sent, with its comments, plus the entries that the files of the folder need.
 /// </summary>
 /// <remarks>
-/// Only the POST is an action: the GET is another view of the entry (principle 14), which the page of the entry shows (<see cref="CreateView"/>).
+/// Only the POST is an action: the GET is another view of the entry (principle 15), which the page of the entry shows (<see cref="CreateView"/>).
 /// </remarks>
 public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history,
     ConfigSchema schema, ConfigTexts texts, EntryTexts entryTexts, ILogger<ConfigHandler> logger) : IEntryPostAction

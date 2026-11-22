@@ -35,6 +35,8 @@ public class ToolbarTexts
     public virtual string Download(bool isFile)
         => isFile ? "Download this file" : "Download this directory as a zip";
 
+    public virtual string DownloadAsArchive => "Download this directory as an archive";
+
     public virtual string Upload => "Upload files";
 
     public virtual string EditConfiguration(bool isFile)

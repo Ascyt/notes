@@ -70,4 +70,12 @@ Other files that aren't text can't be shown, and only be downloaded.
 
 ## Downloading
 
-The download icon (or Alt+PageDown) downloads the file. For a directory it downloads a zip of everything in it that may be read.
+The download icon (or Alt+PageDown) downloads the file. For a directory it downloads an archive of everything in it that may be read, and so does the selection's Download for more than one entry (see [Selecting](organizing.md#selecting-copying-and-moving)). A dialog asks how to make it first:
+
+- **Format:** `.7z` (the default), which is smaller, or `.zip`, which every system opens without another program.
+- **Compression:** None (store) for a zip or Min for a 7z, then Medium, High or Max. The higher, the smaller the archive and the longer it takes to make.
+- **Password:** optional. With one, the archive is encrypted (AES-256); a 7z hides the names of the files inside too, a zip can't.
+
+The format and compression are remembered for the next time in this browser, the password never is. The archive is made on the server while the page is covered (it can't be left meanwhile), and then downloaded; entries without read access are left out, and a message says so. It is kept on the server for an hour, then deleted.
+
+Without logging in, and in an earlier state, a directory is downloaded as a zip right away, without the dialog.

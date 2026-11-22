@@ -14,7 +14,7 @@ The app keeps changing, and so does everything around it. Code, comments and doc
 
 ### 2. Modular and customizable
 
-Each feature is self-contained (see [principle 18](#18-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
+Each feature is self-contained (see [principle 19](#19-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
 
 ## Security
 
@@ -72,35 +72,44 @@ Texts in the app and in the documents are neutral, descriptive and informative. 
 
 No animations: things appear, move and go away at once, without sliding, fading or growing. The only exception is what shows that something is still going on, such as a spinner. The same goes for other decoration that only makes the interface look busier (shadows that pulse, effects on hovering beyond a change of color, transitions between states): it hides what is going on rather than making it clearer. Something like it may come later, done properly and on purpose, but not by the way.
 
+### 13. Long operations show that they run, and check again at the end
+
+Whatever may take a while shows that it is running: a progress bar where it is known how far it is (an upload, a copy or move), a spinner otherwise (renaming a directory with much in it, preparing an archive). In the scripts, `whileBusy` (`site.js`) does this for one request:
+
+- While it runs, leaving the page asks first (the browser's own warning), as its answer would be lost with the page.
+- Where using the page meanwhile could get in its way (renaming again, changing what is being copied or archived), the page is covered until it is done (`blockPage`, with `_BusyOverlay`), and its shortcuts do nothing. The messages and the card of the selection stay above it, so its progress can still be seen.
+
+On the server, such an operation checks the permissions when it starts and again when it ends, as they may change while it runs: an archive is checked once it is written against every entry in it, and it is not handed out if the user may no longer read one of them. Changes of structure hold the `StructureLock` instead, from their checks until they are done, so that what they checked can't change in between (see [User input](user-input.md#concurrency)).
+
 ## Structure
 
-### 13. Addresses are the notes
+### 14. Addresses are the notes
 
 Every address of the notes is their path (a virtual directory or file): `/docs/a.md` is `docs/a.md`, also where a site shows only some of them (`Config:Exposed`); addresses are never translated. The pages of the app itself are at its own address (`Config:AppPath`, `/_/Login`, `/_/About`, … by default), which comes first, and are written in PascalCase. Code never writes these addresses out: links are made with `VirtualPaths.ToAddress` and `asp-page`, the app's own with `AppAddresses`.
 
-### 14. Another view is not another address
+### 15. Another view is not another address
 
 Different ways to look at the same thing share its address. They are told apart by a query parameter (`?edit`, `?raw`, `?config`) or by a choice kept in the browser (the simple editor, the theme), never by another path.
 
-### 15. Data lives with the notes, not in a database
+### 16. Data lives with the notes, not in a database
 
 Notes are files and folders on disk, and what the app keeps about them lives with them: the configuration of a folder (such as its permissions) in its `.config.json`, anything that belongs to all of the notes (or isn't a note, like the temporary files of uploads, or their history) in the `_` directory at their root. Zipping the folder of the notes takes everything along. There is no database to set up, back up or migrate; only Keycloak has one, as it handles the logins. What the app keeps besides that lives in memory (selections, background jobs) and may be lost on a restart.
 
 Some virtual directories are stored in physical directories of their own ([bridges](../administration/bridges.md)), each with its own `_`. Data that belongs to a directory is therefore kept with that directory, and nothing assumes that all of the notes are under one physical root: which directory an entry is in, and what is in a directory, is asked of `EntryLocations` (`src/Notes/Features/Bridges`), not read off the physical paths.
 
-### 16. The app serves its own files
+### 17. The app serves its own files
 
 Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with LibMan), never from a CDN at runtime, so the browser only talks to the app and to Keycloak. Content that users put into their notes, such as an image in a Markdown file, may come from anywhere.
 
 Scripts and styles are files next to the component they belong to (`_Name.js`, `_Name.css`, see [Components](components.md)), served as static assets of the app. Scripts are never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`), and no `<style>` in a view. What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block (its texts with `<script-texts>`), and a toolbar button gets its listener with `onClickOf` (`site.js`).
 
-### 17. Existing installations keep working
+### 18. Existing installations keep working
 
 A change to a format that is stored raises its version and comes with a migration, as for `.config.json` (see [Configuration](../administration/configuration.md#versions-and-migrations)). Keycloak imports the realm file only once, so a change to `keycloak/notes-realm.json` comes with the steps to make it by hand on a realm imported before (see [Deployment](../administration/deployment.md#a-realm-that-was-imported-before)).
 
 ## Code
 
-### 18. Code that reads easily
+### 19. Code that reads easily
 
 - Names say what something is, or what it does: descriptive, and preferably not abstract, without cryptic abbreviations or words that need looking up, and no longer than that takes. `TimesAtWhichEntryCanBeSeen` rather than `OpenTimes`, `CheckWhatDependsOnTheState` rather than `JudgeAt`.
 - Comments are short and simple, and say why rather than what. Code that is hard to follow (a loop that walks a tree, a method that weighs several cases, an algorithm) also gets a short comment for each step, saying what it does, so that it can be read without working it out first.
@@ -111,13 +120,13 @@ A change to a format that is stored raises its version and comes with a migratio
 - Namespaces always follow the folders: what is in `src/Notes/Features/HistoryViewing/Commits` is in `Notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
-### 19. Few dependencies
+### 20. Few dependencies
 
 Before writing something, look for a built-in ASP.NET feature or an existing library that does it. But every new package, service or container is discussed first: each one has to be kept up to date and trusted.
 
 ## Documentation
 
-### 20. Written for someone new
+### 21. Written for someone new
 
 A feature comes with its documentation in `docs/`, in simple words, so that someone new to the repository can learn what the app is and how it works. The documents form a tree: each topic has an overview (`docs/<topic>.md`) and its details in a folder of the same name (`docs/<topic>/`). The app will show these documents itself, so links between them are relative and stay inside `docs/`, and files elsewhere in the repository are named, not linked.
 
@@ -125,11 +134,11 @@ Examples help more than descriptions. Pictures of the app come from `docs/screen
 
 ## Tests
 
-### 21. Tested, without waiting
+### 22. Tested, without waiting
 
 Every feature gets tests at the level that fits (see [Tests](tests.md)). The integration tests matter most: they test every endpoint as every kind of user, with every kind of attack that applies, much like a penetration test. Time comes from the injected `TimeProvider` wherever a test would otherwise have to wait (a selection that runs out, a background job that runs every hour), so that the test moves a fake clock instead.
 
-### 22. Tests check logic, not wording or looks
+### 23. Tests check logic, not wording or looks
 
 Unit tests check methods, integration tests check endpoints, and UI tests check the scripts of the pages. None of them checks the exact wording of a text or anything about CSS, so that a sentence can be rephrased or a style changed without a test failing. Instead they check:
 

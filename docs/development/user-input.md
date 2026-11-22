@@ -64,6 +64,7 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 | `offset` (of an upload) | A whole number from 0, no gap after what was uploaded so far | 400, 409 |
 | `selection` | `add`, `remove`, `clear` (POST); nothing (GET) | 400 |
 | `transfer` | `copy`, `move`, `delete` | 400 |
+| `archive` | `directory`, `selection` (POST); the id of an archive the server made, a GUID (GET) | 400; 404 for an id that is not one of the user's archives |
 | `before` | A time in ISO 8601 with a time zone (`2026-11-11T13:30:00Z`), not in the future | A redirect to now with the reason; 400 for `?commits` |
 | `commit` | The full id of a commit: 40 hexadecimal digits (upper case is accepted). It is compared with the ids of the history, never handed to git as a revision (`HEAD~1` and the like mean nothing) | A redirect to now with the reason; 400 for `?commits` |
 | `page` (of `?commits`) | A whole number from 1 | Taken as 1 |
@@ -79,7 +80,17 @@ Parameters the page doesn't know are ignored.
 | Chunk of an upload | `POST /dir?upload=<id>&…` | Raw bytes, each at most the server's request limit; the whole file at most `Config:Limits:MaxUploadBytes` (413, and the upload is discarded). Chunks of one upload come one after the other (409 for one that arrives while another is written). |
 | Paths to select or unselect | `POST /?selection=add\|remove` | JSON (`Content-Type: application/json`) `{ "paths": [...] }`, at most 10,000 paths. Paths that can't be selected are left out. |
 | Version of the selection | `POST /dir?transfer=…` | JSON `{ "version": <number> }`. A transfer only runs if it is the version the user's selection has. |
+| How to make an archive | `POST /entry?archive=directory\|selection` | JSON `{ "format": "7z"\|"zip", "compression": "store"\|"min"\|"medium"\|"high"\|"max", "password": "…", "version": <number> }`, at most 4 KiB (the version only for the selection, see above). `store` only with `zip`, `min` only with `7z` (the 7z writer always compresses). The password is optional (missing or empty: none), at most 256 characters, without control characters; see [Passwords of archives](#passwords-of-archives). Anything else is refused with 400. |
 | A configuration | `POST /entry?config` | At most 1 MiB of text, in UTF-8 (400 otherwise, not replaced), parsed completely by `ConfigParser` (strict JSON with comments: unknown or repeated properties, wrong types and misspelled principals are errors; a principal is at most 256 characters) before anything is written. |
+
+### Passwords of archives
+
+The password an archive is encrypted with is the one secret a user types into the app, so it is kept as short a time and in as few places as can be:
+
+- It is sent in the body of a `POST`, never in an address (which would end up in the history of the browser, the logs of proxies and the `Referer`), and the download of the finished archive (`GET ?archive=<id>`) carries only the id.
+- It is used to encrypt the archive and nothing else: it is not logged, not stored, not shown, and not kept in the browser (the dialog forgets it once it is closed; the format and compression it keeps). The field is a password field that password managers are told not to fill in (`autocomplete="new-password"`), and it can be shown while typing.
+- A 7z is encrypted with AES-256, its names included (nothing about what is in it can be read without the password); a zip with AES-256 too (WinZip's AES, which 7-Zip and most programs open, not zip's old encryption, which is easily broken), with its names readable, as zip has no way to hide them.
+- The finished archive is a file in the app's data (`_/temp/archive`) until it is deleted, an hour after it was made at the latest. It is as safe as its password: the app doesn't check how strong that is.
 
 ## Contents of the notes
 
@@ -117,6 +128,9 @@ Nothing a user sends is unbounded. The limits that can be changed are in `Config
 | Unfinished uploads of one user | `Config:Limits:MaxUploadsInProgressPerUser` (100); they are discarded an hour after their last chunk | |
 | Text that is saved, shown in the editor or rendered | `Config:Limits:MaxTextBytes` (16 MiB) | |
 | Paths in one selection request | 10,000 | `SelectionHandler` |
+| The options of an archive | 4 KiB of JSON; a password of 256 characters | `ArchiveHandler`, `ArchiveOptions` |
+| Archives being made | One at a time for each user (409 for another); for everyone together half the processors, the others wait. The compression of a 7z takes up to about 400 MB of memory (Max) while it runs | `PreparedArchives`, `ArchiveWriter` |
+| Archives kept to be downloaded | 5 for each user (a new one deletes the oldest); each is deleted an hour after it was made | `PreparedArchives`, `ClearStaleArchivesJob` |
 | A configuration | 1 MiB of text; a principal 256 characters | `ConfigParser`, `Principal` |
 | An image that is converted | `Config:Limits:MaxConvertedImageBytes` (256 MiB), `MaxConvertedImagePixels` (200 million), 30,000 pixels on a side | `ImageForBrowser` |
 
@@ -156,5 +170,6 @@ Requests run at the same time, and a check is only worth something if what it ch
 | The limits | `src/Notes/Features/Helpers/LimitsConfig.cs` |
 | The query, repeated parameters, one action per request | `src/Notes/Pages/Index.cshtml.cs`, `src/Notes/Features/EntryActions/EntryActions.cs` |
 | Headers of every answer | `src/Notes/Extensions/SecurityHeaders.cs` |
+| The options and password of an archive | `src/Notes/Features/Components/Archive/ArchiveOptions.cs`, `ArchiveHandler.cs` |
 | Names in any case | `EntryLocations.IsFree` (`src/Notes/Features/Bridges/EntryLocations.cs`) |
 | The tests | `tests/Notes.Tests.Integration/NewNameTests.cs`, `UserInputTests.cs`, `LimitsTests.cs`, `PathTraversalTests.cs`, `RequestProtectionTests.cs` |

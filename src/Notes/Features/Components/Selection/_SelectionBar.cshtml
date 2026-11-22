@@ -26,9 +26,15 @@
             <button type="button" id="selection-move" class="btn btn-sm btn-outline-primary d-none" data-key="+v" data-label="@Texts.MoveHere">
                 <i class="fa-solid fa-arrow-right-to-bracket"></i> @Texts.MoveHere
             </button>
+            @* Delete and Download are icons only (their label is the tooltip): their icons say what they do *@
             <button type="button" id="selection-delete" class="btn btn-sm btn-outline-secondary btn-danger-on-hover d-none" data-key="Delete"
-                data-label="@Texts.Delete">
-                <i class="fa-regular fa-trash-can"></i> @Texts.Delete
+                data-label="@Texts.Delete" aria-label="@Texts.Delete" title="@Texts.Delete">
+                <i class="fa-regular fa-trash-can"></i>
+            </button>
+            @* Always there: one file downloads as it is, anything else as an archive (_ArchiveModal asks how) *@
+            <button type="button" id="selection-download" class="btn btn-sm btn-outline-secondary d-none" data-key="!+PageDown"
+                data-label="@Texts.Download" aria-label="@Texts.Download" title="@Texts.Download">
+                <i class="fa-solid fa-download"></i>
             </button>
         </div>
         <span id="selection-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-label="@Texts.Working"></span>

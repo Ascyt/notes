@@ -96,6 +96,13 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
         => new(Id: "download-button", Icon: "fa-solid fa-download", Label: texts.Download(isFile), Key: "!PageDown", Href: "?download",
             IsDownload: true);
 
+    /// <summary>
+    /// In place of <see cref="Download"/> for a directory as it is now, for a logged-in user: opens the dialog that asks how to make the archive
+    /// (_ArchiveModal).
+    /// </summary>
+    public ToolbarButton DownloadAsArchive()
+        => new(Id: "download-button", Icon: "fa-solid fa-download", Label: texts.DownloadAsArchive, Key: "!PageDown");
+
     public ToolbarButton Upload(string? disabledReason = null)
         => new(Id: "upload-button", Icon: "fa-solid fa-upload", Label: texts.Upload, Key: "!PageUp", DisabledReason: disabledReason);
 

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Notes.Features.Components.Archive;
 using Notes.Features.Components.Assets;
 using Notes.Features.Components.Breadcrumb;
+using Notes.Features.Components.Busy;
 using Notes.Features.Components.Create;
 using Notes.Features.Components.Delete;
 using Notes.Features.Components.Download;
@@ -31,6 +33,8 @@ public static class ComponentServices
         _ = services.AddSingleton<IZipService, ZipService>();
         _ = services.AddSingleton<IUploadService, UploadService>();
         _ = services.AddScoped<ClearStaleUploadsJob>();
+        _ = services.AddSingleton<PreparedArchives>();
+        _ = services.AddScoped<ClearStaleArchivesJob>();
 
         // The parts every page has. Their texts are the site's to replace (registered before or after this, see ToolbarTexts)
         services.TryAddSingleton<ToolbarTexts>();
@@ -41,14 +45,17 @@ public static class ComponentServices
         services.TryAddSingleton<SelectionTexts>();
         services.TryAddSingleton<UploadTexts>();
         services.TryAddSingleton<TransferTexts>();
+        services.TryAddSingleton<ArchiveTexts>();
+        services.TryAddSingleton<BusyTexts>();
         _ = services.AddSingleton<ToolbarButtons>();
         _ = services.AddComponentStyles(_Toolbar.Styles, _Breadcrumb.Styles, _RenameInput.Styles, _Toasts.Styles,
-            _SelectionBar.Styles, _Upload.Styles);
+            _SelectionBar.Styles, _Upload.Styles, _BusyOverlay.Styles);
 
         return services
             .AddEntryAction<SelectionHandler>()
             .AddEntryAction<TransferHandler>()
             .AddEntryAction<DownloadHandler>()
+            .AddEntryAction<ArchiveHandler>()
             .AddEntryAction<UploadHandler>()
             .AddEntryAction<CreateHandler>()
             .AddEntryAction<RenameHandler>()

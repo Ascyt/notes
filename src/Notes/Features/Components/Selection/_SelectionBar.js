@@ -8,6 +8,7 @@
     const copyButton = document.getElementById('selection-copy');
     const moveButton = document.getElementById('selection-move');
     const deleteButton = document.getElementById('selection-delete');
+    const downloadButton = document.getElementById('selection-download');
     const deleteModal = document.getElementById('selection-delete-modal');
     const spinner = document.getElementById('selection-spinner');
     const progress = document.getElementById('selection-progress');
@@ -36,13 +37,38 @@
     const texts = textsOf('selection-texts');
     const BUSY_REASON = texts.busy;
 
+    // The directories (lower case, as the server compares paths ignoring case) with something selected somewhere inside them. Taken from the
+    // selected paths alone: every directory above a selected path, so nothing has to be listed or walked for it.
+    let directoriesWithSelectedInside = new Set();
+
+    function findDirectoriesWithSelectedInside() {
+        const directories = new Set();
+        for (const path of selected) {
+            // From the directory the entry is in up to the top; once one is known, so are all above it
+            for (let end = path.lastIndexOf('/'); end > 0; end = path.lastIndexOf('/', end - 1)) {
+                const above = path.slice(0, end).toLowerCase();
+                if (directories.has(above))
+                    break;
+                directories.add(above);
+            }
+        }
+        return directories;
+    }
+
+    // A row's box: ticked if it is selected, a dash if it isn't but something inside it is
+    function setRowChecked(row, checked) {
+        const box = checkboxOf(row);
+        box.checked = checked;
+        box.indeterminate = !checked && directoriesWithSelectedInside.has(row.dataset.path.toLowerCase());
+        row.classList.toggle('table-active', checked);
+    }
+
     function render() {
+        directoriesWithSelectedInside = findDirectoriesWithSelectedInside();
         for (const row of rows) {
-            const checked = selected.has(row.dataset.path);
-            checkboxOf(row).checked = checked;
+            setRowChecked(row, selected.has(row.dataset.path));
             checkboxOf(row).disabled = isBusy();
             row.title = isBusy() ? BUSY_REASON : '';
-            row.classList.toggle('table-active', checked);
         }
         renderHeaders();
         renderStatus();
@@ -54,6 +80,7 @@
         setAvailable(copyButton, !allHere);
         setAvailable(moveButton, !allHere);
         setAvailable(deleteButton, allHere);
+        setAvailable(downloadButton, count > 0); // everything selected may be read, which is all a download needs
 
         // What the permissions allow for the selected entries themselves, as far as the server knew when they were selected. What is inside
         // a directory is checked only when it is copied, moved or deleted (and the answer says what is wrong). Moving takes the entries
@@ -192,40 +219,43 @@
         isTransferring = true;
         state.progress = 0;
         render();
-        // The answer only comes when it is done; meanwhile the selection says how far it is
+        // The answer only comes when it is done; meanwhile the selection says how far it is (on the card, which stays above what covers the
+        // page), and the page can't be used or left, so that the answer is not lost
         const progressTimer = setInterval(sync, 500);
-        let message = null;
-        try {
-            const response = await fetch(window.location.pathname + '?transfer=' + kind, {
-                method: 'POST',
-                headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ version: state.version })
-            });
-            if (response.ok) {
-                // Done, and the selection is cleared. Reloading shows the new contents.
-                window.removeEventListener('beforeunload', warnBeforeUnload);
-                const { leftOutUnreadable } = await response.json().catch(() => ({}));
-                const done = { copy: texts.copiedHere, move: texts.movedHere, delete: texts.deleted }[kind];
-                notifyAfterNavigation(fillIn(done, {
-                    elements: transferred.length === 1 ? texts.oneElement : fillIn(texts.manyElements, { count: transferred.length }),
-                    except: leftOutUnreadable ? texts.exceptUnreadable : ''
-                }));
-
-                // This very directory may be gone with what was deleted: go to where the topmost deleted entry was
-                const gone = kind === 'delete'
-                    ? transferred.filter(p => directory === p || directory.startsWith(p + '/')).sort((a, b) => a.length - b.length)[0]
-                    : undefined;
-                if (gone !== undefined)
-                    window.location.href = '/' + parentOf(gone).split('/').map(encodeURIComponent).join('/');
-                else
-                    window.location.reload();
-                return;
+        const { leftOutUnreadable, message } = await whileBusy(async function () {
+            try {
+                const response = await fetch(window.location.pathname + '?transfer=' + kind, {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version: state.version })
+                });
+                if (response.ok)
+                    return { leftOutUnreadable: (await response.json().catch(() => ({}))).leftOutUnreadable, message: null };
+                return { message: (await response.text()) || fillIn(texts.failed, { status: response.status }) };
+            } catch {
+                return { message: { copy: texts.copyConnectionLost, move: texts.moveConnectionLost, delete: texts.deleteConnectionLost }[kind] };
+            } finally {
+                clearInterval(progressTimer);
             }
-            message = (await response.text()) || fillIn(texts.failed, { status: response.status });
-        } catch {
-            message = { copy: texts.copyConnectionLost, move: texts.moveConnectionLost, delete: texts.deleteConnectionLost }[kind];
-        } finally {
-            clearInterval(progressTimer);
+        }, { blockPage: true });
+
+        if (message === null) {
+            // Done, and the selection is cleared. Reloading shows the new contents.
+            const done = { copy: texts.copiedHere, move: texts.movedHere, delete: texts.deleted }[kind];
+            notifyAfterNavigation(fillIn(done, {
+                elements: transferred.length === 1 ? texts.oneElement : fillIn(texts.manyElements, { count: transferred.length }),
+                except: leftOutUnreadable ? texts.exceptUnreadable : ''
+            }));
+
+            // This very directory may be gone with what was deleted: go to where the topmost deleted entry was
+            const gone = kind === 'delete'
+                ? transferred.filter(p => directory === p || directory.startsWith(p + '/')).sort((a, b) => a.length - b.length)[0]
+                : undefined;
+            if (gone !== undefined)
+                window.location.href = '/' + parentOf(gone).split('/').map(encodeURIComponent).join('/');
+            else
+                window.location.reload();
+            return;
         }
 
         isTransferring = false;
@@ -234,20 +264,32 @@
         notify(message, 'danger');
     }
 
-    // The page must stay open while a transfer started here runs, so its answer is not lost
-    function warnBeforeUnload(e) {
-        if (isTransferring)
-            e.preventDefault();
-    }
-    window.addEventListener('beforeunload', warnBeforeUnload);
-
     // ---- Using the boxes ----
+
+    // Whether the row's box shows a dash: it isn't selected, but something inside it is
+    const isDashed = row => !selected.has(row.dataset.path) && directoriesWithSelectedInside.has(row.dataset.path.toLowerCase());
+
+    // A dash means some of it is selected, so (like the box above a group) using it unselects all of it: everything selected inside the
+    // directory, at any depth. Using it again then selects the directory itself.
+    function unselectInside(row) {
+        const prefix = row.dataset.path.toLowerCase() + '/';
+        const inside = [...selected].filter(path => path.toLowerCase().startsWith(prefix));
+        const box = checkboxOf(row);
+        box.checked = false;
+        box.indeterminate = false; // until the server's answer is there, which makes the boxes as it says
+        change(inside, false);
+    }
 
     // A box of a single entry (clicked, or Space/shortcut while focused)
     for (const row of rows)
         checkboxOf(row).addEventListener('change', function () {
+            // The browser has ticked it already, so whether it had a dash is told by the selection
+            if (isDashed(row)) {
+                unselectInside(row);
+                return;
+            }
             const checked = checkboxOf(row).checked;
-            row.classList.toggle('table-active', checked);
+            setRowChecked(row, checked); // unticked again, it gets its dash back
             renderHeaders();
             change([row.dataset.path], checked);
         });
@@ -258,10 +300,8 @@
         header.addEventListener('change', function () {
             const select = !group.some(isChecked);
             const affected = group.filter(row => isChecked(row) !== select);
-            for (const row of affected) {
-                checkboxOf(row).checked = select;
-                row.classList.toggle('table-active', select);
-            }
+            for (const row of affected)
+                setRowChecked(row, select);
             renderHeaders();
             change(affected.map(row => row.dataset.path), select);
         });
@@ -280,9 +320,7 @@
     function applyDrag() {
         const [from, to] = [Math.min(drag.start, drag.current), Math.max(drag.start, drag.current)];
         rows.forEach(function (row, i) {
-            const checked = i >= from && i <= to ? drag.select : drag.initial[i];
-            checkboxOf(row).checked = checked;
-            row.classList.toggle('table-active', checked);
+            setRowChecked(row, i >= from && i <= to ? drag.select : drag.initial[i]);
         });
         renderHeaders();
     }
@@ -296,6 +334,11 @@
             return;
 
         e.preventDefault(); // no text highlighting while dragging
+        // Pressing on a row with a dash does what its box does, and drags nothing
+        if (isDashed(row)) {
+            unselectInside(row);
+            return;
+        }
         const start = rows.indexOf(row);
         drag = { start, current: start, select: !isChecked(row), initial: rows.map(isChecked) };
         applyDrag();
@@ -347,6 +390,22 @@
             ? (directories === 1 ? texts.insideOneDirectory : texts.insideManyDirectories)
             : '';
         bootstrap.Modal.getOrCreateInstance(deleteModal).show();
+    });
+    // One file is downloaded as it is; more than one entry, or a directory, as an archive, made as the dialog asks
+    downloadButton.addEventListener('click', async function () {
+        await queue; // what is selected comes from the server, so wait for the changes still on their way
+        if (isBusy() || selected.size === 0)
+            return;
+        if (selected.size === 1 && state.directoryCount === 0) {
+            const link = document.createElement('a');
+            link.href = '/' + [...selected][0].split('/').map(encodeURIComponent).join('/') + '?download';
+            link.download = '';
+            document.body.append(link);
+            link.click();
+            link.remove();
+            return;
+        }
+        archiveDownload.open({ kind: 'selection', version: state.version });
     });
     document.getElementById('selection-delete-confirm').addEventListener('click', function () {
         bootstrap.Modal.getOrCreateInstance(deleteModal).hide();

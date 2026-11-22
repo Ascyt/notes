@@ -1,10 +1,11 @@
 # Background jobs
 
-Two jobs run by themselves, on a schedule. Admins see them in Hangfire's dashboard (`/_/Hangfire`, in the menu), where a site has it.
+Three jobs run by themselves, on a schedule. Admins see them in Hangfire's dashboard (`/_/Hangfire`, in the menu), where a site has it.
 
 | Job | What it does |
 |---|---|
 | Clearing stale uploads | Discards the unfinished uploads whose last part arrived more than an hour ago (see [Limits](limits.md)). |
+| Clearing stale archives | Deletes the archives made to be downloaded (with the options of the download dialog) once they are an hour old, downloaded or not. |
 | Committing idle changes | Commits what is pending in the [history](history.md) once nothing was changed for `History:IdleMinutes`. |
 
 ## When they run
@@ -14,6 +15,7 @@ In `appsettings.json` (or the environment, e.g. `Config__Jobs__CommitIdleChanges
 | Setting | Default | |
 |---|---|---|
 | `Config:Jobs:ClearStaleUploads` | `0 * * * *` | every hour |
+| `Config:Jobs:ClearStaleArchives` | `30 * * * *` | every hour, at half past |
 | `Config:Jobs:CommitIdleChanges` | `* * * * *` | every minute |
 
 ```json

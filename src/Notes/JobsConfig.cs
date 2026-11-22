@@ -9,6 +9,9 @@ public sealed class JobsConfig
     /// <summary>When the unfinished uploads that were left for an hour are discarded. Every hour by default.</summary>
     public string ClearStaleUploads { get; init; } = "0 * * * *";
 
+    /// <summary>When the archives made to be downloaded are deleted once they are an hour old. Every hour by default.</summary>
+    public string ClearStaleArchives { get; init; } = "30 * * * *";
+
     /// <summary>
     /// When the history looks for changes that were left alone long enough to be committed. Every minute by default. How long that is, is
     /// <c>History:IdleMinutes</c>; this is only how often it is looked at.

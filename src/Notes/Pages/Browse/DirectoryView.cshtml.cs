@@ -89,6 +89,12 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// </summary>
     public bool CanSelect => Viewer.Identity?.IsAuthenticated == true && !ShowsEarlierState;
 
+    /// <summary>
+    /// Whether downloading the directory (and the selection) asks how to make the archive first (_ArchiveModal). The archive is made for the
+    /// user's own id, as the selection is kept, so it is where selecting is; elsewhere the directory is downloaded as a zip at once.
+    /// </summary>
+    public bool OffersArchiveOptions => CanSelect;
+
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
     public bool CanConfigure { get; init; }
 

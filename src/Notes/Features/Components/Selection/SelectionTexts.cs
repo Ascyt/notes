@@ -11,6 +11,7 @@ public class SelectionTexts
     public virtual string CopyHere => "Copy here";
     public virtual string MoveHere => "Move here";
     public virtual string Delete => "Delete";
+    public virtual string Download => "Download";
     public virtual string Working => "Working";
     public virtual string Progress => "Progress";
     public virtual string ClearSelection => "Clear selection";

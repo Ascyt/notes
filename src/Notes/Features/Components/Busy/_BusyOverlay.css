@@ -1,0 +1,21 @@
+/* What covers the page while something long runs (_BusyOverlay.cshtml) */
+
+.busy-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1080; /* above modals, below the messages (_Toasts), which say how it went */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgba(var(--bs-body-bg-rgb), 0.6);
+    cursor: progress;
+}
+
+.busy-overlay[hidden] {
+    display: none;
+}
+
+.busy-overlay-box {
+    max-width: 100%;
+}

@@ -16,6 +16,9 @@ public class RenameTexts
     /// <summary>The button that puts the name back.</summary>
     public virtual string Reset => "Reset";
 
+    /// <summary>What covers the page while it is renamed.</summary>
+    public virtual string Renaming => "Renaming to {name}…";
+
     public virtual string Renamed => "Renamed to {name}.";
 
     /// <summary>Where the server says nothing about why.</summary>

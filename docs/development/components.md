@@ -35,7 +35,7 @@ public class ToolbarTexts
 - Each class is registered by its feature with `TryAddSingleton`, so a class of a site that is registered before or after takes its place. Add a class to the feature's registration (`AddComponents`, `AddEditor`, `NotesHosting.cs` for the shared ones).
 - Views and handlers get it by injection (`@inject ToolbarTexts Texts`, a constructor parameter), never by `new`. Where nothing can be injected (a value parsed in a static method) there is `ConfigTexts.Default`; use it as the last resort.
 - Text that the server says in a response (a refusal, a message of a save) is in a texts class too, so a site's wording reaches it. Only what no user of the app ever sees stays in code: log lines, exceptions for a mistake in the code or in the settings, the text of a kill switch marker.
-- Tests don't check a text's wording ([principle 22](principles.md#22-tests-check-logic-not-wording-or-looks)). A test that needs one takes it from the class.
+- Tests don't check a text's wording ([principle 23](principles.md#23-tests-check-logic-not-wording-or-looks)). A test that needs one takes it from the class.
 
 ### Texts in scripts
 
@@ -91,7 +91,8 @@ The layout is made of components too (`Pages/Shared/AppLayout`: `_Head`, `_Overl
 |---|---|
 | `ToolbarTexts`, `BreadcrumbTexts`, `ToastTexts` | The toolbar's tooltips, the breadcrumb, the stack of messages |
 | `ListingTexts` | The directory listing (headings, empty states, the media grid) |
-| `CreateTexts`, `RenameTexts`, `SelectionTexts`, `UploadTexts`, `TransferTexts` | The components of those names, and what their handlers answer |
+| `CreateTexts`, `RenameTexts`, `SelectionTexts`, `UploadTexts`, `TransferTexts`, `ArchiveTexts` | The components of those names (the archive's is the dialog that asks how to make one), and what their handlers answer |
+| `BusyTexts` | What covers the page while something long runs (`_BusyOverlay`, see `whileBusy` in `site.js`) |
 | `EditorTexts`, `InsertMediaTexts`, `MarkdownTexts`, `MediaTexts` | The editors and the dialog that puts a file into a note, the preview, what is shown of media |
 | `HistoryTexts` | The history views, and the description of a commit |
 | `ConfigEditorTexts`, `ConfigTexts` | The configuration editor, and what is said about a configuration (errors, the meaning of each setting) |
