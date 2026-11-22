@@ -60,6 +60,7 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 | `rename` | A [name for a new entry](#names-of-new-entries) | 400 with the reason |
 | `upload` | `start`, or an id the server made (a GUID) | 400 |
 | `name` (of an upload) | A [name for a new entry](#names-of-new-entries) | 400 with the reason |
+| `folder` (of an upload) | Names for new entries, separated by `/` (no `.` or `..`) | 400 with the reason |
 | `offset` (of an upload) | A whole number from 0, no gap after what was uploaded so far | 400, 409 |
 | `selection` | `add`, `remove`, `clear` (POST); nothing (GET) | 400 |
 | `transfer` | `copy`, `move`, `delete` | 400 |

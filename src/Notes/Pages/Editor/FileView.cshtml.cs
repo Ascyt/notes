@@ -76,6 +76,12 @@ public class FileView : PageModel
     /// <summary>Why the user can't delete the file, or null if they can.</summary>
     public string? DeleteDeniedReason { get; init; }
 
+    /// <summary>
+    /// Why the user can't add a file next to this one, or null if they may: a hint for the button that puts a file into the markdown, which
+    /// may still be put elsewhere.
+    /// </summary>
+    public string? InsertMediaDeniedReason { get; init; }
+
     /// <summary>Why the user can't rename the file, or null if they can.</summary>
     public string? RenameDeniedReason { get; init; }
 

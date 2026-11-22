@@ -147,6 +147,7 @@ public sealed class IndexModel(Config config,
                 EditRequested = Request.Query.ContainsKey("edit"),
                 SiteHost = Request.Host.Host,
                 DeleteDeniedReason = deleteDeniedReason,
+                InsertMediaDeniedReason = tree.CreateDeniedReason(User, locations.ParentOf(PhysicalPath)!),
                 RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, deleteDeniedReason)
             };
             await File.InitAsync();

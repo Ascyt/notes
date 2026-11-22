@@ -23,8 +23,19 @@ public interface IUploadService
     /// limits (<see cref="LimitsConfig.MaxUploadBytes"/>, the length of the name and path the file gets) discards the upload too, and throws an
     /// <see cref="UploadRefusedException"/>, as does a chunk sent while another one of the same upload is still being written.
     /// </summary>
-    Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast, Stream body,
-        Func<string, bool> mayCreate);
+    /// <remarks>
+    /// The file goes into <paramref name="folders"/> inside <paramref name="physicalDirectory"/> (none: right into it). Those that aren't there
+    /// are made when the last chunk has arrived, each asked of <paramref name="mayCreate"/> first; those that are there are asked of
+    /// <paramref name="mayEnter"/>. If either says no, the upload is discarded and an <see cref="AccessDeniedException"/> thrown.
+    /// </remarks>
+    Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, IReadOnlyList<string> folders, string name, long offset,
+        bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter);
+
+    /// <summary>
+    /// Where a file put into <paramref name="folders"/> inside <paramref name="physicalDirectory"/> ends up: the folders that are there as
+    /// they are found (also through a bridge), the others where they would be made.
+    /// </summary>
+    string TargetDirectory(string physicalDirectory, IReadOnlyList<string> folders);
 
     /// <summary>Discards what has been uploaded so far for the user's <paramref name="uploadId"/>.</summary>
     void AbortUpload(string userId, Guid uploadId);
@@ -61,8 +72,8 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
         return uploadId.ToString("N");
     }
 
-    public async Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, string name, long offset, bool isLast,
-        Stream body, Func<string, bool> mayCreate)
+    public async Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, IReadOnlyList<string> folders, string name,
+        long offset, bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter)
     {
         // Chunks pile up in a temp file outside the entries that only gets its real name once the last chunk has arrived
         string tempPath = Path.Combine(UserTempDirectory(userId), TempName(uploadId));
@@ -124,6 +135,16 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
                     texts.DirectoryGone);
             }
 
+            try
+            {
+                physicalDirectory = EnterOrMakeFolders(physicalDirectory, folders, mayCreate, mayEnter);
+            }
+            catch (Exception e) when (e is AccessDeniedException or UploadRefusedException)
+            {
+                File.Delete(tempPath);
+                throw;
+            }
+
             for (int n = 1; ; n++)
             {
                 string finalPath = Path.Combine(physicalDirectory, finalName);
@@ -168,6 +189,52 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
                 finalName = $"{baseName} ({n}){extension}";
             }
         }
+    }
+
+    public string TargetDirectory(string physicalDirectory, IReadOnlyList<string> folders)
+    {
+        foreach (string folder in folders)
+            physicalDirectory = Existing(physicalDirectory, folder) ?? Path.Combine(physicalDirectory, folder);
+        return physicalDirectory;
+    }
+
+    /// <summary>
+    /// Goes down the folders from the directory, making those that aren't there (under the lock, which the caller holds), and returns the last.
+    /// </summary>
+    private string EnterOrMakeFolders(string physicalDirectory, IReadOnlyList<string> folders, Func<string, bool> mayCreate,
+        Func<string, bool> mayEnter)
+    {
+        foreach (string folder in folders)
+        {
+            // One that is there, as the address would find it (in any case, or a bridge)
+            if (Existing(physicalDirectory, folder) is { } existing)
+            {
+                if (!Directory.Exists(existing))
+                    throw new UploadRefusedException(StatusCodes.Status409Conflict, texts.NotAFolder(folder));
+                if (!mayEnter(existing))
+                    throw new AccessDeniedException(texts.CantCreate(folder));
+                physicalDirectory = existing;
+                continue;
+            }
+
+            // Not there, but not free either: hidden by a bridge, or a link
+            string made = Path.Combine(physicalDirectory, folder);
+            if (!locations.IsFree(made))
+                throw new UploadRefusedException(StatusCodes.Status409Conflict, texts.NotAFolder(folder));
+            if (!mayCreate(made))
+                throw new AccessDeniedException(texts.CantCreate(folder));
+            _ = Directory.CreateDirectory(made);
+            physicalDirectory = made;
+        }
+
+        return physicalDirectory;
+    }
+
+    /// <summary>The entry of the name in the directory, as an address finds it, or null if there is none.</summary>
+    private string? Existing(string physicalDirectory, string name)
+    {
+        string directory = locations.ToVirtualPath(physicalDirectory);
+        return path.ToPhysicalPath(directory == "" ? name : directory + "/" + name);
     }
 
     public void AbortUpload(string userId, Guid uploadId)

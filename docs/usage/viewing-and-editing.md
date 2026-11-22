@@ -16,6 +16,7 @@ Besides what Markdown always has:
 | `> [!NOTE]` (also `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) at the start of a quote | An alert, colored by its kind |
 | `:::warning` … `:::` | A box around what is in it; `note`, `info`, `tip`, `important`, `warning`, `caution` and `danger` are colored |
 | `^^^` before an image, `^^^ Caption` after it | The image with a caption |
+| `![Name](clip.mp4)`, `![Name](song.mp3)`: an image that is a video or audio file | The browser's player for it |
 | `^^ Text` | A footer, in small print |
 | `""Title""` | A citation |
 | `*[W3C]: World Wide Web Consortium` on a line of its own | Every "W3C" in the note marked as an abbreviation; hovering, tapping or focusing it shows what it stands for |
@@ -48,6 +49,8 @@ Every text file can be edited in the browser. There are two editors, and the cho
 | ![The code editor](../screenshots/editor-desktop.png) | ![The simple editor on a phone](../screenshots/simple-editor-phone.png) |
 
 The phone icon in the toolbar switches to the simple editor, the keyboard icon back to the code editor. In the simple editor, as a phone has no Tab key, the two icons next to the keyboard icon (or Ctrl+] and Ctrl+[) do what Tab and Shift+Tab do in the code editor: indent the selected lines, or put an indent at the cursor, and take an indent away again; the text field keeps the focus, and with it the keyboard of a phone. In Markdown and plain text files (`.md`, `.txt`) the code editor doesn't suggest words while typing. In a Markdown file, Enter in a list goes on with it: the next line gets the same bullet and indent, the next number, or an empty task box; Enter on an empty item ends the list instead, and Shift+Enter is a plain line break. On a phone, the editor ends above the open keyboard, so the breadcrumb and the toolbar stay in sight while typing at its bottom. The floppy disk icon (or Ctrl+S) saves; it is only blue while there is something to save. Leaving the page with unsaved changes asks first.
+
+In a Markdown file, the image icon (or Alt+I) puts an image, a video or any other file into the note. A dialog asks for the file and where it is saved: `./assets/` next to the note and the file's own name, unless another path is written there (relative to the note, `../` to go up, or from the root with `/`). Directories that aren't there are created. Uploading writes a link to it where the cursor is: `![Name](./assets/photo.jpg)` for an image, video or audio file, which the rendered view shows, and `[Name](./assets/file.zip)` for anything else. A name that is taken gets a number, as with any upload. Pasting an image (a screenshot, for instance) or dropping files into either editor opens the same dialog with the file already chosen; a dropped file is linked where it was dropped, and a pasted image is named after the date and time, as new notes are. What is pasted together with text (cells of a spreadsheet, for instance) is pasted as the text.
 
 The magnifying glass icons (or Alt+Plus and Alt+Minus) make the text of the editor larger and smaller; inside the editor, Ctrl+Plus, Ctrl+Minus and Ctrl+scrolling do the same, and Ctrl+0 goes back to the usual size. Both editors share the zoom, and it is kept in the browser.
 

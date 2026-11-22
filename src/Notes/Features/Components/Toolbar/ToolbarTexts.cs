@@ -21,6 +21,7 @@ public class ToolbarTexts
 
     public virtual string Indent => "Indent";
     public virtual string Outdent => "Outdent";
+    public virtual string InsertMedia => "Insert an image or another file";
     public virtual string ZoomIn => "Zoom in";
     public virtual string ZoomOut => "Zoom out";
     public virtual string PreviousMedia => "Previous media file";

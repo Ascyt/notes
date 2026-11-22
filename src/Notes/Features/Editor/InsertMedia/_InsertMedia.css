@@ -1,0 +1,12 @@
+/* What the chosen file looks like, small enough to leave room for the rest of the dialog */
+.insert-media-preview img,
+.insert-media-preview video {
+    display: block;
+    max-width: 100%;
+    max-height: 12rem;
+    border-radius: var(--bs-border-radius);
+}
+
+.insert-media-preview audio {
+    width: 100%;
+}

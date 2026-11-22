@@ -1,0 +1,50 @@
+@using Notes.Features.Components.Upload
+@model Notes.Features.Editor.InsertMedia._InsertMedia
+@inject Notes.Features.Editor.InsertMedia.InsertMediaTexts Texts
+@inject UploadTexts UploadTexts
+
+@* Putting an image, video or any other file into a markdown file: the dialog behind the toolbar's button (#insert-media-button, see
+   ToolbarButtons.InsertMedia), and what a file pasted or dropped into the editor opens. The file is uploaded to the path given, relative to
+   the markdown file, and a link to it written where the cursor is. *@
+
+<div class="modal" id="insert-media-modal" tabindex="-1" aria-labelledby="insert-media-title" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" data-chunk-size="@Model.ChunkSize" data-file-path="@Model.FileVirtualPath" data-default-folder="@Model.DefaultFolder">
+    <div class="modal-dialog">
+        <form class="modal-content" id="insert-media-form" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="insert-media-title">@Texts.Title</h5>
+            </div>
+            <div class="modal-body">
+                <label for="insert-media-file" class="form-label">@Texts.File</label>
+                <input type="file" id="insert-media-file" class="form-control"/>
+                <div id="insert-media-preview" class="insert-media-preview mt-2" hidden></div>
+
+                <label for="insert-media-path" class="form-label mt-3">@Texts.SavedAs</label>
+                <input type="text" id="insert-media-path" class="form-control font-monospace" spellcheck="false" autocomplete="off"
+                    aria-describedby="insert-media-path-help"/>
+                <div id="insert-media-path-help" class="form-text">@Texts.SavedAsHelp</div>
+
+                <div id="insert-media-progress" class="mt-3" hidden>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="spinner-border spinner-border-sm text-secondary" aria-hidden="true"></span>
+                        <span id="insert-media-status" class="small"></span>
+                    </div>
+                    <div class="progress" role="progressbar" aria-label="@UploadTexts.Progress">
+                        <div id="insert-media-bar" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div id="insert-media-error" class="alert alert-danger mt-3 mb-0" hidden></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="insert-media-cancel" class="btn btn-secondary" key="Escape">@Texts.Cancel</button>
+                <button type="submit" id="insert-media-confirm" class="btn btn-primary" key="Enter">
+                    <i class="fa-regular fa-image"></i> @Texts.Insert
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script-texts id="insert-media-texts" texts="@(new object[] { UploadTexts, Texts })"/>
+<script component-asset="@_Upload.ChunksScript"></script>
+<script component-asset="@Notes.Features.Editor.InsertMedia._InsertMedia.Script"></script>

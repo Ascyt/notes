@@ -12,6 +12,7 @@
 @inject Notes.Features.Markdown.Preview.MarkdownTexts MarkdownTexts
 @inject Notes.Features.Components.Toolbar.ToolbarTexts ToolbarTexts
 @using Notes.Features.Editor
+@using Notes.Features.Editor.InsertMedia
 @using Notes.Features.Markdown.Preview
 
 @{
@@ -41,15 +42,17 @@
     }
     if (isEditing)
     {
-        toolbarButtons.Add(Buttons.SimpleView());
         // Only in the simple view, which has no Tab key on a phone (file-editor.js shows them), and only where there is something to change
         if (Model.CanWrite)
         {
+            if (Model.IsMarkdown)
+                toolbarButtons.Add(Buttons.InsertMedia(Model.InsertMediaDeniedReason));
             toolbarButtons.Add(Buttons.Indent());
             toolbarButtons.Add(Buttons.Outdent());
         }
         toolbarButtons.Add(Buttons.ZoomOut());
         toolbarButtons.Add(Buttons.ZoomIn());
+        toolbarButtons.Add(Buttons.SimpleView());
     }
     // The configuration (only there for those who manage it), then the history (its changes, then the choice of a time), left of the other views
     // and the download
@@ -168,3 +171,7 @@
 <script component-asset="@EditorAssets.TextAreaIndent"></script>
 <script component-asset="@EditorAssets.MarkdownLists"></script>
 <script component-asset="@FileView.Script"></script>
+@if (Model.IsMarkdown && Model.CanWrite)
+{
+    <partial name="/Features/Editor/InsertMedia/_InsertMedia.cshtml" model="new _InsertMedia { FileVirtualPath = Model.VirtualPath }"/>
+}

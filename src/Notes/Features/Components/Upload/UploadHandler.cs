@@ -11,7 +11,8 @@ namespace Notes.Features.Components.Upload;
 /// <summary>
 /// Answers <c>?upload</c>: <c>?upload=start</c> returns an id made by the server, then the file follows as a sequence of raw chunks
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
-/// or proxies cap the file size. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
+/// or proxies cap the file size. <c>&amp;folder=a/b</c> puts the file into those folders inside the directory, which are made if they aren't
+/// there. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
 public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history,
     AppAddresses appAddresses, UploadTexts texts, EntryTexts entryTexts, NameTexts nameTexts) : IEntryPostAction
@@ -63,23 +64,36 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         if (!long.TryParse(request.Query["offset"], out long offset) || offset < 0)
             return new BadRequestObjectResult(entryTexts.InvalidRequest);
 
+        // The folders inside the directory the file goes into (&folder=a/b), made if they aren't there. Each is a name of a new entry.
+        List<string> folders = [];
+        foreach (string folder in request.Query["folder"].ToString().Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (NewNames.Check(folder, out string normalizedFolder) is { } invalidFolder)
+                return new BadRequestObjectResult(nameTexts.Problem(invalidFolder));
+            folders.Add(normalizedFolder);
+        }
+
         // Asked early (with every chunk) so that a file that can't be put here isn't uploaded in vain, and once more for the name the
-        // finished file actually gets, under the lock (the directory may have changed since this chunk was checked)
-        bool MayCreate(string physical) => tree.GetAccess(user, physicalPath).CanRead && tree.GetAccess(user, physical).CanCreate;
-        if (!MayCreate(Path.Combine(physicalPath, name)))
+        // finished file actually gets, under the lock (the directory may have changed since this chunk was checked). What is made needs its
+        // directory to be readable, as for anything created; a folder that is there is only gone into if it may be read.
+        bool MayCreate(string physical) => tree.GetAccess(user, Path.GetDirectoryName(physical)!).CanRead && tree.GetAccess(user, physical).CanCreate;
+        bool MayEnter(string physical) => tree.GetAccess(user, physical).CanRead;
+        string targetDirectory = uploadService.TargetDirectory(physicalPath, folders);
+        if (!MayCreate(Path.Combine(targetDirectory, name)) || (!Directory.Exists(targetDirectory) && !MayCreate(targetDirectory)))
             return Forbidden(texts.CantCreate(name));
-        string newVirtualPath = path.ToVirtualPath(Path.Combine(physicalPath, name));
+        string newVirtualPath = path.ToVirtualPath(Path.Combine(targetDirectory, name));
         if (limits.IsTooLong(newVirtualPath))
             return new BadRequestObjectResult(nameTexts.PathTooLong(newVirtualPath, limits.MaxPathBytes));
         // (At the root, where the pages of the app may be. The name the file gets if this one is taken, "name (1)", is no address of the app.)
-        if (appAddresses.TakesNewEntry(newVirtualPath))
-            return new BadRequestObjectResult(nameTexts.TakenByTheApp(name));
+        string firstNewVirtualPath = path.ToVirtualPath(Path.Combine(physicalPath, folders.FirstOrDefault() ?? name));
+        if (appAddresses.TakesNewEntry(firstNewVirtualPath))
+            return new BadRequestObjectResult(nameTexts.TakenByTheApp(folders.FirstOrDefault() ?? name));
 
         string? result;
         try
         {
-            result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, name, offset, request.Query["last"].Count > 0,
-                request.Body, MayCreate);
+            result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, folders, name, offset, request.Query["last"].Count > 0,
+                request.Body, MayCreate, MayEnter);
         }
         catch (AccessDeniedException e)
         {
@@ -93,10 +107,10 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         if (result is null)
             return new ConflictObjectResult(texts.NoSuchUpload);
 
-        // The last chunk gave the file its place (the path of it), and an entry in the configuration of the directory
-        if (result != "")
-            history.AfterChange(user, [Path.Combine(physicalPath, result.Split('/')[^1]), Path.Combine(physicalPath,
-                PathService.ConfigFileName)], HistoryChangeKind.Change);
+        // The last chunk gave the file its place (the path of it), and an entry in the configuration of its directory
+        if (result != "" && path.ToPhysicalPath(result) is { } finished)
+            history.AfterChange(user, [finished, Path.Combine(Path.GetDirectoryName(finished)!, PathService.ConfigFileName)],
+                HistoryChangeKind.Change);
 
         return new ContentResult { Content = result };
     }

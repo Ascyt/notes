@@ -25,12 +25,12 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
         => new(Id: "preview-button", Icon: "fa-solid fa-book", Label: texts.Preview, Key: "p", Href: "?");
 
     /// <summary>
-    /// Between the code editor (Monaco) and the simple view, a plain text field that works better on a phone. The page's script sets the
-    /// icon and label to those of the view it leads to, and keeps the choice.
+    /// Uploads an image, video or any other file and writes a link to it into the markdown file where the cursor is (_InsertMedia).
     /// </summary>
-    public ToolbarButton SimpleView()
-        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: texts.SimpleView, Key: "!+E");
-
+    /// <param name="disabledReason">Why nothing can be added next to the file, as a hint (another path given in the dialog may still work).</param>
+    public ToolbarButton InsertMedia(string? disabledReason = null)
+        => new(Id: "insert-media-button", Icon: "fa-regular fa-image", Label: texts.InsertMedia, Key: "!i", DisabledReason: disabledReason);
+    
     /// <summary>
     /// Indents the lines of the selection, or inserts an indent at the cursor: what Tab does in the code editor, for the simple view, where
     /// a phone has no Tab key. The page's script shows the two only in the simple view (in the code editor, Ctrl+] and Ctrl+[ are Monaco's own).
@@ -42,6 +42,13 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
     public ToolbarButton Outdent()
         => new(Id: "outdent-button", Icon: "fa-solid fa-outdent", Label: texts.Outdent, Key: "^[", IsHidden: true);
 
+    /// <summary>
+    /// Between the code editor (Monaco) and the simple view, a plain text field that works better on a phone. The page's script sets the
+    /// icon and label to those of the view it leads to, and keeps the choice.
+    /// </summary>
+    public ToolbarButton SimpleView()
+        => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: texts.SimpleView, Key: "!+E");
+    
     /// <summary>
     /// Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.
     /// </summary>

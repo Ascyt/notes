@@ -24,8 +24,43 @@ public sealed class UploadServiceTests : IDisposable
 
     private static MemoryStream Body(string text) => new(Encoding.UTF8.GetBytes(text));
 
-    private Task<string?> Chunk(string user, string id, string name, long offset, bool last, string text, Func<string, bool>? mayCreate = null)
-        => _uploads.UploadChunkAsync(user, Guid.Parse(id), _notes.P("dir"), name, offset, last, Body(text), mayCreate ?? (_ => true));
+    private Task<string?> Chunk(string user, string id, string name, long offset, bool last, string text, Func<string, bool>? mayCreate = null,
+        string[]? folders = null, Func<string, bool>? mayEnter = null)
+        => _uploads.UploadChunkAsync(user, Guid.Parse(id), _notes.P("dir"), folders ?? [], name, offset, last, Body(text), mayCreate ?? (_ => true),
+            mayEnter ?? (_ => true));
+
+    [Fact]
+    public async Task Folders_that_are_not_there_are_made_with_the_last_chunk()
+    {
+        _ = _notes.Files.Dir("dir/Assets");
+
+        string id = _uploads.StartUpload("u");
+        Assert.Equal("", await Chunk("u", id, "a.png", 0, false, "ab", folders: ["assets", "new"]));
+        Assert.False(Directory.Exists(_notes.P("dir/Assets/new")));
+        // The folder that is there is found in any case
+        Assert.Equal("dir/Assets/new/a.png", await Chunk("u", id, "a.png", 2, true, "c", folders: ["assets", "new"]));
+        Assert.Equal("abc", _notes.Files.Read("dir/Assets/new/a.png"));
+    }
+
+    [Fact]
+    public async Task A_folder_that_may_not_be_made_or_entered_discards_the_upload()
+    {
+        _ = _notes.Files.Dir("dir/locked");
+        _ = _notes.Files.File("dir/file.md", "");
+
+        string id = _uploads.StartUpload("u");
+        _ = await Assert.ThrowsAsync<AccessDeniedException>(() => Chunk("u", id, "a.png", 0, true, "x", folders: ["new"],
+            mayCreate: path => !path.EndsWith("new")));
+        Assert.False(Directory.Exists(_notes.P("dir/new")));
+
+        id = _uploads.StartUpload("u");
+        _ = await Assert.ThrowsAsync<AccessDeniedException>(() => Chunk("u", id, "a.png", 0, true, "x", folders: ["locked"],
+            mayEnter: _ => false));
+
+        id = _uploads.StartUpload("u");
+        _ = await Assert.ThrowsAsync<UploadRefusedException>(() => Chunk("u", id, "a.png", 0, true, "x", folders: ["file.md"]));
+        Assert.Empty(Directory.EnumerateFiles(TempDirectoryOf("u")));
+    }
 
     private string TempDirectoryOf(string user) => Path.Combine(_notes.Root, "_", "temp", "user", user);
 

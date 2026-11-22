@@ -55,6 +55,7 @@ public static class MarkdownRenderer
         // Highlighted on the server, with classes that markdown.css colors in both themes. Languages it doesn't know stay plain code blocks.
         .UseColorCode(HtmlFormatterType.Css)
         .Use<SourcePositions.CodeBlockExtension>() // after the highlighting, whose output it puts into an element of its own
+        .Use<MarkdownMedia>() // an image that is a video or audio file gets a player
         .UseGenericAttributes() // last, as Markdig asks
         .Build();
 

@@ -3,7 +3,6 @@
 (function () {
     const input = document.getElementById('upload-input');
     const CHUNK_SIZE = Number(input.dataset.chunkSize);
-    const MAX_ATTEMPTS = 3;
     const texts = textsOf('upload-texts');
 
     const modalElement = document.getElementById('upload-modal');
@@ -100,68 +99,10 @@
         openModal();
     }
 
-    // Sends one chunk, retrying on network errors and server failures
-    async function sendChunk(url, token, blob) {
-        let lastError;
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'RequestVerificationToken': token, 'Content-Type': 'application/octet-stream' },
-                    body: blob
-                });
-                if (response.ok)
-                    return;
-                lastError = fillIn(texts.serverAnswered, { status: response.status });
-                if (response.status >= 400 && response.status < 500) {
-                    lastError = (await response.text()) || lastError; // e.g. a permission that is missing
-                    break; // retrying won't help
-                }
-            } catch {
-                lastError = texts.networkError;
-            }
-            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
-        }
-        throw new Error(lastError);
-    }
-
-    // The server makes the id of an upload; it only works for the user who asked for it
-    async function startUpload(token) {
-        const response = await fetch(window.location.pathname + '?upload=start', {
-            method: 'POST',
-            headers: { 'RequestVerificationToken': token }
-        });
-        if (!response.ok)
-            throw new Error(fillIn(texts.serverAnswered, { status: response.status }));
-        return await response.text();
-    }
-
-    async function uploadFile(file, token, onBytes) {
-        const id = await startUpload(token);
-        const base = window.location.pathname + '?upload=' + id + '&name=' + encodeURIComponent(file.name);
-        let offset = 0;
-        try {
-            // Do-while so that an empty file still sends its one (empty) chunk
-            do {
-                const end = Math.min(offset + CHUNK_SIZE, file.size);
-                const isLast = end >= file.size;
-                await sendChunk(base + '&offset=' + offset + (isLast ? '&last' : ''), token, file.slice(offset, end));
-                onBytes(end - offset);
-                offset = end;
-            } while (offset < file.size);
-        } catch (e) {
-            // Best effort: don't leave the partial file behind
-            fetch(window.location.pathname + '?upload=' + id + '&abort', { method: 'POST',
-                headers: { 'RequestVerificationToken': token } }).catch(() => { });
-            throw e;
-        }
-    }
-
     async function upload() {
         if (isUploading || pending.length === 0)
             return;
 
-        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
         const total = pending.reduce((sum, f) => sum + f.size, 0);
         let done = 0;
         errorBox.hidden = true;
@@ -172,9 +113,14 @@
             const file = queue[i];
             statusText.textContent = fillIn(texts.uploading, { name: file.name, number: i + 1, count: queue.length });
             try {
-                await uploadFile(file, token, bytes => {
-                    done += bytes;
-                    bar.style.width = (total === 0 ? 100 : done / total * 100) + '%';
+                await uploadChunks.uploadFile(file, {
+                    directory: window.location.pathname,
+                    chunkSize: CHUNK_SIZE,
+                    texts,
+                    onBytes: bytes => {
+                        done += bytes;
+                        bar.style.width = (total === 0 ? 100 : done / total * 100) + '%';
+                    }
                 });
             } catch (e) {
                 // Keep the files that did not make it, so that Upload retries just those

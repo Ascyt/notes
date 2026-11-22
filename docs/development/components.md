@@ -92,7 +92,7 @@ The layout is made of components too (`Pages/Shared/AppLayout`: `_Head`, `_Overl
 | `ToolbarTexts`, `BreadcrumbTexts`, `ToastTexts` | The toolbar's tooltips, the breadcrumb, the stack of messages |
 | `ListingTexts` | The directory listing (headings, empty states, the media grid) |
 | `CreateTexts`, `RenameTexts`, `SelectionTexts`, `UploadTexts`, `TransferTexts` | The components of those names, and what their handlers answer |
-| `EditorTexts`, `MarkdownTexts`, `MediaTexts` | The editors, the preview, what is shown of media |
+| `EditorTexts`, `InsertMediaTexts`, `MarkdownTexts`, `MediaTexts` | The editors and the dialog that puts a file into a note, the preview, what is shown of media |
 | `HistoryTexts` | The history views, and the description of a commit |
 | `ConfigEditorTexts`, `ConfigTexts` | The configuration editor, and what is said about a configuration (errors, the meaning of each setting) |
 | `EntryTexts`, `NameTexts` | What any action about an entry answers (not found, refused); why a name can't be used |

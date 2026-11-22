@@ -44,7 +44,10 @@ public class UploadTexts
 
     public virtual string PartInProgress => "Another part of this upload is still being written.";
     public virtual string TooLarge(string maxSize) => $"The file is too large to be uploaded (at most {maxSize}).";
-    public virtual string DirectoryGone => "The directory was renamed, moved or deleted while the file was uploaded.";
+    /// <summary>A folder the file is to go into is taken by something that isn't one.</summary>
+    public virtual string NotAFolder(string name) => $"'{name}' is taken by something that is not a directory.";
+
+    public virtual string DirectoryGone =>"The directory was renamed, moved or deleted while the file was uploaded.";
 
     /// <summary>The name that is free, with a number added, would be too long.</summary>
     public virtual string NumberedNameTooLong(string name, int maxNameBytes)

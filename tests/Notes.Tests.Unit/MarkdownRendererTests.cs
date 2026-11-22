@@ -33,6 +33,25 @@ public sealed class MarkdownRendererTests
     }
 
     [Fact]
+    public void Images_that_are_video_or_audio_get_a_player()
+    {
+        string html = Render("![A clip](assets/my%20clip.mp4)\n\n![Song](assets/song.mp3 \"Title\")\n\n![Photo](assets/photo.png)");
+
+        Assert.Matches("<video [^>]*src=\"assets/my%20clip.mp4\\?raw\"[^>]*aria-label=\"A clip\"[^>]*></video>", html);
+        Assert.Matches("<audio [^>]*src=\"assets/song.mp3\\?raw\"[^>]*title=\"Title\"[^>]*></audio>", html);
+        Assert.Matches("<img src=\"assets/photo.png\\?raw\"", html);
+    }
+
+    [Fact]
+    public void A_player_gets_no_address_that_could_run_a_script()
+    {
+        string html = Render("![x](javascript:alert(1)//.mp4)\n\n![y](\"onerror=x.mp4)");
+
+        Assert.DoesNotContain("javascript:", html);
+        Assert.DoesNotContain("\"onerror", html);
+    }
+
+    [Fact]
     public void Raw_html_is_shown_as_text()
     {
         string html = Render("<script>alert(1)</script>\n\n<b onclick=x>bold</b>");

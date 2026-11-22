@@ -8,6 +8,9 @@ public class _Upload : PageModel
     public const string Styles = "Features/Components/Upload/_Upload.css";
     public const string Script = "Features/Components/Upload/_Upload.js";
 
+    /// <summary>Sending a file in chunks, which uploading shares with the media of the editor (InsertMedia).</summary>
+    public const string ChunksScript = "Features/Components/Upload/upload-chunks.js";
+
     /// <summary>
     /// Size of the pieces large files are uploaded in. Must stay below the server's request body limit (30 MB in Kestrel by default).
     /// </summary>

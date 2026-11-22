@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Notes.Features.Components.Assets;
+using Notes.Features.Editor.InsertMedia;
 using Notes.Features.EntryActions;
 using Notes.Pages.Editor;
 
@@ -14,8 +15,9 @@ public static class EditorServices
     public static IServiceCollection AddEditor(this IServiceCollection services)
     {
         services.TryAddSingleton<EditorTexts>();
+        services.TryAddSingleton<InsertMediaTexts>();
         return services
-            .AddComponentStyles(FileView.Styles, FileView.BinaryStyles)
+            .AddComponentStyles(FileView.Styles, FileView.BinaryStyles, _InsertMedia.Styles)
             .AddEntryAction<SaveHandler>();
     }
 }
