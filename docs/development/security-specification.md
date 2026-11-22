@@ -96,7 +96,7 @@ How the app keeps to this:
 - **An archive is its maker's.** An archive made to be downloaded (`?archive=`) is kept under the id of the user who asked for it, and downloads for them alone: for everyone else its id answers like one that doesn't exist. Its id is a random GUID, never derived from anything. The password it is encrypted with is used for that only: it is sent in the body (never in an address), and neither logged, kept nor shown.
 - **Unreadable directories stay closed.** Operations never look inside a directory the user may not read. Moving, deleting or renaming such a directory, or a directory containing it, fails because of the directory itself, never because of what is in it. So nothing about the contents can be learned from results or timing.
 
-Listings must never show more about an unreadable entry than its name and kind. A feature that adds sizes, dates, previews, counts or the like must leave them out for unreadable entries.
+Listings must never show more about an unreadable entry than its name and kind. A feature that adds sizes, dates, previews, counts or the like must leave them out for unreadable entries. The title a markdown file is listed with (its first `#` heading, see `MarkdownTitles`) is part of its contents, so an unreadable one is listed by its file name.
 
 Apart from the notes, nobody but admins learns anything about how the site is run: physical paths, host names, configuration, stack traces, or why the site is down. The source code is public, so how the app works is no secret; these details of the installation are.
 

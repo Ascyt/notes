@@ -13,6 +13,7 @@ using Notes.Features.HistoryViewing.Commits;
 using Notes.Features.HistoryViewing.Requests;
 using Notes.Features.HistoryViewing.States;
 using Notes.Features.HistoryViewing.Views;
+using Notes.Features.Markdown;
 using Notes.Features.Media;
 
 namespace Notes.Pages.Browse;
@@ -37,6 +38,12 @@ public enum ListedKind
 /// <param name="Mark">In the changes of a commit: what it did to the entry (null for a directory with changes below it, and elsewhere).</param>
 public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = true, ChangeMark? Mark = null)
 {
+    /// <summary>
+    /// The name it is shown with in place of its own, or null for its own: the title of a markdown file (<see cref="MarkdownTitles"/>). Only
+    /// for an entry that can be opened, as the title is part of what is in it.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
     public bool CanOpen => Kind == ListedKind.Open;
 }
 
@@ -180,6 +187,10 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
             .Select(ToListed(isDirectory: false))
             .Where(entry => entry.CanOpen || seesUnreadable)];
         SplitOffMedia(files);
+        // Markdown files are shown by their titles, which only those who may read them see; the order stays that of the file names
+        Files = [.. Files.Select(file => file.CanOpen && MarkdownTitles.IsMarkdown(file.Path)
+            ? file with { DisplayName = MarkdownTitles.OfFile(file.Path) }
+            : file)];
 
         if (IsRoot)
             DeleteDeniedReason = "The root directory can't be deleted.";

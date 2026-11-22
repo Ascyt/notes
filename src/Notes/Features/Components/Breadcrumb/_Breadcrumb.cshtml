@@ -79,7 +79,7 @@
         }
         <i class="fa-s @Model.Icon"></i>
         <partial name="/Features/Components/Rename/_RenameInput.cshtml"
-            model="new _RenameInput { Name = Model.Name, DisabledReason = Model.RenameDisabledReason }"/>
+            model="new _RenameInput { Name = Model.Name, IsFile = Model.IsFile, DisabledReason = Model.RenameDisabledReason }"/>
         <script component-asset="@_Breadcrumb.Script"></script>
     }
 </div>

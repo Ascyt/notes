@@ -11,6 +11,9 @@ public class _UnopenableEntry : PageModel
     public string Name { get; init; } = "";
     public bool IsDirectory { get; init; }
 
+    /// <summary>The icon of the entry (<see cref="EntryIcons"/>), as the other rows have it.</summary>
+    public string Icon { get; init; } = "";
+
     /// <summary>Why it can't be opened: <see cref="ListedKind.Locked"/> or <see cref="ListedKind.NoHistory"/>.</summary>
     public ListedKind Kind { get; init; }
 

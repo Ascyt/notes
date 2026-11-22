@@ -18,6 +18,7 @@
 // To do something else (e.g. focus a custom editor), handle the `shortcut` event the element receives
 // and call preventDefault() to skip the default action:
 //   el.addEventListener('shortcut', e => { e.preventDefault(); editor.focus(); });
+// A field that gives its own shortcut a meaning while it has the focus (where a plain shortcut is ignored) asks `matchesShortcutOf(el, e)`.
 // When several elements have the same shortcut, one inside the element with `key-scope` that has the focus wins
 // (a sidebar's Escape over the page's), then one that is visible. While a modal is open, only its shortcuts work.
 // A shortcut without Ctrl/Alt/Meta is ignored while typing in a field (not while a checkbox or radio button has the focus) and while a video
@@ -82,6 +83,12 @@
             return e.key.toLowerCase() === name;
         return combo.code.toLowerCase() === e.code.toLowerCase();
     }
+
+    // Whether the key event is one of the element's shortcuts
+    window.matchesShortcutOf = function (el, e) {
+        const attr = el.getAttribute('key');
+        return attr !== null && parseAll(attr).some(combo => matches(combo, e));
+    };
 
     // Fields that take typing. Boxes and buttons made of an input don't: a shortcut works while they have the focus (e.g. right after ticking a box).
     const TYPING_INPUT = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset])';

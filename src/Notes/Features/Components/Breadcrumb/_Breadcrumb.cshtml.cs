@@ -54,8 +54,8 @@ public class _Breadcrumb : PageModel
     /// <summary>Name of the current entry, shown as the rename input.</summary>
     public string Name => IsRoot ? "" : Names[^1];
 
-    /// <summary>The icon before the name: a folder, a file, or for media what kind it is.</summary>
-    public string Icon => IsFile ? Pages.Browse.MediaEntries.IconOf(Media.MediaTypes.KindOf(Name)) : "fa-solid fa-folder";
+    /// <summary>The icon before the name (<see cref="Pages.Browse.EntryIcons"/>).</summary>
+    public string Icon => IsFile ? Pages.Browse.EntryIcons.OfFile(Name) : Pages.Browse.EntryIcons.Directory;
 
     /// <summary>Virtual path of the parent directory (<see cref="RootVirtualPath"/> for one right below the start), or null at the start.</summary>
     public string? ParentVirtualPath => IsRoot ? null : Below(Names[..^1]);

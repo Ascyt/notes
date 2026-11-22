@@ -39,7 +39,7 @@ public class _EntryGroup : PageModel
     /// <summary>The name of the group, in its id and for the selection script (<c>data-group</c>).</summary>
     public string Group => IsDirectories ? "directories" : "files";
 
-    public string Icon => IsDirectories ? "fa-solid fa-folder" : "fa-regular fa-file";
+    public string IconOf(ListedEntry entry) => IsDirectories ? EntryIcons.Directory : EntryIcons.OfFile(Listing.NameOf(entry.Path));
 
     // The shortcuts: the number opens, Ctrl and the number selects, "a" selects all; with Shift for the files (Alt is for the media)
     private string Modifiers => IsDirectories ? "" : "+";
@@ -67,6 +67,7 @@ public class _EntryGroup : PageModel
         {
             Name = Listing.NameOf(entry.Path),
             IsDirectory = IsDirectories,
+            Icon = IconOf(entry),
             Kind = entry.Kind,
             Number = Number(index),
             Href = href,

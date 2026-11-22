@@ -11,6 +11,9 @@ public class _RenameInput : PageModel
     /// <summary>The current name of the file or directory.</summary>
     public string Name { get; init; } = "";
 
+    /// <summary>Whether it is a file, whose name has an extension that the first click on the field leaves out of the selection.</summary>
+    public bool IsFile { get; init; }
+
     /// <summary>Why the entry can't be renamed, or null if it can. The name is then only shown (read-only), with the reason as its tooltip.</summary>
     public string? DisabledReason { get; init; }
 }

@@ -31,14 +31,17 @@
         }
         string virtualPath = Model.Listing.ToVirtualPath(entry.Path);
         string name = Model.Listing.NameOf(entry.Path);
+        @* A markdown file is shown by its title, with its file name as the tooltip, and in its place while Right Ctrl is held (key-held-text) *@
+        string shownName = entry.DisplayName ?? name;
         bool isSelected = Model.Listing.IsSelected(virtualPath);
         @* The row can be selected by clicking anywhere on it but the link; Ctrl plus the shortcut of its link selects it as well *@
         <tr class="entry-row @(isSelected ? "table-active" : "")" data-group="@Model.Group" data-path="@virtualPath">
             <td>@if (Model.Listing.CanSelect)
-                {<input type="checkbox" class="form-check-input entry-select" key="@Model.SelectKey(i)" aria-label="@Texts.Select(name)"
-                    checked="@isSelected"/>}<span class="entry-index">@Model.Number(i)</span><i class="@Model.Icon"></i>
+                {<input type="checkbox" class="form-check-input entry-select" key="@Model.SelectKey(i)" aria-label="@Texts.Select(shownName)"
+                    checked="@isSelected"/>}<span class="entry-index">@Model.Number(i)</span><i class="@Model.IconOf(entry)"></i>
                 <a class="@_EntryGroup.LinkDecoration(entry)" href="@VirtualPaths.ToAddress(virtualPath)" key="@Model.OpenKey(i)"
-                    key-anchor="i">@name</a>@if (entry.Mark is { } mark)
+                    key-anchor="i" title="@(entry.DisplayName is null ? null : name)"
+                    key-held-text="@(entry.DisplayName is null ? null : name)">@shownName</a>@if (entry.Mark is { } mark)
                 {<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
         </tr>
     }

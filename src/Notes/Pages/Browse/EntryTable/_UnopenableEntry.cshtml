@@ -11,7 +11,7 @@
         @<td class="text-secondary">@if (Model.ShowsCheckbox)
             {<input type="checkbox" class="form-check-input entry-select" disabled
                 aria-label="@Texts.CantBeSelected(Model.Name)"/>}<span class="entry-index">@Model.Number</span><i
-                class="@(Model.IsDirectory ? "fa-solid fa-folder" : "fa-regular fa-file")"></i>
+                class="@Model.Icon"></i>
             @if (Model.Href is not null)
             {
                 <a class="text-secondary text-decoration-none" href="@Model.Href" key="@Model.Key" key-anchor="i">@Model.Name</a>

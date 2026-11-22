@@ -4,6 +4,8 @@
 
 A directory shows its subdirectories first, then its files, each in reverse order of their names: new entries are named after the date and time they were made (see [Organizing](organizing.md#creating)), so the newest come first. Every entry has a number, which is also its [shortcut](keyboard.md). The numbers of a group have leading zeroes up to the digits of its largest one (`01` to `12`), so that the names start at the same place.
 
+A Markdown file is shown in the listing by its title, the text of its first `# Heading`; one without such a heading by its file name. The order and the address stay those of the file name, which hovering the title shows, and holding Right Ctrl shows in place of the titles. The breadcrumb of the file's page and earlier states always show the file name.
+
 Images, videos and audio files are listed apart from the other files, under **Media**, as a grid of tiles in the same order: a small picture of each image, the first frame of each video (marked with a play icon), and the icon of its kind for audio. Until a picture has loaded, its tile shows the icon of its kind too, as does the breadcrumb of a media file. The grid is only there if the directory has any. Alt with the number opens one, and Alt+Shift with the number selects it; the box in the corner of a picture selects it too, and so does pressing on the tile around it. PDFs stay with the files. A picture that can't be made (a file that isn't the image its name says, or one too large) shows an icon instead.
 
 | Desktop, light | Phone, dark |
