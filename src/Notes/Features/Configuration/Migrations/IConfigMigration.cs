@@ -29,9 +29,21 @@ public interface IConfigMigration
 }
 
 /// <summary>
+/// A migration that can also change the text of the file directly, so that its comments and layout stay (for something added, say). The
+/// migrator uses <see cref="ApplyToText"/> as long as no migration before it in the same run had to read the file into an object; after one did,
+/// the comments are gone anyway and <see cref="IConfigMigration.Apply"/> is used, which must make the same change.
+/// </summary>
+public interface ITextConfigMigration : IConfigMigration
+{
+    /// <summary>The text with the change made. Everything else stays as it is.</summary>
+    /// <exception cref="InvalidOperationException">If the text is not what the migration can work with. Nothing is saved then.</exception>
+    string ApplyToText(string text);
+}
+
+/// <summary>
 /// All migrations there are, oldest first. A new one is a class that implements <see cref="IConfigMigration"/> and goes into this list.
 /// </summary>
 public static class ConfigMigrations
 {
-    public static IReadOnlyList<IConfigMigration> All { get; } = [new AddGitignore()];
+    public static IReadOnlyList<IConfigMigration> All { get; } = [new AddGitignore(), new AddNoPassword()];
 }

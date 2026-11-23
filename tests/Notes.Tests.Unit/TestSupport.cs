@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Notes.Features.Addresses;
 using Notes.Features.Auth;
@@ -6,6 +7,7 @@ using Notes.Features.Bridges;
 using Notes.Features.Configuration;
 using Notes.Features.Configuration.Migrations;
 using Notes.Features.Helpers;
+using Notes.Features.Passwords;
 
 namespace Notes.Tests.Unit;
 
@@ -21,7 +23,11 @@ public sealed class TempNotes : IDisposable
         Locations = new EntryLocations(Config);
         Paths = new PathService(Locations);
         Store = new FolderConfigStore(Locations, Migrator, NullLogger<FolderConfigStore>.Instance);
-        Access = new EntryAccess(Locations, Store);
+        // The request whose unlocks count: a test sets one (Request), none means nothing is unlocked
+        PasswordsConfig passwords = new();
+        Unlocks = new PasswordUnlocks(passwords, TimeProvider.System);
+        Locks = new PasswordLocks(Unlocks, new PasswordAttempts(passwords, TimeProvider.System), Store, Locations, RequestAccessor);
+        Access = new EntryAccess(Locations, Store, Locks);
         Exposed = new ExposedFolders(Config, new AppAddresses(Config));
         Tree = new AccessTree(Locations, Paths, Access, Exposed, new Notes.Features.Auth.AuthTexts());
         Files = new NotesTree(Root);
@@ -33,6 +39,9 @@ public sealed class TempNotes : IDisposable
     public PathService Paths { get; }
     public ConfigMigrator Migrator { get; }
     public FolderConfigStore Store { get; }
+    public HttpContextAccessor RequestAccessor { get; } = new();
+    public PasswordUnlocks Unlocks { get; }
+    public PasswordLocks Locks { get; }
     public EntryAccess Access { get; }
     public ExposedFolders Exposed { get; }
     public AccessTree Tree { get; }

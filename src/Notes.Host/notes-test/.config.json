@@ -1,5 +1,5 @@
 {
-    "version": "1.2.0",
+    "version": "1.4.0",
     "perms": {
         "inherit": true,
         "rwReadOnly": [
@@ -7,6 +7,9 @@
         ]
     },
     "gitignore": false,
+    // A password protects this folder and everything in it, admins included. null for none; saving replaces a password with its hash (passwordHash).
+    // The entry of a file can have a "password" too.
+    "password": null,
     "files": [
         {
             "name": "some filetest.md",

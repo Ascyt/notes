@@ -39,4 +39,6 @@ public sealed class Config
     public BridgeConfig[] Bridges { get; init; } = [];
     /// <summary>How large what users send and make may be, see <see cref="LimitsConfig"/>.</summary>
     public LimitsConfig Limits { get; init; } = new();
+    /// <summary>How the passwords of entries behave, see <see cref="Features.Passwords.PasswordsConfig"/>.</summary>
+    public Features.Passwords.PasswordsConfig Passwords { get; init; } = new();
 }

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Notes.Features.Auth;
+using Notes.Features.Bridges;
 using Notes.Features.Configuration;
+using Notes.Features.Passwords;
 using Notes.Features.Helpers;
 using Notes.Features.History;
 
@@ -22,8 +24,12 @@ public interface ITransferService
 /// anything, then the <see cref="TransferExecutor"/> does it and undoes it all if it fails. Both happen under the <see cref="StructureLock"/>,
 /// so nothing can change in between and no other operation sees a transfer half done. Turns the outcome into a <see cref="TransferResult"/>.
 /// </summary>
+/// <remarks>
+/// Passwords travel with what they protect, unlike permissions (<see cref="CarryPasswords"/>): otherwise copying something would be a way
+/// around its password.
+/// </remarks>
 public sealed class TransferService(TransferTexts texts, TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, FolderConfigStore configs,
-    HistoryService history, ILogger<TransferService> logger) : ITransferService
+    HistoryService history, PasswordLocks passwordLocks, EntryLocations locations, ILogger<TransferService> logger) : ITransferService
 {
     public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget,
         IReadOnlyList<string> virtualPaths, Action<double>? reportProgress = null)
@@ -41,8 +47,11 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
             TransferPlan plan = planner.Plan(user, kind, physicalTarget, virtualPaths);
             List<string> changed = ChangedPaths(kind, physicalTarget, plan.Items);
             history.BeforeChange(user, changed);
+            // (Found before: a move takes the originals, and their entries, away)
+            List<CarriedPassword> passwords = kind == TransferKind.Delete ? [] : PasswordsOf(physicalTarget, plan.Items);
             executor.Execute(kind, physicalTarget, plan.Items, reportProgress);
             KeepFileEntriesInStep(kind, physicalTarget, plan.Items);
+            CarryPasswords(passwords);
             history.AfterChange(user, changed, kind == TransferKind.Delete ? HistoryChangeKind.Delete : HistoryChangeKind.Change);
             return TransferResult.Success with { LeftOutUnreadable = plan.LeftOutUnreadable };
         }
@@ -76,6 +85,56 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
         }
 
         return [.. changed.Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>A password that goes with a transferred entry (or one inside it) to where it goes.</summary>
+    private sealed record CarriedPassword(Protection From, string Destination, bool IsDirectory);
+
+    /// <summary>
+    /// The passwords of the transferred entries and of everything that is transferred inside them, with where each goes: the directories
+    /// (outermost first) before the files, so a file's folder has its configuration first.
+    /// </summary>
+    private List<CarriedPassword> PasswordsOf(string physicalTarget, IEnumerable<TransferItem> items)
+    {
+        List<CarriedPassword> passwords = [];
+        void Add(string source, string destination, bool isDirectory)
+        {
+            string? hash = isDirectory
+                ? configs.Get(source).Config?.PasswordHash
+                : configs.Get(locations.ParentOf(source)!).Config?.FindFile(Path.GetFileName(source))?.PasswordHash;
+            if (hash is not null)
+                passwords.Add(new CarriedPassword(new Protection(Path.TrimEndingDirectorySeparator(Path.GetFullPath(source)), hash), destination,
+                    isDirectory));
+        }
+
+        foreach (TransferItem item in items)
+        {
+            string destination = Path.Combine(physicalTarget, item.Name);
+            Add(item.Source, destination, item.IsDirectory);
+            foreach (InsideEntry inside in item.Contents)
+                Add(inside.Path, Path.Combine(destination, inside.RelativePath), inside.IsDirectory);
+        }
+
+        return [.. passwords.OrderBy(password => !password.IsDirectory)];
+    }
+
+    /// <summary>
+    /// Gives each transferred entry the password it had. One that can't be given it is logged as an error: the entry is there without it.
+    /// Whoever had one unlocked has it unlocked where it went.
+    /// </summary>
+    private void CarryPasswords(List<CarriedPassword> passwords)
+    {
+        foreach (CarriedPassword password in passwords)
+        {
+            bool carried = password.IsDirectory
+                ? configs.DirectoryPasswordCarried(password.Destination, password.From.Hash)
+                : configs.FilePasswordCarried(Path.GetDirectoryName(password.Destination)!, Path.GetFileName(password.Destination),
+                    password.From.Hash);
+            if (carried)
+                passwordLocks.Moved(password.From, password.Destination);
+            else
+                logger.LogError("{destination} was transferred, but could not be given the password it had: it is not protected by it", password.Destination);
+        }
     }
 
     /// <summary>

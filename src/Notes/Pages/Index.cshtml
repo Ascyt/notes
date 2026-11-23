@@ -17,7 +17,11 @@
     <partial name="/Features/Auth/_LoginNotice.cshtml" model='new _LoginNotice { ReturnUrl = Model.HttpContext.OriginalPathAndQuery }'/>
 }
 
-@if (Model.ConfigEditor is not null)
+@if (Model.PasswordPrompt is not null)
+{
+    <partial name="/Features/Passwords/_PasswordPrompt.cshtml" model="Model.PasswordPrompt"/>
+}
+else if (Model.ConfigEditor is not null)
 {
     <partial name="/Pages/ConfigEditor/ConfigEditorView.cshtml" model="Model.ConfigEditor"/>
 }

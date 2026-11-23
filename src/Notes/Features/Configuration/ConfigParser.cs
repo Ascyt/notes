@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Notes.Features.Configuration.Migrations;
 using Notes.Features.Helpers;
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Configuration;
@@ -36,6 +37,10 @@ public static class ConfigParser
     public const string FilesKey = "files";
     public const string NameKey = "name";
 
+    /// <summary>A password as typed into the editor, which saving replaces with its hash (<see cref="PasswordHashKey"/>).</summary>
+    public const string PasswordKey = "password";
+    public const string PasswordHashKey = "passwordHash";
+
     private static readonly string[] RwKeys = ["rwAllow", "rwReadOnly", "rwDeny"];
     private static readonly string[] CdKeys = ["cdAllow", "cdCreateOnly", "cdDeny"];
     private static readonly string[] HistoryKeys = ["historyAllow", "historyExistingOnly", "historyDeny"];
@@ -63,15 +68,20 @@ public static class ConfigParser
     /// permissions that are in force are read without it: a file that was removed from outside doesn't make its folder unusable.
     /// </param>
     /// <param name="texts">How the errors are worded: the site's, where they are shown; the app's own (<see cref="ConfigTexts.Default"/>) without.</param>
-    public static ParseResult<FolderConfig> ParseFolder(string text, IReadOnlySet<string>? existingFiles, ConfigTexts? texts = null)
+    /// <param name="allowsPlainPasswords">
+    /// Whether a <c>password</c> may be there (as typed into the editor, which saving replaces with its hash). In a file that was saved it is
+    /// an error: it was written there by hand, and only its hash may be kept.
+    /// </param>
+    public static ParseResult<FolderConfig> ParseFolder(string text, IReadOnlySet<string>? existingFiles, ConfigTexts? texts = null,
+        bool allowsPlainPasswords = false)
     {
         Problems errors = new(texts ?? ConfigTexts.Default);
         using JsonDocument? document = Open(text, errors);
         if (document is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [VersionKey, PermsKey, GitignoreKey, FilesKey],
-            required: [PermsKey, GitignoreKey, FilesKey], errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "",
+            [VersionKey, PermsKey, GitignoreKey, FilesKey, PasswordKey, PasswordHashKey], required: [PermsKey, GitignoreKey, FilesKey], errors);
         if (root is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
@@ -84,6 +94,7 @@ public static class ConfigParser
             errors.Add(errors.Texts.NotABoolean(GitignoreKey));
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
+        string? passwordHash = ParsePassword(root, "", allowsPlainPasswords, errors);
         List<FileEntry> files = [];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
 
@@ -95,35 +106,79 @@ public static class ConfigParser
             foreach (JsonElement element in root[FilesKey].EnumerateArray())
             {
                 string path = $"{FilesKey}[{index++}]";
-                Dictionary<string, JsonElement>? entry = ReadObject(element, path, [NameKey, PermsKey], required: [NameKey, PermsKey], errors);
+                Dictionary<string, JsonElement>? entry = ReadObject(element, path, [NameKey, PermsKey, PasswordKey, PasswordHashKey],
+                    required: [NameKey, PermsKey], errors);
                 if (entry is null)
                     continue;
 
                 string? name = ParseName(entry[NameKey], path, names, existingFiles, errors);
                 PermsBlock? entryPerms = ParsePerms(entry[PermsKey], path + "." + PermsKey, errors);
+                string? entryPasswordHash = ParsePassword(entry, path, allowsPlainPasswords, errors);
                 if (name is not null && entryPerms is not null)
-                    files.Add(new FileEntry(name, entryPerms));
+                    files.Add(new FileEntry(name, entryPerms, entryPasswordHash));
             }
         }
 
         return errors.Count > 0 || perms is null
             ? ParseResult<FolderConfig>.Failed(errors)
-            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files));
+            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash));
+    }
+
+    /// <summary>
+    /// Checks the <c>password</c> or <c>passwordHash</c> of an object (the root, a file's entry) and returns the hash, or null if there is none
+    /// (also for a password, whose hash is only made when it is saved). A password of null is none, as if it weren't there.
+    /// </summary>
+    private static string? ParsePassword(Dictionary<string, JsonElement> properties, string path, bool allowsPlainPasswords, Problems errors)
+    {
+        string Where(string key) => path == "" ? key : path + "." + key;
+        bool hasPassword = properties.TryGetValue(PasswordKey, out JsonElement password) && password.ValueKind != JsonValueKind.Null;
+        bool hasHash = properties.TryGetValue(PasswordHashKey, out JsonElement hash);
+
+        if (hasPassword && hasHash)
+        {
+            errors.Add(errors.Texts.PasswordAndHash(Where(PasswordKey), Where(PasswordHashKey)));
+            return null;
+        }
+
+        if (hasPassword)
+        {
+            if (password.ValueKind != JsonValueKind.String)
+                errors.Add(errors.Texts.NotAString(Where(PasswordKey)));
+            else if (!allowsPlainPasswords)
+                errors.Add(errors.Texts.PasswordNotSaved(Where(PasswordKey), Where(PasswordHashKey)));
+            else if (PasswordHashing.Check(password.GetString()!) is not PasswordProblem.None and var problem)
+                errors.Add(errors.Texts.NotAPassword(Where(PasswordKey), problem));
+            return null;
+        }
+
+        if (!hasHash)
+            return null;
+        if (hash.ValueKind != JsonValueKind.String || !PasswordHashing.IsHash(hash.GetString()!))
+        {
+            errors.Add(errors.Texts.NotAPasswordHash(Where(PasswordHashKey), Where(PasswordKey)));
+            return null;
+        }
+
+        return hash.GetString();
     }
 
     /// <summary>
     /// Reads what the editor shows for a single file: <c>{ "perms": {...} }</c>, the entry of the file without its name (which is the file's own).
     /// </summary>
     /// <param name="texts">How the errors are worded (see <see cref="ParseFolder"/>).</param>
-    public static ParseResult<PermsBlock> ParseFileBody(string text, ConfigTexts? texts = null)
+    /// <param name="allowsPlainPasswords">See <see cref="ParseFolder"/>.</param>
+    public static ParseResult<PermsBlock> ParseFileBody(string text, ConfigTexts? texts = null, bool allowsPlainPasswords = false)
     {
         Problems errors = new(texts ?? ConfigTexts.Default);
         using JsonDocument? document = Open(text, errors);
         if (document is null)
             return ParseResult<PermsBlock>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [PermsKey], required: [PermsKey], errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [PermsKey, PasswordKey, PasswordHashKey], required: [PermsKey],
+            errors);
         PermsBlock? perms = root is null ? null : ParsePerms(root[PermsKey], PermsKey, errors);
+        if (root is not null)
+            _ = ParsePassword(root, "", allowsPlainPasswords, errors);
 
         return errors.Count > 0 || perms is null
             ? ParseResult<PermsBlock>.Failed(errors)

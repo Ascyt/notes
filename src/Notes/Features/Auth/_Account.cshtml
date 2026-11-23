@@ -1,7 +1,15 @@
 @model Notes.Features.Auth._Account
 @inject AuthTexts Texts
+@inject Notes.Features.Passwords.PasswordTexts PasswordTexts
 
 <ul class="navbar-nav align-items-sm-center gap-sm-2">
+    @* Locks everything the browser has unlocked (_PasswordModal.js). Shown while anything is, also once the dialog unlocks something. *@
+    <li class="nav-item" data-lock-item hidden="@(!Model.HasUnlocked)">
+        <button type="button" id="lock-button" class="btn btn-sm btn-warning" title="@PasswordTexts.LockAll"
+            aria-label="@PasswordTexts.LockAll" key="!L">
+            <i class="fa-solid fa-lock"></i>
+        </button>
+    </li>
     @if (Model.IsAuthenticated)
     {
         @if (Model.IsAdmin)
@@ -21,7 +29,7 @@
         </li>
         <li class="nav-item">
             <form method="post" asp-page="/App/Logout">
-                <button type="submit" class="btn btn-sm btn-outline-secondary" key="!L">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" key="!+L">
                     <i class="fa-solid fa-right-from-bracket"></i> @Texts.LogOut
                 </button>
             </form>
@@ -30,7 +38,7 @@
     else
     {
         <li class="nav-item">
-            <a class="btn btn-sm btn-primary" asp-page="/App/Login" asp-route-returnUrl="@Model.ReturnUrl" key="!L">
+            <a class="btn btn-sm btn-primary" asp-page="/App/Login" asp-route-returnUrl="@Model.ReturnUrl" key="!+L">
                 <i class="fa-solid fa-right-to-bracket"></i> @Texts.LogIn
             </a>
         </li>

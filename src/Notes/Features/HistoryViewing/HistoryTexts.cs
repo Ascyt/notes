@@ -1,3 +1,5 @@
+using Notes.Features.Components.Assets;
+
 namespace Notes.Features.HistoryViewing;
 
 /// <summary>
@@ -84,7 +86,9 @@ public class HistoryTexts
 
     // Why the history can't be seen here at all (for those who manage the configuration, who may know why)
 
+    [NotForScripts]
     public virtual string BridgeHistoryNotViewable => "This is in a bridge (Config:Bridges), whose history is recorded but can't be viewed in the app yet.";
+    [NotForScripts]
     public virtual string BridgeWithoutHistory => "This is in a bridge (Config:Bridges) without a history (History:Enabled is false).";
     public virtual string LeftOut(bool isFile) => $"The configuration leaves this {Kind(isFile)} out of the history (gitignore).";
 

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Notes.Features.Bridges;
 using Notes.Features.Configuration;
 using Notes.Features.Helpers;
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Auth;
@@ -120,7 +121,11 @@ public interface IEntryAccess
 /// nothing says anything about is denied, and so is everything under a folder whose
 /// configuration is invalid. The folders above are those of the entries: above a bridge comes the directory it is mounted in.
 /// </summary>
-public sealed class EntryAccess(EntryLocations locations, FolderConfigStore store) : IEntryAccess
+/// <remarks>
+/// Before all of that, a path that a password locks (<see cref="PasswordLocks"/>) gets nothing, admins included: a password is there so that
+/// only those who know it see what it protects.
+/// </remarks>
+public sealed class EntryAccess(EntryLocations locations, FolderConfigStore store, PasswordLocks passwordLocks) : IEntryAccess
 {
     private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
 
@@ -141,10 +146,13 @@ public sealed class EntryAccess(EntryLocations locations, FolderConfigStore stor
     private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, Func<string, FolderConfigState> configOf, Func<string,
         bool> isDirectory)
     {
+        string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
+        if (passwordLocks.IsLocked(path, configOf, isDirectory(path)))
+            return EntryAccessInfo.None;
+
         if (CanManageConfiguration(user))
             return Everything;
 
-        string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
         // The configuration files themselves are for admins only, and what isn't part of the entries (also what a bridge hides) is for nobody else
         if (string.Equals(Path.GetFileName(path), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)
             || !locations.Contains(path))

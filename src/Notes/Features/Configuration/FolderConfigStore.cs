@@ -238,6 +238,65 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
     public void FileRemoved(string physicalDirectory, string name)
         => Update(physicalDirectory, "remove", text => ConfigText.RemoveFile(text, name));
 
+    // ---- Passwords travel with what they protect, unlike the permissions: a copy must not be a way around one. What was copied without its
+    // ---- configuration (by someone who doesn't manage it) gets one that says nothing but the password.
+
+    /// <summary>The directory (a copy, or moved) is protected by the password with that hash, as what it came from was.</summary>
+    /// <returns>Whether it is now.</returns>
+    public bool DirectoryPasswordCarried(string physicalDirectory, string hash)
+    {
+        if (Get(physicalDirectory).Config?.PasswordHash == hash)
+            return true;
+        if (!EnsureExists(physicalDirectory))
+            return false;
+        Update(physicalDirectory, "carry the password into", text => ConfigText.SetPasswordHash(text, hash));
+        return Get(physicalDirectory).Config?.PasswordHash == hash;
+    }
+
+    /// <summary>The file (a copy, or moved) is protected by the password with that hash, as what it came from was.</summary>
+    /// <returns>Whether it is now.</returns>
+    public bool FilePasswordCarried(string physicalDirectory, string name, string hash)
+    {
+        if (Get(physicalDirectory).Config?.FindFile(name)?.PasswordHash == hash)
+            return true;
+        if (!EnsureExists(physicalDirectory))
+            return false;
+        // (Its permissions don't travel: the entry it got where it went changes nothing, and so does this one, but for the password)
+        string body = "{ \"perms\": { \"inherit\": true }, \"" + ConfigParser.PasswordHashKey + "\": "
+            + System.Text.Json.JsonSerializer.Serialize(hash) + " }";
+        Update(physicalDirectory, "carry the password of a file into", text => ConfigText.SetFileBody(text, name, body));
+        return Get(physicalDirectory).Config?.FindFile(name)?.PasswordHash == hash;
+    }
+
+    /// <summary>
+    /// Gives the folder a configuration if it has none: one that changes nothing (the permissions inherit, and what the history keeps is what
+    /// the folders above say). Whether it has one now.
+    /// </summary>
+    private bool EnsureExists(string physicalDirectory)
+    {
+        if (File.Exists(ConfigPathOf(physicalDirectory)))
+            return true;
+        try
+        {
+            WriteText(physicalDirectory, ConfigText.Default(FileNamesOf(physicalDirectory), migrator.Current, IsLeftOutOfHistory(physicalDirectory)));
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            logger.LogError(e, "Could not give {directory} a configuration", physicalDirectory);
+            return false;
+        }
+    }
+
+    /// <summary>What the folders above say about <c>gitignore</c> for the folder (the nearest one that says anything), false if none does.</summary>
+    public bool IsLeftOutOfHistory(string physicalDirectory)
+    {
+        for (string? folder = locations.ParentOf(physicalDirectory); folder is not null; folder = locations.ParentOf(folder))
+            if (Get(folder).Config is { } config)
+                return config.Gitignore;
+        return false;
+    }
+
     private void Update(string physicalDirectory, string what, Func<string, string?> edit)
     {
         string path = ConfigPathOf(physicalDirectory);

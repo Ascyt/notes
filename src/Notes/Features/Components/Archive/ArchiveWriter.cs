@@ -22,8 +22,9 @@ public static class ArchiveWriter
     public static async Task WriteAsync(ZipFolderEntry folder, ArchiveOptions options, string targetPath,
         CancellationToken cancellationToken)
     {
-        // ReadWrite: the 7z writer goes back to the start to fill in where its header is
-        await using FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, useAsync: true);
+        // ReadWrite: the 7z writer goes back to the start to fill in where its header is. (Others may read it meanwhile: the tests of
+        // zipped folders copy what is on disk while it is written.)
+        await using FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read, 81920, useAsync: true);
         if (options.Format == ArchiveFormat.SevenZip)
             await WriteSevenZipAsync(folder, options, file, cancellationToken);
         else

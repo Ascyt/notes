@@ -14,7 +14,8 @@ namespace Notes.Features.Components.Rename;
 /// the same directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
 public sealed class RenameHandler(EntryLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock,
-    FolderConfigStore configs, HistoryService history, EntryTexts entryTexts, NameTexts nameTexts) : IEntryPostAction
+    FolderConfigStore configs, HistoryService history, EntryTexts entryTexts, NameTexts nameTexts, Passwords.PasswordUnlocks unlocks)
+    : IEntryPostAction
 {
     public const string RenameParameter = "rename";
 
@@ -63,6 +64,8 @@ public sealed class RenameHandler(EntryLocations locations, IPathService path, T
             else
                 RenameFile(directory, physicalPath, newPhysicalPath);
             history.AfterChange(user, changed, HistoryChangeKind.Change);
+            // Its passwords went along (in its configuration, or its entry), and so does what was unlocked of them
+            unlocks.TreeMoved(request.Context, physicalPath, newPhysicalPath);
 
             return new ContentResult { Content = VirtualPaths.ToAddress(path.ToVirtualPath(newPhysicalPath)) };
         }

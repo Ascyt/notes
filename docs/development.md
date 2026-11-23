@@ -10,6 +10,7 @@ How the app is built and how to work on it.
 - [User input](development/user-input.md): every kind of input the app takes, how it is checked, its limits, and what happens when requests run at the same time.
 - [Components](development/components.md): the parts of the pages (HTML, texts, styles, script), and how a site swaps one.
 - [History specification](development/history-specification.md): who may see which earlier state of the notes, and how they are shown.
+- [Zipped folders](development/zipped-folders.md): how a folder kept as an archive is zipped and unzipped without ever losing anything, and its edge cases.
 
 ## How the app is put together
 

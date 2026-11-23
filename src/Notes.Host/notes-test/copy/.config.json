@@ -1,6 +1,6 @@
 {
     // The version of this file's format. The app keeps it up to date: don't change it.
-    "version": "1.2.0",
+    "version": "1.4.0",
     // Who may do what in this folder. Subfolders and files start from these permissions.
     // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
     // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read and to see the history).
@@ -17,5 +17,6 @@
     "files": [
         { "name": "2026-11-11_13-50.md", "perms": { "inherit": true } },
         { "name": "2026-11-11_13-54.md", "perms": { "inherit": true } }
-    ]
+    ],
+    "passwordHash": "$2a$12$5AhBY1ZpcxNe4ve4Mda0.eHt5LXcDjkt7Vo0dWhH6iw0pNQHKjNsa"
 }

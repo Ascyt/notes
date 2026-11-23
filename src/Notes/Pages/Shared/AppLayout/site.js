@@ -84,9 +84,11 @@ window.setButtonBusy = function (button, busy) {
             e.preventDefault();
     });
 
-    // While the page is covered, its shortcuts do nothing either (this runs before those of shortcuts.js, which listen on the document)
+    // While the page is covered, its shortcuts do nothing either (this runs before those of shortcuts.js, which listen on the document).
+    // What is shown above the cover (data-above-busy-overlay: the dialog for a password that what runs needs) still gets its keys.
     window.addEventListener('keydown', function (e) {
-        if (blocking > 0) {
+        if (blocking > 0 && !(e.target instanceof Element && e.target.closest('[data-above-busy-overlay]'))
+            && !document.querySelector('[data-above-busy-overlay].show')) {
             e.preventDefault();
             e.stopImmediatePropagation();
         }

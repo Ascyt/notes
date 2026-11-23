@@ -28,6 +28,9 @@ public class ListingTexts
     public virtual string NoReadAccess(bool isDirectory)
         => isDirectory ? "No read access to this directory. Its contents are hidden." : "No read access to this file.";
 
+    /// <summary>Why an entry has a yellow lock: opening it asks for its password.</summary>
+    public virtual string ProtectedByPassword(bool isDirectory) => "Password-protected";
+
     /// <summary>Why an entry of an earlier state can't be opened in it, and whether it is still there now (where it then leads).</summary>
     public virtual string CantBeSeenAsItWas(bool isGoneNow)
         => isGoneNow

@@ -174,6 +174,17 @@ public sealed class SelectionAndConfigTests(NotesAppFactory app) : IntegrationTe
         await AssertStatus(HttpStatusCode.Forbidden, await Client.PostAsync(Users.Alice, "/mixed/view.md", "x"));
     }
 
+    [Fact]
+    public async Task The_permissions_of_a_file_in_a_folder_without_a_configuration_keep_it_out_of_the_history_as_the_folder_above_does()
+    {
+        Tree.File("ignored/inner/note.md", "x");
+        Tree.Config("ignored", Cfg.Folder(gitignore: true, Cfg.Perms(inherit: true)));
+
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Admin, "/ignored/inner/note.md?config", """{ "perms": { "inherit": true } }"""));
+
+        Assert.Contains("\"gitignore\": true", Tree.Read("ignored/inner/.config.json"));
+    }
+
     [Theory]
     [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true, "rwAllow": ["a"] }, "files": [] }""")]
     [InlineData("""{ "version": "1.0.0", "perms": { "inherit": true, "cdCreateOnly": ["a"] }, "files": [] }""")]

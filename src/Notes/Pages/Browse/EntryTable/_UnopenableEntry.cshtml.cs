@@ -14,7 +14,9 @@ public class _UnopenableEntry : PageModel
     /// <summary>The icon of the entry (<see cref="EntryIcons"/>), as the other rows have it.</summary>
     public string Icon { get; init; } = "";
 
-    /// <summary>Why it can't be opened: <see cref="ListedKind.Locked"/> or <see cref="ListedKind.NoHistory"/>.</summary>
+    /// <summary>
+    /// Why it can't be opened: <see cref="ListedKind.Locked"/>, <see cref="ListedKind.PasswordLocked"/> or <see cref="ListedKind.NoHistory"/>.
+    /// </summary>
     public ListedKind Kind { get; init; }
 
     /// <summary>Its position in the listing, counted from 1, with leading zeroes (<see cref="DirectoryView.NumberText"/>).</summary>
@@ -22,7 +24,7 @@ public class _UnopenableEntry : PageModel
 
     /// <summary>
     /// Where it leads, if anywhere: an entry without history leads to the entry as it is now, whose page says why it can't be seen as it was
-    /// (unless it is gone now). A locked one leads nowhere.
+    /// (unless it is gone now). A locked one leads nowhere; one a password locks to where the password is asked for.
     /// </summary>
     public string? Href { get; init; }
 

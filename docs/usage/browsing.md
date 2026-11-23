@@ -51,9 +51,13 @@ Different views of the same file share its address and only add to it: `?edit` f
 
 ![The page for an address that leads nowhere](../screenshots/error-desktop.png)
 
+## Passwords
+
+A directory or file can be protected by a password (see [Passwords](../administration/passwords.md)): it is listed like any other entry with a yellow lock after its name, and opening it (or anything in it) asks for the password. It then stays unlocked, with a gray open lock in its place (also in the breadcrumb, after the entry that has the password), in this browser for 10 minutes after it was last used; typing in it counts, saved or not. If it runs out while a file is being edited, saving asks for the password again and nothing typed is lost. The yellow lock next to the account (Alt+L) locks everything again at once. After five wrong passwords, each further one has to wait a while, which the dialog counts down.
+
 ## Logging in
 
-Without logging in, only what is open to everyone can be seen, and nothing can be changed. A note at the top of the page says so, with the link to log in.
+Without logging in, only what is open to everyone can be seen, and nothing can be changed. A note at the top of the page says so, with the link to log in (Alt+Shift+L; logging out has the same shortcut).
 
 ![A directory without logging in](../screenshots/not-logged-in-desktop.png)
 

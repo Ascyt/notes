@@ -28,7 +28,9 @@ public sealed class ConfigSchema(ConfigTexts texts)
             {
                 ["$ref"] = "#/definitions/perms",
                 ["description"] = texts.SchemaPerms(forFile)
-            }
+            },
+            ["password"] = Password(isFile: forFile),
+            ["passwordHash"] = PasswordHash()
         };
 
         if (!forFile)
@@ -38,7 +40,7 @@ public sealed class ConfigSchema(ConfigTexts texts)
                 ["type"] = "string",
                 ["pattern"] = @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
                 ["description"] = texts.SchemaVersion,
-                ["examples"] = new[] { "1.2.0" }
+                ["examples"] = new[] { "1.4.0" }
             };
             properties["gitignore"] = new Dictionary<string, object>
             {
@@ -58,7 +60,9 @@ public sealed class ConfigSchema(ConfigTexts texts)
                     {
                         ["name"] = new Dictionary<string, object> { ["type"] = "string", ["description"] = texts.SchemaFileName },
                         ["perms"] = new Dictionary<string, object> { ["$ref"] = "#/definitions/perms",
-                            ["description"] = texts.SchemaPerms(isFile: true) }
+                            ["description"] = texts.SchemaPerms(isFile: true) },
+                        ["password"] = Password(isFile: true),
+                        ["passwordHash"] = PasswordHash()
                     }
                 }
             };
@@ -82,6 +86,13 @@ public sealed class ConfigSchema(ConfigTexts texts)
             }
         };
     }
+
+    // (The editor can't count bytes: how long a password may be is said, and checked when it is saved)
+    private Dictionary<string, object> Password(bool isFile)
+        => new() { ["type"] = new[] { "string", "null" }, ["minLength"] = 1, ["description"] = texts.SchemaPassword(isFile) };
+
+    private Dictionary<string, object> PasswordHash()
+        => new() { ["type"] = "string", ["description"] = texts.SchemaPasswordHash };
 
     private static Dictionary<string, object> PrincipalList(string pattern, string description, string[] examples)
         => new()

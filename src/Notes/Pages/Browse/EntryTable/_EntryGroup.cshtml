@@ -41,7 +41,8 @@
                     checked="@isSelected"/>}<span class="entry-index">@Model.Number(i)</span><i class="@Model.IconOf(entry)"></i>
                 <a class="@_EntryGroup.LinkDecoration(entry)" href="@VirtualPaths.ToAddress(virtualPath)" key="@Model.OpenKey(i)"
                     key-anchor="i" title="@(entry.DisplayName is null ? null : name)"
-                    key-held-text="@(entry.DisplayName is null ? null : name)">@shownName</a>@if (entry.Mark is { } mark)
+                    key-held-text="@(entry.DisplayName is null ? null : name)">@shownName</a>@if (entry.IsUnlocked)
+                {<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>}@if (entry.Mark is { } mark)
                 {<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
         </tr>
     }

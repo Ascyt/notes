@@ -8,7 +8,7 @@ This document describes who may do what with the notes. It is the reference for 
 ## Two layers
 
 1. **No gate.** Anyone, signed in or not, may request any path of the notes; the page of the notes has no authorization of its own. Without `Read` on the root, what they get is the root page with the login link and nothing of the notes. Only what is not part of the notes (the pages under `/_/`, see [Pages outside the notes](#pages-outside-the-notes)) can be gated, and every failed authorization there is answered with the same 404 as a missing path.
-2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything. For everyone else it reads the `.config.json` of the folders (see [permissions.md](../administration/permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
+2. **Permissions per entry.** For every path inside the notes, `IEntryAccess.GetAccess(user, path)` (`Features/Auth/EntryAccess.cs`) says what the user may do. This is the only place that makes that decision. It gives admins everything, except what a [password](#passwords) locks, which it gives nobody. For everyone else it reads the `.config.json` of the folders (see [permissions.md](../administration/permissions.md)): the nearest layer that says anything about the user decides, and with no configuration, or an invalid one, they get nothing.
 
 **Anonymous users** (not logged in) are only the principal `a` of the configuration, which stands for all users, so what is given to `a` is given to logged-in users as well (they never get less than anonymous users), who are also the principal `l`. `a` can be given `Read` (or denied it) but never `Write`, `Create` or `Delete`: the parser refuses such a configuration (`l` may be given anything). They have no user id, so they can't select, upload, transfer anything or have an archive made for them either (a directory downloads as a zip for them at once), and the pages tell them that they may need to log in. Because they can't change anything, they have no way to find out that a name is taken (see "Name collisions" below), so for them an entry they may not read is **hidden**, not just locked: it isn't listed, and its address answers 404 (see [Known, openable, hidden](#known-openable-hidden)).
 
@@ -118,6 +118,18 @@ A site may show only some directories of the notes (`Config:Exposed`, see [Using
 - **An exposed directory stays where it is.** Like a bridge, it, or a directory that holds one, can't be deleted, moved or renamed (403, also for admins), checked last; only admins are told why.
 - **The exposed directories exist.** A setting that names a directory that isn't there, or whose path isn't valid or is taken by a page of the app, doesn't let the app start.
 
+### Passwords
+
+A directory or file can have a [password](../administration/passwords.md) (`passwordHash` in its configuration, a bcrypt hash). It protects the entry and everything inside it, from everyone: it is a lock on top of the permissions, not a permission.
+
+- **Locked is unreadable, also for admins.** For a request that hasn't unlocked it, `GetAccess` answers `None` for a path that a password locks (`PasswordLocks`, asked before anything else in `EntryAccess`), so everything that decides by the permissions treats it as an entry the user may not read: walks leave it out or fail, it can't be selected, opened or changed, and neither can anything in it. Its earlier states are locked by the password they had then (the configuration of that state decides).
+- **Asked for, not hidden.** Whether the user may know of an entry is decided as if no password locked anything (`PasswordLocks.IgnoringLocks`): what they could read without the password is asked the password of (403 with `X-Notes-Password-Required`, the address of the entry with the password; the page of the entry asks for it) rather than answered like a missing path. Anything inside a locked directory is, whether it exists or not, so the answer tells nothing about what is in it. What the user may not know of stays a 404, password or not.
+- **Unlocking** (`POST ?unlock` with the password in the body, or the header `X-Notes-Password`, in base64, with any request) checks the password against the hash of the outermost locked protection of the path. An unlock is kept in memory for the browser (a random id in an HttpOnly cookie), tied to the user (or to nobody for anonymous users), for the path and hash together, and runs out 10 minutes after it was last used. The password itself is never kept or logged.
+- **Guessing is slowed down.** After 5 wrong passwords in a row for a protection, by one user (or address), each further check waits, doubling up to a minute (429 with `Retry-After`), for the dialog and for the header alike. bcrypt makes each check take long on its own.
+- **A password is changed by whoever knows it.** Changing or removing a `passwordHash` (of the directory or of a file's entry) needs it unlocked, also for admins; setting a password where there was none needs nothing. A configuration with a plain `password` on disk (not through the editor, which hashes it) is invalid.
+- **A password travels.** Copies, moves and renames keep it, unlike the permissions (`TransferService.CarryPasswords`): a copy without it would be a way around it.
+- **Nothing on disk is encrypted.** A password is a lock of the app; whoever reads the files on the server reads what it protects.
+
 ## Operations
 
 "Known" and "openable" are as defined above. "The tree" means the entry and everything inside it, at any depth. The root directory can never be renamed or deleted, nor can an exposed directory or one that holds one.
@@ -151,6 +163,10 @@ A site may show only some directories of the notes (`Config:Exposed`, see [Using
 | The times at which an entry can be seen as it was | `GET /entry?history` | The user may see the history of the entry now (otherwise 404, like a missing path), and the history keeps it | — |
 | The list of changes of an entry | `GET /entry?commits` (with `&page=`, and the `?before=` or `?commit=` that is shown) | As `?history`; each commit listed as in the [history specification](history-specification.md#the-list-of-changes) | Only commits that changed what the user may see as it was |
 | Change anything in an earlier state | any `POST`, `DELETE`, `?config` or `?selection` with `?before=` | Refused for everyone (400), admins included | — |
+| Anything with a locked entry (or inside one) | every request above | First of all, after the entry is known as if no password locked it: the [password](#passwords) unlocked (cookie or `X-Notes-Password`), otherwise 403 with `X-Notes-Password-Required` (the page asks for it), or 429 while wrong passwords make it wait. Admins included. | Locked entries inside are unreadable |
+| Unlock an entry | `POST /entry?unlock` (`{ "password": … }`) | Entry known as if nothing were locked. Unlocks the outermost protection that locks it, if the password is its (403 otherwise; 400 for what can't be a password; 429 while it has to wait) | — |
+| Keep unlocked | `POST /entry?unlock=renew` | As above. 204 if nothing locks the entry (which keeps its unlocks unlocked longer), otherwise as a locked entry | — |
+| Lock everything again | `POST /entry?lock` | Entry known. Ends every unlock of the browser | — |
 
 Notes on the table:
 
@@ -210,6 +226,7 @@ What the history does never decides whether an operation is allowed, and never f
 |---|---|
 | Permission levels, `IEntryAccess`, resolving the configuration for a user | `src/Notes/Features/Auth/EntryAccess.cs` |
 | Known and openable entries, walking trees, page hints | `src/Notes/Features/Auth/AccessTree.cs` |
+| Passwords: what they lock for a request, unlocks, the wait after wrong ones, the answer that asks for one | `src/Notes/Features/Passwords/*` (`PasswordLocks`, `PasswordUnlocks`, `PasswordAttempts`, `PasswordGate`, `UnlockHandler`) |
 | Admin policy, claim names | `src/Notes/Features/Auth/AppAccess.cs` |
 | Principals and `perms` blocks | `src/Notes/Features/Permissions/PermissionModel.cs` |
 | The configuration: model, parser (schema), text editing, store, migrations, `?config` handler | `src/Notes/Features/Configuration/*` |

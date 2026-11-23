@@ -2,33 +2,49 @@
 @inject ListingTexts Texts
 
 @{
-    bool isLocked = Model.Kind == ListedKind.Locked;
-    string reason = isLocked ? Texts.NoReadAccess(Model.IsDirectory) : Texts.CantBeSeenAsItWas(isGoneNow: Model.Href is null);
+    string reason = Model.Kind switch
+    {
+        ListedKind.Locked => Texts.NoReadAccess(Model.IsDirectory),
+        ListedKind.PasswordLocked => Texts.ProtectedByPassword(Model.IsDirectory),
+        _ => Texts.CantBeSeenAsItWas(isGoneNow: Model.Href is null)
+    };
+    string mark = Model.Kind switch
+    {
+        ListedKind.Locked => "fa-lock",
+        ListedKind.PasswordLocked => "fa-lock text-warning",
+        _ => "fa-calendar-xmark"
+    };
+    // One a password locks can be opened (with it), so it looks like the others; the rest is low-emphasis
+    string? emphasis = Model.Kind == ListedKind.PasswordLocked ? null : "text-secondary";
 
-    // The cell is the same for both kinds, only the row around it says which kind it is. Its parts follow each other without space between
+    // The cell is the same for all kinds, only the row around it says which kind it is. Its parts follow each other without space between
     // them, so their tags break between attributes (as in _EntryGroup).
     Func<object?, object> cell =
-        @<td class="text-secondary">@if (Model.ShowsCheckbox)
+        @<td class="@emphasis">@if (Model.ShowsCheckbox)
             {<input type="checkbox" class="form-check-input entry-select" disabled
                 aria-label="@Texts.CantBeSelected(Model.Name)"/>}<span class="entry-index">@Model.Number</span><i
                 class="@Model.Icon"></i>
             @if (Model.Href is not null)
             {
-                <a class="text-secondary text-decoration-none" href="@Model.Href" key="@Model.Key" key-anchor="i">@Model.Name</a>
+                <a class="@emphasis text-decoration-none" href="@Model.Href" key="@Model.Key" key-anchor="i">@Model.Name</a>
             }
             else
             {
                 @Model.Name
             }
-            <i class="fa-solid @(isLocked ? "fa-lock" : "fa-calendar-xmark") fa-xs ms-1" aria-label="@reason"></i></td>;
+            <i class="fa-solid @mark fa-xs ms-1" aria-label="@reason"></i></td>;
 }
 
 @* Not an .entry-row: the selection script leaves it alone. The box (where the others have one) is only there to keep the names in line with them,
    and says why it can't be ticked. The data attribute says why it can't be opened; each kind has its own <tr>, as Razor writes a data-
    attribute even when its value is null. *@
-@if (isLocked)
+@if (Model.Kind == ListedKind.Locked)
 {
     <tr data-locked-entry="@Model.Name" title="@reason">@cell(null)</tr>
+}
+else if (Model.Kind == ListedKind.PasswordLocked)
+{
+    <tr data-password-locked-entry="@Model.Name" title="@reason">@cell(null)</tr>
 }
 else
 {

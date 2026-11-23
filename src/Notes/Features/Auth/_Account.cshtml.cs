@@ -11,6 +11,9 @@ public class _Account : PageModel
 
     public string UserName { get; init; } = "";
 
+    /// <summary>Whether the browser has anything unlocked (see <see cref="Passwords.PasswordUnlocks"/>), which the lock button locks again.</summary>
+    public bool HasUnlocked { get; init; }
+
     /// <summary>Local URL the login brings the user back to.</summary>
     public string ReturnUrl { get; init; } = "/";
 }

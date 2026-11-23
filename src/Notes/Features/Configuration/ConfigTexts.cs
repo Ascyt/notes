@@ -1,3 +1,4 @@
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Configuration;
@@ -47,6 +48,26 @@ public class ConfigTexts
     public virtual string InExclusiveLists(string where, string principal, string list, string otherList)
         => $"{where}: '{principal}' is in both {list} and {otherList}, which exclude each other.";
 
+    // What is wrong with a password
+
+    public virtual string PasswordAndHash(string passwordWhere, string hashWhere)
+        => $"{passwordWhere}: can't be given together with {hashWhere}. A new password replaces the hash of the old one when it is saved.";
+
+    public virtual string PasswordNotSaved(string where, string hashWhere)
+        => $"{where}: a password can only be set in the editor of the configuration, which keeps nothing but its hash ({hashWhere}). It "
+            + "was written into the file in another way.";
+
+    public virtual string NotAPassword(string where, PasswordProblem problem) => problem switch
+    {
+        PasswordProblem.Empty => $"{where}: is empty. null for no password.",
+        PasswordProblem.TooLong => $"{where}: is longer than {PasswordHashing.MaxBytes} bytes (UTF-8), more than is read of a password. A "
+            + "character outside of ASCII (an umlaut, an emoji) takes 2 to 4 bytes.",
+        _ => $"{where}: must not have control characters in it."
+    };
+
+    public virtual string NotAPasswordHash(string where, string passwordWhere)
+        => $"{where}: is not the hash of a password as the app makes them. A new password is set with {passwordWhere}.";
+
     // What is wrong with a principal (u:alice, g:team, …)
 
     public virtual string NotAPrincipal(string text)
@@ -84,6 +105,10 @@ public class ConfigTexts
     /// <summary>Above what is wrong (which follows on the next lines).</summary>
     public virtual string FilesNotAdded => "The entries for the files of this folder could not be added to what was sent, so nothing was saved.";
 
+    /// <summary>A password may only be changed or removed by whoever knows it (admins too).</summary>
+    public virtual string PasswordChangeNeedsUnlock(string display)
+        => $"The password of '{display}' can only be changed or removed while '{display}' is unlocked. Nothing was saved.";
+
     public virtual string FolderUnreadable
         => "The configuration of the folder this file is in can't be edited, as it is not valid. The configuration of the folder has to be fixed first.";
 
@@ -106,6 +131,13 @@ public class ConfigTexts
 
     public virtual string SchemaFiles => "The files of this folder, which the app keeps up to date. A file without an entry has the settings of the folder.";
     public virtual string SchemaFileName => "The name of the file.";
+
+    public virtual string SchemaPassword(bool isFile)
+        => (isFile ? "Password that protects this file" : "Password that protects this folder and everything in it")
+            + $", admins included; null for none. Saving keeps only its hash (passwordHash). At most {PasswordHashing.MaxBytes} bytes (UTF-8).";
+
+    public virtual string SchemaPasswordHash
+        => "Hash of the password, made when saving. Changing or removing it needs the entry unlocked; \"password\": null in its place removes it.";
     public virtual string SchemaPrincipals => "u:<user name>, g:<group>, r:<role>, a for all users or l for all users who are logged in.";
 
     public virtual string SchemaChangingPrincipals

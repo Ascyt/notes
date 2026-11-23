@@ -5,18 +5,26 @@ namespace Notes.Features.Configuration;
 // What the configuration means is specified in docs/administration/configuration.md. Keep the two in step.
 
 /// <summary>The settings of one file of a folder, which are there by the file's name only (so also for a name that is about to be created).</summary>
-public sealed record FileEntry(string Name, PermsBlock Perms);
+/// <param name="PasswordHash">The hash of the file's password (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.</param>
+public sealed record FileEntry(string Name, PermsBlock Perms, string? PasswordHash = null);
 
 /// <summary>The valid content of the configuration file of one folder.</summary>
 /// <param name="Perms">The permissions of the folder, and what is in it unless it says otherwise.</param>
 /// <param name="Gitignore">Whether the history leaves out the folder's files and what is below it (see <see cref="History.HistoryService"/>).</param>
-public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList<FileEntry> files)
+/// <param name="PasswordHash">
+/// The hash of the folder's password, which protects everything in it (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.
+/// </param>
+public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList<FileEntry> files, string? passwordHash = null)
 {
     private readonly Dictionary<string, FileEntry> _files = files.ToDictionary(file => file.Name, StringComparer.OrdinalIgnoreCase);
 
     public PermsBlock Perms { get; } = perms;
 
     public bool Gitignore { get; } = gitignore;
+
+    public string? PasswordHash { get; } = passwordHash;
+
+    public IEnumerable<FileEntry> Files => _files.Values;
 
     public FileEntry? FindFile(string name)
         => _files.GetValueOrDefault(name);

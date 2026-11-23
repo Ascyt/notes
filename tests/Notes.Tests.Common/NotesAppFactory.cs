@@ -82,6 +82,8 @@ public class NotesAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("Config:Auth:Authority", "https://auth.invalid/realms/notes");
         builder.UseSetting("Config:Auth:ClientId", "notes-web");
         builder.UseSetting("Config:Auth:ClientSecret", "test-secret");
+        // Hashing a password as slowly as a site does is for guessing, not for tests
+        builder.UseSetting("Config:Passwords:WorkFactor", "4");
 
         builder.ConfigureTestServices(services =>
         {

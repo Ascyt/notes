@@ -5,6 +5,7 @@ using Notes.Features.Configuration.Migrations;
 using Notes.Features.EntryActions;
 using Notes.Features.Helpers;
 using Notes.Features.History;
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 using Notes.Pages.ConfigEditor;
 
@@ -14,13 +15,18 @@ namespace Notes.Features.Configuration;
 /// Answers <c>?config</c>: the configuration of a folder (its configuration file, as text) or of a file (its entry in the configuration file of its
 /// folder, as text without its name). A GET is made into a page, a POST with the new text saves it. The caller has made sure the user may manage
 /// the configuration. The text is checked completely before anything is written (<see cref="ConfigParser"/>), and what is saved is the text as
-/// it was sent, with its comments, plus the entries that the files of the folder need.
+/// it was sent, with its comments, plus the entries that the files of the folder need (and with the hash of a password in its place).
 /// </summary>
 /// <remarks>
 /// Only the POST is an action: the GET is another view of the entry (principle 15), which the page of the entry shows (<see cref="CreateView"/>).
 /// </remarks>
+/// <remarks>
+/// A <c>password</c> in what is sent is saved as its hash (<c>passwordHash</c>), and the editor then shows that. A password that is there may
+/// only be changed or removed while the entry is unlocked, by admins too: otherwise editing the configuration would be a way around it.
+/// </remarks>
 public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history,
-    ConfigSchema schema, ConfigTexts texts, EntryTexts entryTexts, ILogger<ConfigHandler> logger) : IEntryPostAction
+    ConfigSchema schema, ConfigTexts texts, EntryTexts entryTexts, PasswordLocks passwordLocks, PasswordUnlocks unlocks, Config config,
+    IPathService paths, ILogger<ConfigHandler> logger) : IEntryPostAction
 {
     public const string ConfigParameter = "config";
 
@@ -58,7 +64,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             };
         }
 
-        string defaultText = ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
+        string defaultText = ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current, store.IsLeftOutOfHistory(folder));
         return new ConfigEditorView
         {
             VirtualPath = virtualPath,
@@ -95,9 +101,9 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             try
             {
                 if (Directory.Exists(physicalPath))
-                    return SaveFolder(request.HttpContext.User, physicalPath, text);
+                    return SaveFolder(request.HttpContext, physicalPath, text);
                 if (File.Exists(physicalPath))
-                    return SaveFile(request.HttpContext.User, physicalPath, text);
+                    return SaveFile(request.HttpContext, physicalPath, text);
 
                 return new NotFoundObjectResult(entryTexts.PathNotFound);
             }
@@ -109,7 +115,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         }
     }
 
-    private IActionResult SaveFolder(ClaimsPrincipal user, string folder, string text)
+    private IActionResult SaveFolder(HttpContext context, string folder, string text)
     {
         IReadOnlySet<string> files = FolderConfigStore.FileNamesOf(folder);
 
@@ -121,16 +127,21 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         // Without a version it can't be told which one it is written for, and guessing would apply migrations to what may be up to date already
         if (migrated.From == ConfigVersions.Zero)
         {
-            List<string> errors = [.. ConfigParser.ParseFolder(text, files, texts).Errors];
+            List<string> errors = [.. ConfigParser.ParseFolder(text, files, texts, allowsPlainPasswords: true).Errors];
             if (errors.Count == 0)
                 errors.Add(texts.VersionRequired(ConfigParser.VersionKey, migrator.Current.ToString()));
             return Failed(StatusCodes.Status400BadRequest, ParseResult<FolderConfig>.Failed(errors).ErrorText);
         }
 
         text = migrated.Text;
-        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(text, files, texts);
+        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(text, files, texts, allowsPlainPasswords: true);
         if (!parsed.IsValid)
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
+
+        FolderConfig? before = store.Get(folder).Config;
+        if (RefusedPasswordChange(context, folder, before, parsed.Value!) is { } refused)
+            return refused;
+        text = HashPasswords(text);
 
         // Every file has an entry: the ones the text lacks (files that came in from outside the app) get one that changes nothing
         foreach (string name in files.Order(StringComparer.OrdinalIgnoreCase).Where(name => parsed.Value!.FindFile(name) is null))
@@ -145,24 +156,32 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
                 texts.FilesNotAdded + "\n" + completed.ErrorText);
         }
 
-        Write(user, folder, text);
+        Write(context.User, folder, text);
+        UnlockNewPasswords(context, folder, before, completed.Value!);
         return Saved(text);
     }
 
-    private IActionResult SaveFile(ClaimsPrincipal user, string physicalPath, string text)
+    private IActionResult SaveFile(HttpContext context, string physicalPath, string text)
     {
-        ParseResult<PermsBlock> parsed = ConfigParser.ParseFileBody(text, texts);
+        ParseResult<PermsBlock> parsed = ConfigParser.ParseFileBody(text, texts, allowsPlainPasswords: true);
         if (!parsed.IsValid)
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
 
         // The entry goes into the configuration of the folder (made now if it has none), whose other entries and comments stay
         string folder = Path.GetDirectoryName(physicalPath)!;
         string name = Path.GetFileName(physicalPath);
-        string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current);
-        string? updated = ConfigText.SetFileBody(folderText, name, text);
-        if (updated is null)
+        string folderText = store.ReadText(folder) ?? ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current, store.IsLeftOutOfHistory(folder));
+        string? withPassword = ConfigText.SetFileBody(folderText, name, text);
+        if (withPassword is null)
             return Failed(StatusCodes.Status409Conflict,
                 texts.FolderUnreadable);
+
+        // The password of the file is checked as part of the folder, whose other entries are as they were
+        FolderConfig? before = store.Get(folder).Config;
+        if (ConfigParser.ParseFolder(withPassword, existingFiles: null, texts, allowsPlainPasswords: true).Value is { } sent
+            && RefusedPasswordChange(context, folder, before, sent) is { } refused)
+            return refused;
+        string updated = HashPasswords(withPassword);
 
         // What it is now must hold up as a whole. (Not whether every entry has a file: that is the folder's to say when it is saved.)
         ParseResult<FolderConfig> whole = ConfigParser.ParseFolder(updated, existingFiles: null, texts);
@@ -171,8 +190,62 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
                 texts.FolderInvalid + "\n"
                 + whole.ErrorText);
 
-        Write(user, folder, updated);
+        Write(context.User, folder, updated);
+        UnlockNewPasswords(context, folder, before, whole.Value!);
         return Saved(ConfigText.GetFileBody(updated, name) ?? text);
+    }
+
+    // ---- Passwords
+
+    /// <summary>
+    /// The passwords of the folder and of its files, each with the entry it protects (see <see cref="PasswordLocks.ProtectionsOf"/>), by the
+    /// physical path of that entry.
+    /// </summary>
+    private static Dictionary<string, Protection> ProtectionsIn(string folder, FolderConfig? config)
+    {
+        Dictionary<string, Protection> protections = new(StringComparer.OrdinalIgnoreCase);
+        if (config is null)
+            return protections;
+
+        string folderPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        if (config.PasswordHash is { } hash)
+            protections[folderPath] = new Protection(folderPath, hash);
+        foreach (FileEntry file in config.Files)
+            if (file.PasswordHash is { } fileHash)
+                protections[Path.Combine(folderPath, file.Name)] = new Protection(Path.Combine(folderPath, file.Name), fileHash);
+        return protections;
+    }
+
+    /// <summary>
+    /// The answer if what is sent changes or removes a password of an entry that isn't unlocked (a password that is only being typed counts as a
+    /// change, as its hash isn't made yet); null if it doesn't. Setting a password where there was none needs nothing.
+    /// </summary>
+    private ObjectResult? RefusedPasswordChange(HttpContext context, string folder, FolderConfig? before, FolderConfig sent)
+    {
+        Dictionary<string, Protection> after = ProtectionsIn(folder, sent);
+        foreach ((string path, Protection old) in ProtectionsIn(folder, before))
+        {
+            if (after.TryGetValue(path, out Protection? kept) && kept.Hash == old.Hash)
+                continue;
+            if (!passwordLocks.IsUnlocked(context, old))
+                return Failed(StatusCodes.Status403Forbidden, texts.PasswordChangeNeedsUnlock(paths.ToVirtualPath(path)));
+        }
+
+        return null;
+    }
+
+    /// <summary>The text with the hash of each password in place of the password (see <see cref="ConfigText.HashPasswords"/>).</summary>
+    private string HashPasswords(string text)
+        => ConfigText.HashPasswords(text, password => PasswordHashing.Hash(password, config.Passwords.WorkFactor))
+           ?? throw new InvalidOperationException("A configuration that was parsed can't be read for its passwords.");
+
+    /// <summary>Whoever just set a password knows it: what it protects stays unlocked for them, instead of asking for it right away.</summary>
+    private void UnlockNewPasswords(HttpContext context, string folder, FolderConfig? before, FolderConfig saved)
+    {
+        Dictionary<string, Protection> old = ProtectionsIn(folder, before);
+        foreach ((string path, Protection protection) in ProtectionsIn(folder, saved))
+            if (!old.TryGetValue(path, out Protection? was) || was.Hash != protection.Hash)
+                unlocks.Unlock(context, protection);
     }
 
     /// <summary>Writes the folder's configuration file, which the history sees as a save of it.</summary>

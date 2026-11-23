@@ -14,7 +14,7 @@ The app keeps changing, and so does everything around it. Code, comments and doc
 
 ### 2. Modular and customizable
 
-Each feature is self-contained (see [principle 19](#19-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
+Each feature is self-contained (see [principle 20](#20-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
 
 ## Security
 
@@ -68,6 +68,8 @@ What a user may not do at all isn't offered to them: someone who may change noth
 
 Texts in the app and in the documents are neutral, descriptive and informative. They don't talk to the reader: "The file has unsaved changes" rather than "You have unsaved changes", "Logging in again is needed" rather than "Please log in again". The passive is fine and often the better choice.
 
+They are also short, without the words that only bind the others together: "Incorrect password." rather than "The password is wrong.", "Enter password" rather than "Enter the password", "Password-protected" rather than "Protected by a password, which opening it asks for". What a text has to say stays; only the padding goes.
+
 ### 12. Plain, without fluff
 
 No animations: things appear, move and go away at once, without sliding, fading or growing. The only exception is what shows that something is still going on, such as a spinner. The same goes for other decoration that only makes the interface look busier (shadows that pulse, effects on hovering beyond a change of color, transitions between states): it hides what is going on rather than making it clearer. Something like it may come later, done properly and on purpose, but not by the way.
@@ -109,7 +111,11 @@ A change to a format that is stored raises its version and comes with a migratio
 
 ## Code
 
-### 19. Code that reads easily
+### 19. A configuration file says what can be done with it
+
+What can be set in a `.config.json` is clear from reading the file alone, without the documentation: a new file has every setting there is, with its default value even where that is "nothing" (`"password": null`), and a comment above it that says what it does and which values it takes. A setting that is only described somewhere else is one nobody finds.
+
+### 20. Code that reads easily
 
 - Names say what something is, or what it does: descriptive, and preferably not abstract, without cryptic abbreviations or words that need looking up, and no longer than that takes. `TimesAtWhichEntryCanBeSeen` rather than `OpenTimes`, `CheckWhatDependsOnTheState` rather than `JudgeAt`.
 - Comments are short and simple, and say why rather than what. Code that is hard to follow (a loop that walks a tree, a method that weighs several cases, an algorithm) also gets a short comment for each step, saying what it does, so that it can be read without working it out first.
@@ -120,13 +126,13 @@ A change to a format that is stored raises its version and comes with a migratio
 - Namespaces always follow the folders: what is in `src/Notes/Features/HistoryViewing/Commits` is in `Notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
-### 20. Few dependencies
+### 21. Few dependencies
 
 Before writing something, look for a built-in ASP.NET feature or an existing library that does it. But every new package, service or container is discussed first: each one has to be kept up to date and trusted.
 
 ## Documentation
 
-### 21. Written for someone new
+### 22. Written for someone new
 
 A feature comes with its documentation in `docs/`, in simple words, so that someone new to the repository can learn what the app is and how it works. The documents form a tree: each topic has an overview (`docs/<topic>.md`) and its details in a folder of the same name (`docs/<topic>/`). The app will show these documents itself, so links between them are relative and stay inside `docs/`, and files elsewhere in the repository are named, not linked.
 
@@ -134,11 +140,11 @@ Examples help more than descriptions. Pictures of the app come from `docs/screen
 
 ## Tests
 
-### 22. Tested, without waiting
+### 23. Tested, without waiting
 
 Every feature gets tests at the level that fits (see [Tests](tests.md)). The integration tests matter most: they test every endpoint as every kind of user, with every kind of attack that applies, much like a penetration test. Time comes from the injected `TimeProvider` wherever a test would otherwise have to wait (a selection that runs out, a background job that runs every hour), so that the test moves a fake clock instead.
 
-### 23. Tests check logic, not wording or looks
+### 24. Tests check logic, not wording or looks
 
 Unit tests check methods, integration tests check endpoints, and UI tests check the scripts of the pages. None of them checks the exact wording of a text or anything about CSS, so that a sentence can be rephrased or a style changed without a test failing. Instead they check:
 

@@ -30,9 +30,9 @@ public static class ConfigText
 
     /// <summary>
     /// The text of a configuration that was never written: it permits nothing beyond what the folder above does, keeps the folder in the
-    /// history, and has an entry for every file.
+    /// history (unless <paramref name="gitignore"/>), and has an entry for every file.
     /// </summary>
-    public static string Default(IEnumerable<string> fileNames, SemVersion version)
+    public static string Default(IEnumerable<string> fileNames, SemVersion version, bool gitignore = false)
     {
         StringBuilder text = new();
         text.Append($$"""
@@ -43,7 +43,7 @@ public static class ConfigText
                         // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
                         // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may
                         // only be allowed to read and to see the history).
-                        // Admins may always do everything.
+                        // Admins may always do everything (but open what a password protects without it).
                         // Lists: rwAllow, rwReadOnly, rwDeny (see and change what is in it), cdAllow, cdCreateOnly, cdDeny (create and delete),
                         // historyAllow, historyExistingOnly (only of what exists now), historyDeny (see earlier states).
                         "perms": {
@@ -51,7 +51,10 @@ public static class ConfigText
                         },
                         // true leaves the files of this folder and its subfolders out of the history (configuration files are always kept).
                         // A subfolder with a configuration of its own decides for itself.
-                        "gitignore": false,
+                        "gitignore": {{(gitignore ? "true" : "false")}},
+                        // {{PasswordComment(FolderProtects)}}
+                        // {{FilesHavePasswordsToo}}
+                        "password": null,
                         // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions
                         // of the folder.
                         "files": [
@@ -67,7 +70,14 @@ public static class ConfigText
 
     /// <summary>The text of a single file's configuration (the editor of a file shows this) that was never written.</summary>
     public static string DefaultFileBody()
-        => "{\n    \"perms\": {\n        \"inherit\": true\n    }\n}\n";
+        => "{\n    \"perms\": {\n        \"inherit\": true\n    },\n    // " + PasswordComment("this file") + "\n    \"password\": null\n}\n";
+
+    /// <summary>What the comment above <c>"password": null</c> says, so that it is clear from the file alone how one is set.</summary>
+    private static string PasswordComment(string protects)
+        => $"A password protects {protects}, admins included. null for none; saving replaces a password with its hash (passwordHash).";
+
+    private const string FolderProtects = "this folder and everything in it";
+    private const string FilesHavePasswordsToo = "The entry of a file can have a \"password\" too.";
 
     private static string NewEntry(string name)
         => $"{{ \"name\": {Quote(name)}, \"perms\": {{ \"inherit\": true }} }}";
@@ -82,9 +92,24 @@ public static class ConfigText
     /// first. Nothing else changes, comments included. Null if the text isn't valid JSON or its root isn't an object.
     /// </summary>
     public static string? SetVersion(string text, SemVersion version)
+        => SetRootString(text, ConfigParser.VersionKey, version.ToString());
+
+    /// <summary>
+    /// The text with <c>passwordHash</c> set to the hash, as <see cref="SetVersion"/> sets the version. A <c>"password": null</c> is replaced
+    /// by it, so the file doesn't say both.
+    /// </summary>
+    public static string? SetPasswordHash(string text, string hash)
+        => SetRootString(text, ConfigParser.PasswordHashKey, hash, replacesNull: ConfigParser.PasswordKey);
+
+    /// <summary>
+    /// The text with the property of the root object set to the string: its value replaced if it is there (as a string), otherwise the property
+    /// added first, or in place of the property <paramref name="replacesNull"/> if that is there with null. Null if the text isn't valid JSON or
+    /// its root isn't an object.
+    /// </summary>
+    private static string? SetRootString(string text, string key, string newValue, string? replacesNull = null)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(text);
-        string value = Quote(version.ToString());
+        string value = Quote(newValue);
         try
         {
             Utf8JsonReader reader = new(bytes, ReaderOptions);
@@ -93,15 +118,20 @@ public static class ConfigText
 
             int open = (int)reader.TokenStartIndex;
             int firstProperty = -1;
+            (int Start, int End)? nullToReplace = null;
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
+                int propertyStart = (int)reader.TokenStartIndex;
                 if (firstProperty < 0)
-                    firstProperty = (int)reader.TokenStartIndex;
+                    firstProperty = propertyStart;
 
-                bool isVersion = reader.ValueTextEquals(ConfigParser.VersionKey);
+                bool isKey = reader.ValueTextEquals(key);
+                bool isReplaced = replacesNull is not null && reader.ValueTextEquals(replacesNull);
                 _ = reader.Read();
-                if (isVersion && reader.TokenType == JsonTokenType.String)
+                if (isKey && reader.TokenType == JsonTokenType.String)
                     return Encoding.UTF8.GetString(Replace(bytes, (int)reader.TokenStartIndex, (int)reader.BytesConsumed, value));
+                if (isReplaced && reader.TokenType == JsonTokenType.Null)
+                    nullToReplace = (propertyStart, (int)reader.BytesConsumed);
 
                 reader.Skip();
             }
@@ -109,8 +139,11 @@ public static class ConfigText
             if (reader.TokenType != JsonTokenType.EndObject)
                 return null;
 
+            string property = $"\"{key}\": {value}";
+            if (nullToReplace is var (start, end))
+                return Encoding.UTF8.GetString(Replace(bytes, start, end, property));
+
             // Added first, laid out like the properties are: on a line of its own if they are, otherwise next to them
-            string property = $"\"{ConfigParser.VersionKey}\": {value}";
             string inserted = firstProperty < 0 ? "\n" + IndentOfLine(bytes, open) + "    " + property + "\n" + IndentOfLine(bytes, open)
                 : StartsLine(bytes, firstProperty) ? "\n" + IndentOfLine(bytes, firstProperty) + property + ","
                 : " " + property + ",";
@@ -120,6 +153,135 @@ public static class ConfigText
         {
             return null;
         }
+    }
+
+    // ---- Passwords
+
+    /// <summary>
+    /// The text with each <c>password</c> (of the root object, or of an entry of <c>files</c>) replaced by a <c>passwordHash</c> with the hash
+    /// of it, where it was; one that is null stays. Nothing else changes, comments included. Null if the text isn't valid JSON or a password
+    /// is neither a string nor null.
+    /// </summary>
+    public static string? HashPasswords(string text, Func<string, string> hashOf)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        // Where each password is (the property from its name to the end of its value), replaced from the last one so the others stay where they are
+        List<(int Start, int End, string Password)> found = [];
+        try
+        {
+            Utf8JsonReader reader = new(bytes, ReaderOptions);
+            bool inFiles = false;
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndArray && reader.CurrentDepth == 1)
+                    inFiles = false;
+                if (reader.TokenType != JsonTokenType.PropertyName)
+                    continue;
+
+                // The root's own properties are at depth 1, those of an entry of files at depth 3
+                bool atRoot = reader.CurrentDepth == 1;
+                if (atRoot)
+                    inFiles = reader.ValueTextEquals(ConfigParser.FilesKey);
+                if (!(atRoot || (inFiles && reader.CurrentDepth == 3)) || !reader.ValueTextEquals(ConfigParser.PasswordKey))
+                    continue;
+
+                int start = (int)reader.TokenStartIndex;
+                _ = reader.Read();
+                // (null is no password, and stays as it is)
+                if (reader.TokenType == JsonTokenType.Null)
+                    continue;
+                if (reader.TokenType != JsonTokenType.String)
+                    return null;
+                found.Add((start, (int)reader.BytesConsumed, reader.GetString()!));
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        foreach ((int start, int end, string password) in Enumerable.Reverse(found))
+            bytes = Replace(bytes, start, end, $"\"{ConfigParser.PasswordHashKey}\": {Quote(hashOf(password))}");
+        return Encoding.UTF8.GetString(bytes);
+    }
+
+    /// <summary>
+    /// The text with <c>"password": null</c> and its comment added before <c>files</c>, where <see cref="Default"/> has it, so that an older
+    /// file says how a password is set too. Unchanged if the folder has a <c>password</c> or <c>passwordHash</c> already, or no <c>files</c>
+    /// (which the parser reports). Nothing else changes, comments included. Null if the text isn't valid JSON or its root isn't an object.
+    /// </summary>
+    public static string? AddNoPassword(string text)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        try
+        {
+            Utf8JsonReader reader = new(bytes, ReaderOptions);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                return null;
+
+            // The end of the property before files (or the opening brace), which the new property goes after, and where files starts
+            int afterPrevious = (int)reader.BytesConsumed;
+            int files = -1;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (reader.ValueTextEquals(ConfigParser.PasswordKey) || reader.ValueTextEquals(ConfigParser.PasswordHashKey))
+                    return text;
+                if (files < 0 && reader.ValueTextEquals(ConfigParser.FilesKey))
+                    files = (int)reader.TokenStartIndex;
+
+                _ = reader.Read();
+                reader.Skip();
+                if (files < 0)
+                    afterPrevious = (int)reader.BytesConsumed;
+            }
+
+            if (reader.TokenType != JsonTokenType.EndObject)
+                return null;
+            if (files < 0)
+                return text;
+
+            string property = $"\"{ConfigParser.PasswordKey}\": null,";
+            if (!StartsLine(bytes, files))
+                return Encoding.UTF8.GetString(Replace(bytes, files, files, property + " "));
+
+            // On lines of their own, after the comma and a comment on the line of the property before, so that a comment above files stays there
+            string indent = IndentOfLine(bytes, files);
+            int at = EndOfLine(bytes, afterPrevious);
+            string lineBreak = at < bytes.Length && bytes[at] == '\r' ? "\r\n" : "\n";
+            return Encoding.UTF8.GetString(Replace(bytes, at, at,
+                lineBreak + indent + "// " + PasswordComment(FolderProtects)
+                + lineBreak + indent + "// " + FilesHavePasswordsToo
+                + lineBreak + indent + property));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Where the line of the position ends, past a comma and a <c>//</c> comment on it: before its line break (or a carriage return before it).
+    /// Anything else on the line ends it right there.
+    /// </summary>
+    private static int EndOfLine(byte[] bytes, int position)
+    {
+        int i = position;
+        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
+            i++;
+        if (i < bytes.Length && bytes[i] == ',')
+            i++;
+
+        int afterComma = i;
+        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
+            i++;
+        if (i + 1 < bytes.Length && bytes[i] == '/' && bytes[i + 1] == '/')
+        {
+            while (i < bytes.Length && bytes[i] != '\n')
+                i++;
+            return i > 0 && bytes[i - 1] == '\r' ? i - 1 : i;
+        }
+
+        return i < bytes.Length && bytes[i] is (byte)'\n' or (byte)'\r' ? i : afterComma;
     }
 
     // ---- The names of the files

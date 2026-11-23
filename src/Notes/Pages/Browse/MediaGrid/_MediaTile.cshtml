@@ -5,9 +5,14 @@
 
 @{
     bool isLocked = Model.Entry.Kind == ListedKind.Locked;
+    bool isPasswordLocked = Model.Entry.Kind == ListedKind.PasswordLocked;
     string? reason = Model.Entry.CanOpen ? null
         : isLocked ? Texts.NoReadAccess(isDirectory: false)
+        : isPasswordLocked ? Texts.ProtectedByPassword(isDirectory: false)
         : Texts.CantBeSeenAsItWas(isGoneNow: Model.Href is null);
+    string lockMark = isLocked ? "fa-lock" : isPasswordLocked ? "fa-lock text-warning" : "fa-calendar-xmark";
+    // One a password locks can be opened (with it), so it looks like the others (see _UnopenableEntry)
+    string? emphasis = isPasswordLocked ? null : "text-secondary";
     bool isVideo = Model.Kind == MediaKind.Video;
 }
 
@@ -33,7 +38,8 @@
                 }
             </span>
             <span class="media-caption"><span class="entry-index">@Model.Number</span><span
-                class="media-name @(Model.Entry.Mark == ChangeMark.Deleted ? "text-decoration-line-through" : "")">@Model.Name</span>@if (Model.Entry.Mark is { } mark)
+                class="media-name @(Model.Entry.Mark == ChangeMark.Deleted ? "text-decoration-line-through" : "")">@Model.Name</span>@if (Model.Entry.IsUnlocked)
+                {<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>}@if (Model.Entry.Mark is { } mark)
                 {<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</span>
         </a>
         @if (Model.ShowsCheckbox)
@@ -48,12 +54,12 @@ else
     @* The box (where the others have one) only keeps the tiles alike, and says why it can't be ticked *@
     Func<object?, object> caption =
         @<span class="media-caption"><span class="entry-index">@Model.Number</span><span class="media-name">@Model.Name</span><i
-            class="fa-solid @(isLocked ? "fa-lock" : "fa-calendar-xmark") fa-xs ms-1" aria-label="@reason"></i></span>;
+            class="fa-solid @lockMark fa-xs ms-1" aria-label="@reason"></i></span>;
     Func<object?, object> contents =
         @<text>
             @if (Model.Href is not null)
             {
-                <a class="media-link text-secondary text-decoration-none" href="@Model.Href" key="@Model.OpenKey" key-anchor=".entry-index">
+                <a class="media-link @emphasis text-decoration-none" href="@Model.Href" key="@Model.OpenKey" key-anchor=".entry-index">
                     <span class="media-picture"><i class="@Model.Icon media-placeholder"></i></span>
                     @caption(null)
                 </a>
@@ -73,6 +79,10 @@ else
     if (isLocked)
     {
         <div class="media-tile" data-locked-entry="@Model.Name" title="@reason">@contents(null)</div>
+    }
+    else if (isPasswordLocked)
+    {
+        <div class="media-tile" data-password-locked-entry="@Model.Name" title="@reason">@contents(null)</div>
     }
     else
     {

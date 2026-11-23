@@ -11,6 +11,7 @@ using Notes.Features.HistoryViewing;
 using Notes.Features.HistoryViewing.Changes;
 using Notes.Features.HistoryViewing.Requests;
 using Notes.Features.HistoryViewing.Views;
+using Notes.Features.Passwords;
 using Notes.Pages.Browse;
 using Notes.Pages.ConfigEditor;
 using Notes.Pages.Editor;
@@ -40,7 +41,9 @@ public sealed class IndexModel(Config config,
     HistoryButtons historyButtons,
     ISelectionService selectionService,
     EntryTexts texts,
-    HistoryTexts historyTexts) : PageModel
+    HistoryTexts historyTexts,
+    PasswordLocks passwordLocks,
+    PasswordGate passwordGate) : PageModel
 {
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
@@ -52,6 +55,9 @@ public sealed class IndexModel(Config config,
 
     /// <summary>The editor of the configuration of the entry (<c>?config</c>), instead of the entry itself.</summary>
     public ConfigEditorView? ConfigEditor { get; private set; }
+
+    /// <summary>What asks for the password of a locked entry, instead of the entry.</summary>
+    public _PasswordPrompt? PasswordPrompt { get; private set; }
 
     /// <summary>The card of the earlier state that is shown (<c>?before=</c> or <c>?commit=</c>), or null for the entries as they are.</summary>
     public _EarlierStateCard? EarlierStateCard { get; private set; }
@@ -69,20 +75,39 @@ public sealed class IndexModel(Config config,
         if (!exposed.IsExposed(VirtualPath))
             return NotFound();
 
-        // Earlier states have their own rules, also for paths that aren't there any more
+        // Earlier states have their own rules, also for paths that aren't there any more. What a password locks now is asked for first,
+        // as for the entry as it is now (a state that a password locked then, and that isn't unlocked, is not shown either).
         if (HistoryRequests.IsFor(Request.Query))
+        {
+            (Protection? historyLock, string? historyPath) = path.ToPhysicalPath(VirtualPath) is { } existing
+                ? (LockOf(existing), existing)
+                : LockAboveMissing();
+            if (historyLock is not null)
+                return HistoryRequests.ShowsPage(Request.Query) ? AskForPassword(historyLock, historyPath!)
+                    : passwordGate.Refusal(HttpContext, historyLock, historyPath!);
             return ShowOrAnswer(await historyRequests.AnswerAsync(HttpContext, VirtualPath));
-
-        string? physicalPath = path.ToPhysicalPath(VirtualPath);
-        if (physicalPath is null || !System.IO.Path.Exists(physicalPath) || !tree.IsKnown(User, physicalPath))
-            return NotFound();
-        PhysicalPath = physicalPath;
+        }
 
         // The editor of the configuration is another view of the entry, not an action, but no more than one of them is asked for either
         ActionChoice<IEntryGetAction> choice = actions.Choose<IEntryGetAction>(Request.Query);
         bool asksForConfig = Request.Query.ContainsKey(ConfigHandler.ConfigParameter);
         if (choice.NamesSeveral || (asksForConfig && choice.Action is not null))
             return BadRequest();
+
+        // Whether the user may know of it is asked as if no password locked anything: what a password locks is asked for, not hidden. Asked
+        // before whether it exists, as what is inside a locked directory tells nothing about itself.
+        string? physicalPath = path.ToPhysicalPath(VirtualPath);
+        if (physicalPath is null)
+            return LockAboveMissing() is ({ } lockAbove, { } directoryAbove)
+                ? choice.Action is null ? AskForPassword(lockAbove, directoryAbove) : passwordGate.Refusal(HttpContext, lockAbove, directoryAbove)
+                : NotFound();
+        if (!IsKnownBehindPasswords(physicalPath))
+            return NotFound();
+        if (choice.Action?.PassesPasswordLocks != true && passwordLocks.FirstLocked(physicalPath) is { } locked)
+            return choice.Action is null ? AskForPassword(locked, physicalPath) : passwordGate.Refusal(HttpContext, locked, physicalPath);
+        if (!System.IO.Path.Exists(physicalPath))
+            return NotFound();
+        PhysicalPath = physicalPath;
 
         if (asksForConfig)
         {
@@ -125,6 +150,7 @@ public sealed class IndexModel(Config config,
                 PhysicalPath = PhysicalPath,
                 Viewer = User,
                 CanBrowse = access.CanRead,
+                Passwords = passwordLocks,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
@@ -193,14 +219,18 @@ public sealed class IndexModel(Config config,
         if (!exposed.IsExposed(VirtualPath))
             return NotFound(texts.PathNotFound);
 
-        // Whether the entry has to exist is up to the action (an upload finds out what is in the directory under the lock)
+        // Whether the entry has to exist is up to the action (an upload finds out what is in the directory under the lock). Known as for a GET.
         string? physicalPath = path.ToPhysicalPath(VirtualPath);
-        if (physicalPath is null || !tree.IsKnown(User, physicalPath))
+        if (physicalPath is null && choice.Action?.PassesPasswordLocks != true && LockAboveMissing() is ({ } lockAbove, { } directoryAbove))
+            return passwordGate.Refusal(HttpContext, lockAbove, directoryAbove);
+        if (physicalPath is null || !IsKnownBehindPasswords(physicalPath))
             return NotFound(texts.PathNotFound);
         PhysicalPath = physicalPath;
 
         if (choice.Action is not { } action)
             return BadRequest(texts.NothingToBeDone);
+        if (!action.PassesPasswordLocks && passwordLocks.FirstLocked(physicalPath) is { } locked)
+            return passwordGate.Refusal(HttpContext, locked, physicalPath);
         return Refusal(action.Needs, forChange: true) 
             ?? await run(action, new EntryRequest(HttpContext, VirtualPath, PhysicalPath, choice.Value));
     }
@@ -218,6 +248,49 @@ public sealed class IndexModel(Config config,
             : forChange ? NotFound(texts.PathNotFound) : NotFound(),
         _ => throw new InvalidOperationException($"Unknown access {needs}.")
     };
+
+    /// <summary>Whether the user may know of the entry if no password locked anything.</summary>
+    private bool IsKnownBehindPasswords(string physicalPath)
+    {
+        using IDisposable ignoring = passwordLocks.IgnoringLocks();
+        return tree.IsKnown(User, physicalPath);
+    }
+
+    /// <summary>The protection that locks the entry (one the user may know of) for this request, or null.</summary>
+    private Protection? LockOf(string physicalPath)
+        => IsKnownBehindPasswords(physicalPath) ? passwordLocks.FirstLocked(physicalPath) : null;
+
+    /// <summary>
+    /// For an address where nothing is: the protection that locks the nearest directory above it that exists (and that the user may know of),
+    /// with that directory. Whether something is inside a locked directory is part of what its password protects, so a missing path in it is
+    /// asked the password of, as one that is there would be. (Null, null) where nothing above is locked.
+    /// </summary>
+    private (Protection?, string?) LockAboveMissing()
+    {
+        string[] names = VirtualPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (int count = names.Length - 1; count >= 0; count--)
+        {
+            if (path.ToPhysicalPath(string.Join('/', names.Take(count))) is not { } above)
+                continue;
+            return System.IO.Directory.Exists(above) && LockOf(above) is { } locked ? (locked, above) : (null, null);
+        }
+
+        return (null, null);
+    }
+
+    /// <summary>The page that asks for the password of the entry that has it (the one asked for, or a directory above it).</summary>
+    private PageResult AskForPassword(Protection locked, string requestedPhysicalPath)
+    {
+        Response.StatusCode = passwordGate.MarkRequired(HttpContext, locked, requestedPhysicalPath);
+        string display = passwordGate.Display(locked, requestedPhysicalPath);
+        PasswordPrompt = new _PasswordPrompt
+        {
+            Address = passwordGate.AddressOf(locked, requestedPhysicalPath),
+            Display = display,
+            IsFile = path.ToPhysicalPath(display) is { } shown && System.IO.File.Exists(shown)
+        };
+        return Page();
+    }
 
     private string VirtualPathOfRequest()
         => Request.Path.Value!.TrimStart('/').TrimEnd('/');

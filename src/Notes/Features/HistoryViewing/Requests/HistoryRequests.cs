@@ -45,6 +45,13 @@ public sealed class HistoryRequests(
            || EarlierStateParameter.IsIn(query)
            || query.ContainsKey(_HistoryModal.VisibleTimesParameter);
 
+    /// <summary>
+    /// Whether the request (one <see cref="IsFor"/> is true of) is answered with a page, rather than with data for a script or with bytes.
+    /// </summary>
+    public static bool ShowsPage(IQueryCollection query)
+        => EarlierStateParameter.IsIn(query) && !query.ContainsKey(_CommitSidebar.CommitListParameter)
+           && !new[] { RawHandler.RawParameter, ThumbnailHandler.ThumbnailParameter, DownloadHandler.DownloadParameter }.Any(query.ContainsKey);
+
     /// <param name="virtualPath">The path of the entry as the address has it, without slashes at the start and end.</param>
     public async Task<HistoryAnswer> AnswerAsync(HttpContext context, string virtualPath)
     {

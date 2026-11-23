@@ -71,6 +71,24 @@ public class _Breadcrumb : PageModel
         }
     }
 
+    /// <summary>
+    /// The entries along the way (the start, the parents, the entry itself) with a password of their own that is unlocked, by virtual path: each
+    /// gets an open lock after its name. Of the entries as they are now, so nothing for a path that isn't there now.
+    /// </summary>
+    public HashSet<string> UnlockedPaths(Passwords.PasswordLocks locks, IPathService paths)
+    {
+        HashSet<string> unlocked = new(StringComparer.OrdinalIgnoreCase);
+        if (paths.ToPhysicalPath(VirtualPath) is not { } physicalPath)
+            return unlocked;
+        foreach (string protectedPath in locks.UnlockedAlong(physicalPath, isDirectory: !IsFile))
+            _ = unlocked.Add(paths.ToVirtualPath(protectedPath) is var virtualPath and not "." ? virtualPath : "");
+        return unlocked;
+    }
+
+    /// <summary>Whether the entry the breadcrumb ends with is in <paramref name="unlocked"/> (see <see cref="UnlockedPaths"/>).</summary>
+    public bool IsUnlocked(HashSet<string> unlocked)
+        => unlocked.Contains(VirtualPath.Trim('/'));
+
     /// <summary>The virtual path of the names below the start.</summary>
     private string Below(string[] names)
         => RootVirtualPath == "" ? string.Join('/', names) : string.Join('/', [RootVirtualPath, .. names]);

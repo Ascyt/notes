@@ -62,7 +62,7 @@ public sealed class SiteComponentTests(SiteComponentsNotesAppFactory app) : Inte
 
         Assert.Contains($"data-label=\"{SiteComponentsNotesAppFactory.SiteToolbarTexts.SiteUpload}\"", page);
         Assert.Contains(SiteComponentsNotesAppFactory.SiteListingTexts.SiteDirectories, page);
-        Assert.Contains($"data-label=\"{new ToolbarTexts().Download(isFile: false)}\"", page);
+        Assert.Contains($"data-label=\"{new ToolbarTexts().DownloadAsArchive}\"", page);
     }
 }
 

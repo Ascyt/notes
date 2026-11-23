@@ -27,6 +27,12 @@ public enum ListedKind
     /// <summary>Only its name, with a lock: the user may not read it.</summary>
     Locked,
 
+    /// <summary>
+    /// Its name, with a lock of its own: a password locks it, which opening it asks for (it, or a directory above, that the user could
+    /// otherwise read). It can't be selected.
+    /// </summary>
+    PasswordLocked,
+
     /// <summary>In an earlier state: only its name, with a crossed-out calendar, as its history can't be seen.</summary>
     NoHistory,
 }
@@ -43,6 +49,12 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     /// for an entry that can be opened, as the title is part of what is in it.
     /// </summary>
     public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// Whether it has a password of its own that is unlocked, which an open lock after its name shows. Only for an entry that can be opened (as
+    /// it is now): one that is still locked has its lock instead.
+    /// </summary>
+    public bool IsUnlocked { get; init; }
 
     public bool CanOpen => Kind == ListedKind.Open;
 }
@@ -76,6 +88,22 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
 
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
     public bool CanBrowse { get; init; }
+
+    /// <summary>What tells entries that a password locks from those the user may not read, for the directory as it is now.</summary>
+    public Features.Passwords.PasswordLocks? Passwords { get; init; }
+
+    /// <summary>How an entry of the directory as it is now is shown, by what the user may do with it.</summary>
+    private ListedKind KindOf(string physicalPath, bool isDirectory)
+    {
+        if (tree.GetAccess(Viewer, physicalPath, isDirectory).CanRead)
+            return ListedKind.Open;
+        if (Passwords is null)
+            return ListedKind.Locked;
+
+        // Only what could be read without the passwords is said to be locked by one: the rest is no business of the user
+        using IDisposable ignoring = Passwords.IgnoringLocks();
+        return tree.GetAccess(Viewer, physicalPath, isDirectory).CanRead ? ListedKind.PasswordLocked : ListedKind.Locked;
+    }
 
     /// <summary>Which earlier state is shown (<c>?before=</c> or <c>?commit=</c>), or null for the directory as it is.</summary>
     public EarlierStateParameter? Shown { get; init; }
@@ -166,9 +194,14 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
         using IDisposable scope = ConfigReadScope.Begin();
 
         // The listing knows which are directories, so the permissions needn't look at the disk for each entry
-        Func<string, ListedEntry> ToListed(bool isDirectory) => entry => new(entry, tree.GetAccess(Viewer, entry, isDirectory).CanRead
-            ? ListedKind.Open : ListedKind.Locked);
-        // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames)
+        Func<string, ListedEntry> ToListed(bool isDirectory) => entry =>
+        {
+            ListedKind kind = KindOf(entry, isDirectory);
+            // What can be read with a password of its own has it unlocked
+            return new(entry, kind) { IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true };
+        };
+        // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames), but are asked for the
+        // password of what they could read with it
         bool seesUnreadable = tree.SeesUnreadableNames(Viewer);
 
         // With the bridges mounted here, which are directories like any other, and without what they hide or what the site doesn't show
@@ -179,13 +212,13 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
             .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
             .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: true))
-            .Where(entry => entry.CanOpen || seesUnreadable)];
+            .Where(entry => entry.Kind != ListedKind.Locked || seesUnreadable)];
         // The configuration file is not an entry: it is changed through the configuration page, and never listed
         ListedEntry[] files = [..MediaEntries.InListingOrder(children.Where(child => child.Entry is FileInfo && !string.Equals(child.Name,
             PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)), child => child.Name)
             .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: false))
-            .Where(entry => entry.CanOpen || seesUnreadable)];
+            .Where(entry => entry.Kind != ListedKind.Locked || seesUnreadable)];
         SplitOffMedia(files);
         // Markdown files are shown by their titles, which only those who may read them see; the order stays that of the file names
         Files = [.. Files.Select(file => file.CanOpen && MarkdownTitles.IsMarkdown(file.Path)

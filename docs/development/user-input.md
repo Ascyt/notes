@@ -92,6 +92,13 @@ The password an archive is encrypted with is the one secret a user types into th
 - A 7z is encrypted with AES-256, its names included (nothing about what is in it can be read without the password); a zip with AES-256 too (WinZip's AES, which 7-Zip and most programs open, not zip's old encryption, which is easily broken), with its names readable, as zip has no way to hide them.
 - The finished archive is a file in the app's data (`_/temp/archive`) until it is deleted, an hour after it was made at the latest. It is as safe as its password: the app doesn't check how strong that is.
 
+### Passwords of entries
+
+The [password of an entry](../administration/passwords.md) is typed in two places, and handled like that of an archive:
+
+- **In the configuration editor**, as `password`: checked with the rest of the text (not empty, no control characters, at most 72 bytes of UTF-8, which is what bcrypt reads; longer is refused, never cut off), and replaced by its hash before anything is written. The text the editor gets back has only the hash.
+- **To unlock**, in the body of `POST ?unlock` (JSON, at most 4 KB), or in the header `X-Notes-Password`, base64 of its UTF-8 (one per header value or comma-separated; at most 16 are decoded per request, each at most 288 characters, and what isn't valid base64 of UTF-8 is left out). Checked the same way before it is compared with the hash; it is not kept, logged or shown. The dialog forgets it once it is closed, and the field is one password managers may fill in (`autocomplete="current-password"`).
+
 ## Contents of the notes
 
 A note is written by whoever may change it and read by everyone who may read it, so its contents are input for everyone who opens it.

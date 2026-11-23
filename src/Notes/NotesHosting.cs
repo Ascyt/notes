@@ -23,6 +23,7 @@ using Notes.Features.ImageConversion;
 using Notes.Features.KillSwitch;
 using Notes.Features.Markdown;
 using Notes.Features.Media;
+using Notes.Features.Passwords;
 using Notes.Pages.App;
 using Notes.Pages.Browse;
 using Notes.Pages.Shared.AppLayout;
@@ -104,6 +105,7 @@ public static class NotesHosting
 
         // The features, each with the actions of the page of the entries that it answers (?download, ?rename=, …)
         _ = services.AddEntryActions();
+        _ = services.AddPasswords(config.Passwords);
         _ = services.AddConfiguration();
         _ = services.AddComponents();
         _ = services.AddListing();
