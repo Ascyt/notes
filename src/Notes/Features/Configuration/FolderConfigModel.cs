@@ -15,7 +15,10 @@ public sealed record FileEntry(string Name, PermsBlock Perms, string? PasswordHa
 /// </summary>
 /// <param name="Compression">As the archive is written; for a 7z never <see cref="ArchiveCompression.Store"/>, which it can't do.</param>
 /// <param name="Encrypted">Whether it is encrypted with the folder's password (not supported yet).</param>
-/// <param name="OnLowestLevel">Whether only the lowest folders below are archived, instead of this one (not supported yet).</param>
+/// <param name="OnLowestLevel">
+/// Whether only the lowest folders below (those that hold files) are archived, with these settings, instead of this one (see
+/// <see cref="ZippedFolders.ArchiveSettingsResolver"/>).
+/// </param>
 public sealed record ArchiveSettings(bool Enabled, ArchiveFormat Format, ArchiveCompression Compression, bool Encrypted, bool OnLowestLevel)
 {
     /// <summary>What a folder whose configuration doesn't say has: not archived.</summary>
@@ -28,10 +31,16 @@ public sealed record ArchiveSettings(bool Enabled, ArchiveFormat Format, Archive
 /// <param name="PasswordHash">
 /// The hash of the folder's password, which protects everything in it (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.
 /// </param>
-/// <param name="Archive">Whether the folder is kept in an archive; <see cref="ArchiveSettings.Disabled"/> if not given.</param>
+/// <param name="Archive">
+/// Whether the folder is kept in an archive, as its own configuration says; null if it doesn't say (<c>"archive": null</c>, or none): not
+/// archived, unless a folder above archives it (<c>onLowestLevel</c>). Only <see cref="ZippedFolders.ArchiveSettingsResolver"/> tells which.
+/// </param>
 public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList<FileEntry> files, string? passwordHash = null,
     ArchiveSettings? archive = null)
 {
+    /// <summary>The <c>archive</c> block as written, or null if there is none (or it is null).</summary>
+    public ArchiveSettings? OwnArchive { get; } = archive;
+
     private readonly Dictionary<string, FileEntry> _files = files.ToDictionary(file => file.Name, StringComparer.OrdinalIgnoreCase);
 
     public PermsBlock Perms { get; } = perms;
@@ -40,6 +49,7 @@ public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList
 
     public string? PasswordHash { get; } = passwordHash;
 
+    /// <summary><see cref="OwnArchive"/>, or <see cref="ArchiveSettings.Disabled"/> if there is none.</summary>
     public ArchiveSettings Archive { get; } = archive ?? ArchiveSettings.Disabled;
 
     public IEnumerable<FileEntry> Files => _files.Values;

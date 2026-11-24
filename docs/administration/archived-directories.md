@@ -11,9 +11,10 @@ In the [configuration](configuration.md) of the directory:
 ```
 
 - `enabled` is all that is needed; the rest have the defaults shown.
-- `filetype`: `"7z"` or `"zip"`.
-- `compressionLevel`: 0 (none; a 7z, which always compresses, the least) to 3 (most, and slowest).
-- `encrypted` and `onLowestLevel` must be `false` for now; they come later.
+- `filetype`: `"7z"` or `"zip"`. Changing it on an archived directory writes the other format the next time it is zipped, in place of the old archive.
+- `compressionLevel`: 0 (none; a 7z, which always compresses, the least) to 3 (most, and slowest). A new one is used from the next zipping on.
+- `encrypted` must be `false` for now; it comes later.
+- `onLowestLevel`: see [Only the lowest directories](#only-the-lowest-directories).
 
 Saving it moves what is in the directory into its unzipped copy at once (in one step: if something in it is in use on the server, nothing changes and the editor says so). It is zipped the first time once it isn't used for `Archives:ZipAfterMinutes`.
 
@@ -23,7 +24,28 @@ The directory's own configuration stays next to the archive, so it can be edited
 
 **Downloading:** a download gives what is in it, as for any directory (an archive of it, made as the dialog says). Admins also get a switch in the download dialog of an archived directory, on at first, to download the directory as it is kept instead: its own archive (zipped first if it is unzipped), named after the directory (`foo.7z`), with the configurations and the history inside it. Only for the directory itself, not for a selection.
 
-**Not possible yet:** turning it off again, and changing `filetype` of an archived directory (a new `compressionLevel` is used from the next zipping on). The root, a bridge, and a directory that holds a bridge can't be archived.
+The root, a bridge, and a directory that holds a bridge can't be archived (with `onLowestLevel` they can: they aren't archived themselves).
+
+**The names `_.7z` and `_.zip`** (and `_.7z.new`, `_.zip.new`) are reserved in every directory, like `_` and `.config.json`: nothing can be created, uploaded or renamed to them, so an archive is never taken for a user's file or the other way round.
+
+## Turning it off
+
+Set `enabled` to `false` (or remove `archive`, or set it to `null`). Saving it puts what is in the directory back as ordinary files, where they were: an unzipped directory at once, a zipped one once its archive is unzipped (which takes a moment for a big one). Its archive is deleted. If something in it is in use on the server, nothing changes (the configuration neither) and the editor says so.
+
+Its own history from while it was archived can't become part of the history around it: it is set aside, never deleted, in `_/archived-history/<path of the directory>/<date and time>` of its location, a git repository like the others ([History](history.md) says how to read one). Archived directories inside it stay archived.
+
+A configuration that isn't valid never counts as turned off: the directory stays as it is until it is fixed. Turning it off by editing the file while the app doesn't run works too: it is done when the app starts.
+
+## Only the lowest directories
+
+With `"onLowestLevel": true`, the directory itself isn't archived. Instead, each directory below that holds files is, with the settings of this one, and nothing between them is. A directory that holds files and directories is archived with those directories inside it. Directories that hold only directories stay as they are.
+
+- Saving it sets `"archive": null` in the configuration of every directory below that has one: `null` (or no `archive`) leaves it to the directory above. Directories without a configuration are left to it all the same.
+- It can't be turned on over entries below that have a password: archiving them this way would let the configuration of the directory above get around them. The editor lists them. Nor over directories that are archived with settings of their own (or `onLowestLevel` themselves): set those to `null` first.
+- `{ "enabled": false }` on a directory below takes it and what is below it out: what was archived there is turned off. Below it, a directory can be archived on its own again.
+- A directory that comes to hold files later (a new one, or files moved in) is archived by the job that zips idle directories (every minute; until then it is an ordinary directory). Once archived, a directory stays so while the directory above says `onLowestLevel`, even if a directory above it gains files later (that one is then archived too, with it inside).
+- A directory archived this way that is moved somewhere without `onLowestLevel` above it is an ordinary directory again where it is then.
+- Turning `onLowestLevel` off again turns off every directory archived by it.
 
 ## While it is used
 
@@ -47,6 +69,7 @@ In `appsettings.json`, under `Config:Archives`:
 parent/foo/.config.json          the directory's own configuration
 parent/foo/_.7z                  everything in it (also the configurations inside, and its history)
 _/temp/unzipped/parent/foo/      while it is unzipped: what counts then
+_/archived-history/parent/foo/   the histories of directories that were archived, once it was turned off
 ```
 
 The unzipped copies are in the `_/temp` of the location the directory is in (the root, or a [bridge](bridges.md)), so on the same disk. An archived directory inside another one is unzipped into that one's copy. After a crash or power cut, the app puts everything right when it starts: a copy that was unzipped counts (it may be newer than the archive) and is zipped later; half written archives and half done unzipping are deleted.

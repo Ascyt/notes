@@ -115,11 +115,23 @@ public class ConfigTexts
     public virtual string PasswordChangeNeedsUnlock(string display)
         => $"The password of '{display}' can only be changed or removed while '{display}' is unlocked. Nothing was saved.";
 
-    public virtual string ArchiveOffNotYet
-        => "archive.enabled: an archived folder can't be turned back into a normal one yet. Nothing was saved.";
+    public virtual string CantUnarchiveNow
+        => "Archiving can't be turned off right now: something in the folder is in use. Nothing was saved; try again.";
 
-    public virtual string ArchiveFormatNotYet
-        => "archive.filetype: the format of an archived folder can't be changed yet (it keeps the one of its archive). Nothing was saved.";
+    /// <summary>onLowestLevel would archive folders below whose password then couldn't be checked by the app alone.</summary>
+    public virtual string LowestLevelWithPasswords(IEnumerable<string> protectedEntries)
+        => "archive.onLowestLevel: entries below have a password, which archiving them this way would get around. Remove their passwords "
+           + "first, or archive them on their own: " + string.Join(", ", protectedEntries.Select(entry => $"'{entry}'")) + ". Nothing was saved.";
+
+    /// <summary>onLowestLevel over folders that are archived with settings of their own.</summary>
+    public virtual string LowestLevelOverArchived(IEnumerable<string> archived)
+        => "archive.onLowestLevel: folders below are archived with settings of their own. Set their archive to null (or turn it off) first: "
+           + string.Join(", ", archived.Select(entry => $"'{entry}'")) + ". Nothing was saved.";
+
+    /// <summary>Saved, but archived inside an archived folder (or onLowestLevel there): nested archives only make sense with encryption.</summary>
+    public virtual string ArchiveInsideArchive
+        => "Saved. This folder is inside an archived folder, so what is in it is in that archive already: archiving it again only adds work "
+           + "(zipping and unzipping twice). It makes sense once archives can be encrypted.";
 
     public virtual string CantArchiveBridge
         => "archive.enabled: the root, a bridge, or a folder with a bridge in it can't be archived. Nothing was saved.";
@@ -148,7 +160,8 @@ public class ConfigTexts
             + "itself). Configuration files are always kept.";
 
     public virtual string SchemaArchive
-        => "Whether this folder is kept in an archive (_.7z or _.zip in it), which is unzipped while it is used and zipped again after a while.";
+        => "Whether this folder is kept in an archive (_.7z or _.zip in it), which is unzipped while it is used and zipped again after a while. "
+           + "null (below an onLowestLevel folder) leaves it to that folder.";
 
     public virtual string SchemaArchiveEnabled => "true keeps the folder in an archive; false keeps it as it is.";
     public virtual string SchemaArchiveFiletype => "The format of the archive. Default 7z.";
@@ -157,7 +170,8 @@ public class ConfigTexts
         => "0 (none; for 7z, which always compresses, the least) to 3 (most, slowest). Default 2.";
 
     public virtual string SchemaArchiveEncrypted => "Encrypts the archive with the folder's password. Not supported yet.";
-    public virtual string SchemaArchiveOnLowestLevel => "Archives only the lowest folders below instead of this one. Not supported yet.";
+    public virtual string SchemaArchiveOnLowestLevel
+        => "Archives only the lowest folders below (those that hold files) with these settings, instead of this one. Default false.";
 
     public virtual string SchemaFiles => "The files of this folder, which the app keeps up to date. A file without an entry has the settings of the folder.";
     public virtual string SchemaFileName => "The name of the file.";

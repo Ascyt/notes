@@ -40,6 +40,10 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
         // Once started, a transfer is never abandoned half way because the request that asked for it went away
         using (await structureLock.EnterAsync())
         {
+            // The target may have been made an archived folder while this waited: then it is in its unzipped copy now
+            if (kind != TransferKind.Delete)
+                physicalTarget = archives.WhereItIsNow(physicalTarget);
+
             // What is in the archived folders it takes is checked as for any directory: they are unzipped for that (those the user may
             // open), and stay so while it is checked
             List<string> sources = [.. virtualPaths.Select(paths.ToPhysicalPath).OfType<string>()];
@@ -67,15 +71,30 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
 
                 // A copy copies what is in them, as for any directory: the copy is a normal one (archiving is a setting of the folder)
                 if (kind == TransferKind.Copy)
-                    return await Task.Run(() => Run(user, kind, physicalTarget, plan, report));
+                {
+                    TransferResult copied = await Task.Run(() => Run(user, kind, physicalTarget, plan, report));
+                    // Below an onLowestLevel folder, what holds files now is archived right away
+                    await archives.ArchiveLowestLevelAfterChangeAsync(physicalTarget);
+                    return copied;
+                }
             }
 
             // A move or delete takes them as their folders (archive and configuration), zipped first, so a moved one stays archived
             try
             {
-                return await archives.WhileZippedAsync([.. plan.Items.Select(item => item.Source)], folders =>
+                TransferResult result = await archives.WhileZippedAsync([.. plan.Items.Select(item => item.Source)], folders =>
                     Task.Run(() => Run(user, kind, physicalTarget,
                         plan with { Items = [.. plan.Items.Select((item, i) => AsZipped(item, folders[i]))] }, report)));
+
+                // One archived by an onLowestLevel folder above that was moved out from under it is an ordinary folder again where it is now
+                // (and one moved under such a folder may be archived by it)
+                if (kind == TransferKind.Move)
+                {
+                    foreach (TransferItem item in plan.Items.Where(item => item.IsDirectory))
+                        _ = await archives.ReconcileAsync(Path.Combine(physicalTarget, item.Name));
+                    await archives.ArchiveLowestLevelAfterChangeAsync(physicalTarget);
+                }
+                return result;
             }
             catch (IOException e)
             {

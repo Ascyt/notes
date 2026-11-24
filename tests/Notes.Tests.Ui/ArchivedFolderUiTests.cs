@@ -78,7 +78,8 @@ public sealed class ArchivedFolderUiTests(NoWaitForUnzippingFixture fixture) : U
 
         await Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/docs$"));
         await Eventually(() => Archives.IsZipped(folder) && Archives.ZipProgressOf(folder) is null, "it is zipped");
-        await Expect(ToastOf("info")).ToBeVisibleAsync();
+        // (No toast: the page it goes to shows the folder being zipped)
+        await Expect(ToastOf("info")).ToHaveCountAsync(0);
     }
 
     [Fact]

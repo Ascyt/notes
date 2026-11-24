@@ -33,14 +33,17 @@ public abstract class HistoryTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>A history whose threshold is 10 lines, a removed line counting twice.</summary>
-    protected HistoryService History(bool enabled = true)
+    /// <summary>A history whose threshold is 10 lines, a removed line counting twice, without a largest file unless one is given.</summary>
+    protected HistoryService History(bool enabled = true, double? maxFileMegabytes = null)
     {
         Config config = new()
         {
             Dir = Notes.Root,
             Auth = Notes.Config.Auth,
-            History = new HistoryConfig { Enabled = enabled, IdleMinutes = 10, LineThreshold = 10, RemovedLineWeight = 2 }
+            History = new HistoryConfig
+            {
+                Enabled = enabled, IdleMinutes = 10, LineThreshold = 10, RemovedLineWeight = 2, MaxFileMegabytes = maxFileMegabytes
+            }
         };
         HistoryService service = new(config, new EntryLocations(config), Notes.Store, Time, NullLogger<HistoryService>.Instance);
         _services.Add(service);

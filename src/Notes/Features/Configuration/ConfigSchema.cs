@@ -49,7 +49,8 @@ public sealed class ConfigSchema(ConfigTexts texts)
             };
             properties[ConfigParser.ArchiveKey] = new Dictionary<string, object>
             {
-                ["type"] = "object",
+                // (null: left to an onLowestLevel folder above)
+                ["type"] = new[] { "object", "null" },
                 ["description"] = texts.SchemaArchive,
                 ["additionalProperties"] = false,
                 ["required"] = new[] { ConfigParser.ArchiveEnabledKey },
@@ -66,7 +67,7 @@ public sealed class ConfigSchema(ConfigTexts texts)
                     [ConfigParser.ArchiveEncryptedKey] = new Dictionary<string, object>
                         { ["const"] = false, ["description"] = texts.SchemaArchiveEncrypted },
                     [ConfigParser.ArchiveOnLowestLevelKey] = new Dictionary<string, object>
-                        { ["const"] = false, ["description"] = texts.SchemaArchiveOnLowestLevel }
+                        { ["type"] = "boolean", ["description"] = texts.SchemaArchiveOnLowestLevel }
                 }
             };
             properties["files"] = new Dictionary<string, object>

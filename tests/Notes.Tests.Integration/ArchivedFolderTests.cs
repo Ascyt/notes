@@ -163,14 +163,68 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
     }
 
     [Fact]
-    public async Task Turning_it_off_is_not_supported_yet()
+    public async Task Turning_it_off_while_it_is_unzipped_puts_its_contents_back_and_sets_its_history_aside()
     {
         await ArchiveVaultAsync();
+        App.Services.GetRequiredService<HistoryService>().CommitPending(CommitReason.Startup);
 
         HttpResponseMessage response = await Client.PostAsync(Users.Admin, "/docs/vault?config", Cfg.Folder(Cfg.Perms()));
 
-        await AssertStatus(HttpStatusCode.BadRequest, response);
-        Assert.NotNull(Archives.MountedAt(Outer));
+        await AssertStatus(HttpStatusCode.OK, response);
+        Assert.Null(Archives.MountedAt(Outer));
+        Assert.Equal([".config.json", "deeper", "note.md"], OnDiskInOuter());
+        Assert.Equal("inside", await ContentsOf(Users.Alice, "/docs/vault/note.md"));
+        Assert.Equal("more", await ContentsOf(Users.Alice, "/docs/vault/deeper/more.md"));
+        Assert.Null(Archives.ArchiveStateOf(Outer));
+        // Its own history (a repository of its own) is kept apart, never deleted
+        string aside = Tree.Physical("_/archived-history/docs/vault");
+        Assert.Single(Directory.EnumerateDirectories(aside));
+        Assert.True(File.Exists(Path.Combine(Directory.EnumerateDirectories(aside).Single(), "HEAD")));
+    }
+
+    [Fact]
+    public async Task Turning_it_off_while_it_is_zipped_unzips_it_into_place()
+    {
+        await ArchiveVaultAsync();
+        Assert.True(await Archives.ZipAsync(Outer));
+
+        HttpResponseMessage response = await Client.PostAsync(Users.Admin, "/docs/vault?config",
+            ArchivedWith(Cfg.Perms()).Replace("\"enabled\":true", "\"enabled\":false"));
+
+        await AssertStatus(HttpStatusCode.OK, response);
+        Assert.Equal([".config.json", "deeper", "note.md"], OnDiskInOuter());
+        Assert.Equal("more", await ContentsOf(Users.Alice, "/docs/vault/deeper/more.md"));
+    }
+
+    [Fact]
+    public async Task A_new_filetype_is_written_at_the_next_zipping_in_place_of_the_old_archive()
+    {
+        await ArchiveVaultAsync();
+        Assert.True(await Archives.ZipAsync(Outer));
+        Assert.Equal([".config.json", "_.7z"], OnDiskInOuter());
+
+        string zip = ArchivedWith(Cfg.Perms()).Replace("\"enabled\":true", "\"enabled\":true,\"filetype\":\"zip\"");
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Admin, "/docs/vault?config", zip));
+        // Nothing happens until it is zipped again
+        Assert.Equal([".config.json", "_.7z"], OnDiskInOuter());
+
+        Assert.Equal("inside", await ContentsOf(Users.Alice, "/docs/vault/note.md"));
+        Assert.True(await Archives.ZipAsync(Outer));
+
+        Assert.Equal([".config.json", "_.zip"], OnDiskInOuter());
+        Assert.Equal("more", await ContentsOf(Users.Alice, "/docs/vault/deeper/more.md"));
+    }
+
+    [Fact]
+    public async Task The_names_of_archives_are_reserved_everywhere()
+    {
+        Tree.File("docs/plain/a.md", "a");
+
+        HttpResponseMessage response = await Client.PostAsync(Users.Alice, "/docs/plain/_.7z", "not an archive");
+
+        Assert.True(response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound or HttpStatusCode.Forbidden,
+            $"Got {response.StatusCode}");
+        Assert.False(File.Exists(Tree.Physical("docs/plain/_.7z")));
     }
 
     [Fact]
@@ -499,6 +553,17 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
         Assert.Null(await opening.Finished);
         Assert.Equal([".config.json", "_.7z"], OnDiskInOuter());
         Assert.NotNull(Archives.MountedAt(Outer));
+    }
+
+    [Fact]
+    public async Task Its_history_button_says_it_is_an_archived_folder_not_a_bridge()
+    {
+        await ArchiveVaultAsync();
+
+        string admin = await BodyOf(await Client.GetAsync(Users.Admin, "/docs/vault/note.md"));
+
+        Assert.Matches(@"id=""history-button""[^>]* data-disabled-reason=""[^""]*archived folder[^""]*""", admin);
+        Assert.DoesNotContain("bridge (Config:Bridges)", admin);
     }
 
     [Fact]

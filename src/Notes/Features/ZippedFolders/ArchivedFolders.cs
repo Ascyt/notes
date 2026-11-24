@@ -7,63 +7,6 @@ using Notes.Features.History;
 
 namespace Notes.Features.ZippedFolders;
 
-/// <summary>An archived folder being unzipped: how far it got, and how it ended.</summary>
-public sealed class UnzipJob
-{
-    private double _progress;
-
-    /// <summary>How far it got, 0 to 1.</summary>
-    public double Progress => Volatile.Read(ref _progress);
-
-    internal void Report(double progress) => Volatile.Write(ref _progress, progress);
-
-    /// <summary>Done once it is unzipped (and mounted). Null if it worked, otherwise why not (for the log; the user is told less).</summary>
-    public Task<string?> Finished { get; internal set; } = Task.FromResult<string?>(null);
-}
-
-/// <summary>
-/// An archived folder being zipped (from when zipping takes its gate, waiting for what uses it included): how far it got, and the stop that
-/// opening it pulls, where it may.
-/// </summary>
-internal sealed class ZipJob(bool stopsWhenOpened, CancellationToken outer) : IProgress<double>, IDisposable
-{
-    private readonly CancellationTokenSource _stop = CancellationTokenSource.CreateLinkedTokenSource(outer);
-    private double _progress;
-
-    /// <summary>Told how far it got (from the thread that zips), and passed on to who else waits for it.</summary>
-    public Action<double>? AlsoReport { get; init; }
-
-    public double Progress => Volatile.Read(ref _progress);
-
-    public CancellationToken Token => _stop.Token;
-
-    public void Report(double value)
-    {
-        Volatile.Write(ref _progress, value);
-        AlsoReport?.Invoke(value);
-    }
-
-    /// <summary>
-    /// Stops it, if it may be stopped for that (not a zipping that a move or a delete waits for). Past the point where the new archive took
-    /// the old one's place this changes nothing: it finishes.
-    /// </summary>
-    public void StopBecauseOpened()
-    {
-        if (!stopsWhenOpened || _stop.IsCancellationRequested)
-            return;
-        try
-        {
-            _stop.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // Ended meanwhile
-        }
-    }
-
-    public void Dispose() => _stop.Dispose();
-}
-
 /// <summary>
 /// The archived folders (<c>"archive": { "enabled": true }</c>, see docs/development/zipped-folders.md): unzips one when a request reaches
 /// into it, mounts the unzipped copy where the folder is (<see cref="EntryLocations.MountArchive"/>) with its history, and zips it again once
@@ -78,9 +21,12 @@ internal sealed class ZipJob(bool stopsWhenOpened, CancellationToken outer) : IP
 /// <remarks>
 /// An archived folder inside another is unzipped into the unzipped copy of that one (its own <c>_/temp/unzipped</c>), once that one is,
 /// and zipped before it. Archived folders are keyed by the physical path of the folder (where the archive and the configuration are).
+/// Turning archiving on and off, and bringing the disk in line with the configurations, is in <c>ArchivedFolders.TurningOnAndOff.cs</c>;
+/// what is done at the start, after a crash, in <c>ArchivedFolders.Recovery.cs</c>.
 /// </remarks>
-public sealed class ArchivedFolders(EntryLocations locations, IPathService paths, FolderConfigStore configs, FolderArchiver archiver,
-    HistoryService history, ArchivesConfig settings, TimeProvider time, IHostApplicationLifetime lifetime, ILogger<ArchivedFolders> logger)
+public sealed partial class ArchivedFolders(EntryLocations locations, IPathService paths, FolderConfigStore configs, FolderArchiver archiver,
+    ArchiveSettingsResolver resolver, HistoryService history, ArchivesConfig settings, TimeProvider time, IHostApplicationLifetime lifetime,
+    ILogger<ArchivedFolders> logger)
 {
     public const string UnzippedKind = "unzipped";
     public const string ZippingKind = "zipping";
@@ -114,11 +60,34 @@ public sealed class ArchivedFolders(EntryLocations locations, IPathService paths
     // ---- What a folder is
 
     /// <summary>
-    /// Whether the folder (its physical path, or that of its unzipped copy) is archived, as its configuration says now. One whose archiving
-    /// was just turned on may not be converted yet.
+    /// Where the path (physical) is now: in the unzipped copy if it is at or inside an archived folder that is mounted (it was found before the
+    /// folder was turned into one, say, by a request that waited for the <see cref="StructureLock"/>); otherwise the path itself. Without
+    /// this, what is written there would end up next to the archive, hidden by the copy.
+    /// </summary>
+    public string WhereItIsNow(string physicalPath)
+    {
+        string path = Normalize(physicalPath);
+        // (Again for a folder unzipped inside one that was)
+        for (bool moved = true; moved;)
+        {
+            moved = false;
+            foreach (EntryLocation archive in locations.UnzippedArchives)
+                if (IsSameOrInside(path, archive.MountPath!))
+                {
+                    path = Normalize(Path.Combine(archive.PhysicalPath, Path.GetRelativePath(archive.MountPath!, path)));
+                    moved = true;
+                    break;
+                }
+        }
+        return path;
+    }
+
+    /// <summary>
+    /// Whether the folder (its physical path, or that of its unzipped copy) is archived, as the configurations say now (its own, or an
+    /// <c>onLowestLevel</c> one above: <see cref="ArchiveSettingsResolver"/>). One whose archiving was just turned on may not be converted yet.
     /// </summary>
     public bool IsArchived(string physicalDirectory)
-        => configs.Get(physicalDirectory).Config?.Archive.Enabled == true;
+        => resolver.SettingsOf(physicalDirectory) is not null;
 
     /// <summary>The unzipped copy mounted for the folder (its physical path), or null if it is zipped (or not archived).</summary>
     public EntryLocation? MountedAt(string folderPath)
@@ -217,10 +186,12 @@ public sealed class ArchivedFolders(EntryLocations locations, IPathService paths
         }
     }
 
-    /// <summary>The archive of the folder that is there on disk (<c>_.7z</c> or <c>_.zip</c>), or null.</summary>
+    /// <summary>
+    /// The archive of the folder that is there on disk (<c>_.7z</c> or <c>_.zip</c>; the newer, if the app stopped while its format was
+    /// changed), or null.
+    /// </summary>
     public static string? ArchiveFileOf(string folderPath)
-        => new[] { ArchiveFormat.SevenZip, ArchiveFormat.Zip }.Select(format => Path.Combine(folderPath, ArchivedFolder.ArchiveFileName(format)))
-            .FirstOrDefault(File.Exists);
+        => ArchivedFolder.ArchivePathsIn(folderPath).Where(File.Exists).MaxBy(File.GetLastWriteTimeUtc);
 
     /// <summary>
     /// Whether the folder is archived and zipped now: what is in it has to be unzipped to be seen. Also while it is being written (no longer
@@ -254,19 +225,24 @@ public sealed class ArchivedFolders(EntryLocations locations, IPathService paths
             ? job.Progress
             : null;
 
-    /// <summary>Where the folder's archive, its unzipped copy and the work directory of zipping are.</summary>
+    /// <summary>
+    /// Where the folder's archive, its unzipped copy and the work directory of zipping are. The archive is the one it has (the newer, if the
+    /// app stopped while the format was changed), or, without one, of the format it is to have.
+    /// </summary>
     private ArchivedFolder FolderOf(string folderPath)
     {
         string folder = Normalize(folderPath);
+        string archive = ArchivedFolder.ArchivePathsIn(folder).Where(File.Exists).MaxBy(File.GetLastWriteTimeUtc)
+                         ?? Path.Combine(folder, ArchivedFolder.ArchiveFileName(resolver.SettingsOf(folder)?.Format ?? ArchiveFormat.SevenZip));
+        return FolderOf(folder, archive);
+    }
+
+    /// <summary>As <see cref="FolderOf(string)"/>, with the archive at <paramref name="archivePath"/>.</summary>
+    private ArchivedFolder FolderOf(string folder, string archivePath)
+    {
         // In the data of the location the folder is in (for one inside another archived folder: in that one's unzipped copy)
         EntryLocation location = locations.LocationOf(folder) ?? locations.Root;
-        string relative = Path.GetRelativePath(location.PhysicalPath, folder);
-        ArchiveFormat format = ArchiveFileOf(folder) is { } existing && existing.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-            ? ArchiveFormat.Zip
-            : ArchiveFileOf(folder) is not null ? ArchiveFormat.SevenZip : configs.Get(folder).Config?.Archive.Format ?? ArchiveFormat.SevenZip;
-        return new ArchivedFolder(Path.Combine(folder, ArchivedFolder.ArchiveFileName(format)),
-            Path.Combine(location.DataDirectory, "temp", UnzippedKind, relative),
-            Path.Combine(location.DataDirectory, "temp", ZippingKind));
+        return new ArchivedFolder(archivePath, resolver.UnzippedDirectoryOf(folder), Path.Combine(location.DataDirectory, "temp", ZippingKind));
     }
 
     // ---- Using it
@@ -466,9 +442,16 @@ public sealed class ArchivedFolders(EntryLocations locations, IPathService paths
 
     private async Task<bool> ZipMountedAsync(string folderPath, EntryLocation location, FolderState state, ZipJob job)
     {
-        ArchivedFolder folder = FolderOf(folderPath);
-        ArchiveSettings archive = configs.Get(folderPath).Config?.Archive ?? ArchiveSettings.Disabled;
-        // The format the archive has (changing it is for later); the compression as configured now
+        // Written in the format and with the compression as configured now: an archive of the other format (the filetype changed) is
+        // replaced by it (FolderArchiver deletes it once the new one is in place)
+        ArchivedFolder existing = FolderOf(folderPath);
+        ArchiveSettings archive = resolver.SettingsOf(folderPath) ?? ArchiveSettings.Disabled with { Format = existing.Format };
+        string target = Path.Combine(Normalize(folderPath), ArchivedFolder.ArchiveFileName(archive.Format));
+        ArchivedFolder folder = FolderOf(Normalize(folderPath), target) with
+        {
+            FormerArchivePath = ArchivedFolder.ArchivePathsIn(Normalize(folderPath))
+                .FirstOrDefault(path => !string.Equals(path, target, StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+        };
         ArchiveCompression compression = folder.Format == ArchiveFormat.SevenZip && archive.Compression == ArchiveCompression.Store
             ? ArchiveCompression.Min
             : folder.Format == ArchiveFormat.Zip && archive.Compression == ArchiveCompression.Min ? ArchiveCompression.Store : archive.Compression;
@@ -527,148 +510,6 @@ public sealed class ArchivedFolders(EntryLocations locations, IPathService paths
         return zipped;
     }
 
-    // ---- Turning it on
-
-    /// <summary>
-    /// Makes the folder (whose configuration now says <c>"archive": { "enabled": true }</c>) an archived one: everything in it becomes its
-    /// unzipped copy, which is mounted where it was, and zipped once it isn't used for a while. In one step that either happens or doesn't
-    /// (the folder is renamed into the copy), then its configuration is put back where the folder was. The caller holds the
-    /// <see cref="StructureLock"/>.
-    /// </summary>
-    /// <exception cref="IOException">If the folder can't be moved (a file of it is open, on Windows). Nothing changed then.</exception>
-    public async Task ConvertAsync(string folderPath)
-    {
-        string folder = Normalize(folderPath);
-        FolderState state = StateOf(folder);
-        await state.Gate.WaitAsync();
-        try
-        {
-            if (MountedAt(folder) is not null || ArchiveFileOf(folder) is not null)
-                return;
-
-            // Archived folders unzipped inside it are zipped first: they are mounted where it is now
-            foreach (EntryLocation inner in locations.UnzippedArchives.Where(archive => IsSameOrInside(archive.MountPath!, folder)).ToList())
-                _ = await ZipAsync(inner.MountPath!);
-
-            ArchivedFolder archived = FolderOf(folder);
-            if (Directory.Exists(archived.UnzippedDirectory))
-                throw new IOException($"{archived.UnzippedDirectory} is there already.");
-
-            _ = Directory.CreateDirectory(Path.GetDirectoryName(archived.UnzippedDirectory)!);
-            Directory.Move(folder, archived.UnzippedDirectory);
-            DurableFiles.FlushDirectory(Path.GetDirectoryName(archived.UnzippedDirectory)!);
-            DurableFiles.FlushDirectory(Path.GetDirectoryName(folder)!);
-            PutBackConfiguration(folder, archived.UnzippedDirectory);
-
-            _ = Mount(folder, archived.UnzippedDirectory, state);
-        }
-        finally
-        {
-            _ = state.Gate.Release();
-        }
-    }
-
-    /// <summary>
-    /// After the folder was renamed into its unzipped copy (by <see cref="ConvertAsync"/>, or before a crash): the folder is made again, with its
-    /// configuration, which stays next to the archive.
-    /// </summary>
-    private static void PutBackConfiguration(string folder, string unzipped)
-    {
-        _ = Directory.CreateDirectory(folder);
-        string inCopy = Path.Combine(unzipped, PathService.ConfigFileName);
-        string outside = Path.Combine(folder, PathService.ConfigFileName);
-        if (File.Exists(inCopy) && !File.Exists(outside))
-            File.Move(inCopy, outside);
-        DurableFiles.FlushDirectory(folder);
-    }
-
-    // ---- After a crash, when the app starts
-
-    /// <summary>
-    /// Finds what zipping, unzipping or turning archiving on left when the app stopped, in every location, and puts it right: half done work
-    /// is deleted, copies that are there are mounted (they hold everything), and a folder that was being turned into an archived one gets its
-    /// configuration back. Folders whose archiving is on but that weren't converted yet are converted. Runs before the first request.
-    /// </summary>
-    public async Task RecoverAsync()
-    {
-        foreach (EntryLocation location in locations.All.Where(location => !location.IsArchive).ToList())
-            await RecoverInAsync(location);
-    }
-
-    private async Task RecoverInAsync(EntryLocation location)
-    {
-        string data = location.DataDirectory;
-        _ = archiver.RecoverWorkDirectory(Path.Combine(data, "temp", ZippingKind));
-
-        // Copies whose folder is gone: the app stopped while a folder was turned into an archived one
-        string unzippedRoot = Path.Combine(data, "temp", UnzippedKind);
-        if (Directory.Exists(unzippedRoot))
-            foreach (string copy in CopyRootsIn(location, unzippedRoot))
-            {
-                string folder = Path.Combine(location.PhysicalPath, Path.GetRelativePath(unzippedRoot, copy));
-                if (!Directory.Exists(folder))
-                {
-                    logger.LogWarning("{copy} was being made an archived folder when the app stopped; it is put back at {folder}", copy, folder);
-                    PutBackConfiguration(folder, copy);
-                }
-            }
-
-        foreach (string folder in ArchivedFoldersIn(location.PhysicalPath))
-        {
-            ArchivedFolder archived = FolderOf(folder);
-            switch (archiver.Recover(archived))
-            {
-                case ArchivedFolderState.Unzipped:
-                    logger.LogWarning("The archived folder {folder} was unzipped when the app stopped; its copy counts, and is zipped later", folder);
-                    EntryLocation mounted = Mount(folder, archived.UnzippedDirectory, StateOf(folder));
-                    await RecoverInAsync(mounted);
-                    break;
-                case ArchivedFolderState.Missing:
-                    // Turned on, but not converted yet (the app stopped right after the configuration was saved)
-                    await ConvertAsync(folder);
-                    break;
-            }
-        }
-    }
-
-    /// <summary>The unzipped copies in the folder of copies: the directories whose folder is archived, or is gone (but for its copy).</summary>
-    private IEnumerable<string> CopyRootsIn(EntryLocation location, string unzippedRoot)
-    {
-        Stack<string> pending = new([unzippedRoot]);
-        while (pending.TryPop(out string? directory))
-        {
-            foreach (string inner in Directory.EnumerateDirectories(directory))
-            {
-                string folder = Path.Combine(location.PhysicalPath, Path.GetRelativePath(unzippedRoot, inner));
-                bool isCopy = Directory.Exists(folder) ? IsArchived(folder) : File.Exists(Path.Combine(inner, PathService.ConfigFileName));
-                if (isCopy)
-                    yield return inner;
-                else if (Directory.Exists(folder))
-                    pending.Push(inner);
-            }
-        }
-    }
-
-    /// <summary>The archived folders in the directory (not its own data, nor what a bridge hides or what is inside archived ones).</summary>
-    private List<string> ArchivedFoldersIn(string root)
-    {
-        List<string> found = [];
-        Stack<string> pending = new([root]);
-        EnumerationOptions options = new() { AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
-        while (pending.TryPop(out string? directory))
-        {
-            foreach (string inner in Directory.EnumerateDirectories(directory, "*", options))
-            {
-                if ((IsSame(directory, root) && Path.GetFileName(inner) == PathService.ReservedName) || locations.IsHiddenByBridge(inner))
-                    continue;
-                if (IsArchived(inner))
-                    found.Add(inner);
-                else
-                    pending.Push(inner);
-            }
-        }
-        return found;
-    }
 
     private static string Normalize(string path)
         => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));

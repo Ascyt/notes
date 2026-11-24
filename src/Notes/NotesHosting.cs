@@ -116,6 +116,8 @@ public static class NotesHosting
         _ = services.AddHistory();
         _ = services.AddHistoryViewing();
         _ = services.AddArchivedFolders(config.Archives);
+        // (Does again what the start does, across the features above)
+        _ = services.AddScoped<Features.Maintenance.SoftRestartJob>();
 
         // The background jobs (scheduled in UseNotes)
         _ = services.AddHangfire(setup.ConfigureHangfire);
@@ -253,6 +255,9 @@ public static class NotesHosting
             schedule => recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.ZipIdleArchives), jobs.ZipIdleArchives,
             schedule => recurringJobs.AddOrUpdate<ZipIdleArchivesJob>(ZipIdleArchivesJob.Id, job => job.RunAsync(), schedule));
+        Schedule(nameof(JobsConfig.SoftRestart), jobs.SoftRestart,
+            schedule => recurringJobs.AddOrUpdate<Features.Maintenance.SoftRestartJob>(Features.Maintenance.SoftRestartJob.Id,
+                job => job.RunAsync(), schedule));
     }
 
     // Hangfire refuses what isn't a cron expression with an ArgumentException that doesn't say which setting it was

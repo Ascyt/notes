@@ -147,7 +147,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         FolderConfig? before = store.Get(folder).Config;
         if (RefusedPasswordChange(context, folder, before, parsed.Value!) is { } refused)
             return refused;
-        if (RefusedArchiveChange(folderPath, before?.Archive ?? ArchiveSettings.Disabled, parsed.Value!.Archive) is { } refusedArchive)
+        if (RefusedArchiveChange(folderPath, before?.OwnArchive, parsed.Value!.OwnArchive) is { } refusedArchive)
             return refusedArchive;
         text = HashPasswords(text);
 
@@ -169,44 +169,101 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         Write(context.User, folder, text);
         UnlockNewPasswords(context, folder, before, completed.Value!);
 
-        // Archiving on: what is in the folder becomes its unzipped copy (zipped once it isn't used for a while). Nothing happens to one that is
-        // archived already.
-        if (completed.Value!.Archive.Enabled)
+        // What is on disk follows the configurations (ArchivedFolders.ReconcileAsync): archiving on makes what is in the folder its unzipped
+        // copy, off puts it back, onLowestLevel archives the folders below that hold files. A new filetype or compressionLevel is used from the
+        // next zipping on.
+        if (!Equals(before?.OwnArchive, completed.Value!.OwnArchive))
         {
-            try
+            // Below a folder that turns onLowestLevel on, each configuration leaves it to that one
+            if (IsLowestLevel(completed.Value!.OwnArchive) && !IsLowestLevel(before?.OwnArchive))
+                LeaveArchivingToAbove(context.User, folderPath);
+
+            List<string> failed = await archives.ReconcileAsync(folderPath);
+            if (failed.Any(path => string.Equals(path, Path.TrimEndingDirectorySeparator(Path.GetFullPath(folderPath)), StringComparison.OrdinalIgnoreCase)))
             {
-                await archives.ConvertAsync(folderPath);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                // Nothing of the folder changed: neither does its configuration
-                logger.LogWarning(e, "Could not make {folder} an archived folder", folderPath);
+                // Nothing of the folder itself changed: neither does its configuration
+                logger.LogWarning("Could not change whether {folder} is archived now", folderPath);
                 if (textBefore is not null)
                     Write(context.User, folder, textBefore);
-                return Failed(StatusCodes.Status409Conflict, texts.CantArchiveNow);
+                _ = await archives.ReconcileAsync(folderPath);
+                return Failed(StatusCodes.Status409Conflict, completed.Value!.Archive.Enabled ? texts.CantArchiveNow : texts.CantUnarchiveNow);
             }
+
+            // Saved, but archiving inside an archived folder only adds work: what is in it is in that archive already
+            if (completed.Value!.OwnArchive is { Enabled: true } && IsInsideArchivedFolder(folderPath))
+                context.Response.Headers[ConfigWarningHeader] = Uri.EscapeDataString(texts.ArchiveInsideArchive);
         }
 
         return Saved(text);
     }
 
-    /// <summary>
-    /// The answer if the change of <c>archive</c> can't be made (yet), or null. Turning it off and changing the format of an archived folder
-    /// come later; the root, a bridge and what holds a bridge can't be archived, as their place is the configuration's.
-    /// </summary>
-    private ObjectResult? RefusedArchiveChange(string folderPath, ArchiveSettings before, ArchiveSettings after)
+    /// <summary>What a saved configuration is answered with besides its text, if there is something about it worth knowing (URL-encoded).</summary>
+    public const string ConfigWarningHeader = "X-Notes-Config-Warning";
+
+    /// <summary>Whether a folder above the folder (physical) is archived (its unzipped copy, for one inside it).</summary>
+    private bool IsInsideArchivedFolder(string folderPath)
     {
-        bool isArchived = archives.MountedAt(folderPath) is not null || ArchivedFolders.ArchiveFileOf(folderPath) is not null;
-        if (isArchived && !after.Enabled)
-            return Failed(StatusCodes.Status400BadRequest, texts.ArchiveOffNotYet);
-        if (isArchived && ArchivedFolders.ArchiveFileOf(folderPath) is { } archive
-            && archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) != (after.Format == Components.Archive.ArchiveFormat.Zip))
-            return Failed(StatusCodes.Status400BadRequest, texts.ArchiveFormatNotYet);
-        if (!before.Enabled && after.Enabled
-            && (locations.All.Any(location => string.Equals(location.PhysicalPath, folderPath, StringComparison.OrdinalIgnoreCase))
+        for (string? up = locations.ParentOf(folderPath); up is not null; up = locations.ParentOf(up))
+            if (archives.IsArchived(up))
+                return true;
+        return false;
+    }
+
+    private static bool IsLowestLevel(ArchiveSettings? archive)
+        => archive is { Enabled: true, OnLowestLevel: true };
+
+    /// <summary>
+    /// The answer if the change of <c>archive</c> can't be made, or null. The root, a bridge and what holds a bridge can't be archived, as their
+    /// place is the configuration's (an <c>onLowestLevel</c> one can: it isn't archived itself). <c>onLowestLevel</c> can't be turned on over
+    /// entries with a password (archiving them that way would get around it, see docs/administration/archived-directories.md), nor over folders
+    /// archived with settings of their own.
+    /// </summary>
+    private ObjectResult? RefusedArchiveChange(string folderPath, ArchiveSettings? before, ArchiveSettings? after)
+    {
+        bool archivesItself = after is { Enabled: true, OnLowestLevel: false };
+        if (archivesItself && before is not { Enabled: true, OnLowestLevel: false }
+            && (locations.All.Any(location => !location.IsArchive
+                    && string.Equals(location.PhysicalPath, folderPath, StringComparison.OrdinalIgnoreCase))
                 || locations.HoldsBridge(folderPath)))
             return Failed(StatusCodes.Status400BadRequest, texts.CantArchiveBridge);
+
+        if (IsLowestLevel(after) && !IsLowestLevel(before))
+        {
+            (List<string> below, _) = archives.DirectoriesBelow(folderPath);
+            List<string> withPasswords = [];
+            List<string> archivedOnTheirOwn = [];
+            foreach (string directory in below)
+            {
+                if (store.Get(directory).Config is not { } config)
+                    continue;
+                if (config.PasswordHash is not null)
+                    withPasswords.Add(paths.ToVirtualPath(directory));
+                withPasswords.AddRange(config.Files.Where(file => file.PasswordHash is not null)
+                    .Select(file => paths.ToVirtualPath(Path.Combine(directory, file.Name))));
+                if (config.OwnArchive is { Enabled: true })
+                    archivedOnTheirOwn.Add(paths.ToVirtualPath(directory));
+            }
+            if (withPasswords.Count > 0)
+                return Failed(StatusCodes.Status400BadRequest, texts.LowestLevelWithPasswords(withPasswords));
+            if (archivedOnTheirOwn.Count > 0)
+                return Failed(StatusCodes.Status400BadRequest, texts.LowestLevelOverArchived(archivedOnTheirOwn));
+        }
         return null;
+    }
+
+    /// <summary>
+    /// Sets <c>"archive": null</c> in the configuration of each folder below that has one (and says something else), so that the
+    /// <c>onLowestLevel</c> folder decides for them; <c>{ "enabled": false }</c> set later cuts one off again. One that isn't valid is left.
+    /// </summary>
+    private void LeaveArchivingToAbove(ClaimsPrincipal user, string folderPath)
+    {
+        foreach (string directory in archives.DirectoriesBelow(folderPath).Directories)
+        {
+            if (store.Get(directory).Config is not { OwnArchive: not null } || store.ReadText(directory) is not { } current
+                || ConfigText.SetArchiveToInherit(current) is not { } inheriting)
+                continue;
+            Write(user, directory, inheriting);
+        }
     }
 
     private IActionResult SaveFile(HttpContext context, string physicalPath, string text)

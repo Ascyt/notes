@@ -21,8 +21,6 @@ public class UnzipTexts
     /// <summary>The archive button of the navbar (<see cref="ZipHandler"/>).</summary>
     public virtual string ZipAll => "Zip the archived folders that are unzipped now";
 
-    /// <summary>Said once the archive button was pressed (they are zipped while the next page shows).</summary>
-    public virtual string ZippingAll => "The archived folders are being zipped.";
 
     public virtual string Failed => "Unzipping failed. Try again; if it keeps failing, the archive may be damaged.";
     public virtual string ConnectionLost => "Connection lost while unzipping.";

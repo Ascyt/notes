@@ -107,10 +107,10 @@ public static class ConfigParser
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
         string? passwordHash = ParsePassword(root, "", allowsPlainPasswords, errors);
-        // Optional, so that a file without it (written by hand) is still valid; every file the app writes has it (principle 19)
-        ArchiveSettings? archive = root.TryGetValue(ArchiveKey, out JsonElement archiveElement)
-            ? ParseArchive(archiveElement, errors)
-            : ArchiveSettings.Disabled;
+        // Optional, so that a file without it (written by hand) is still valid; every file the app writes has it (principle 19). Null (or none)
+        // is not set: an "onLowestLevel" folder above may archive this one (ArchiveSettingsResolver)
+        bool archiveIsSet = root.TryGetValue(ArchiveKey, out JsonElement archiveElement) && archiveElement.ValueKind != JsonValueKind.Null;
+        ArchiveSettings? archive = archiveIsSet ? ParseArchive(archiveElement, errors) : ArchiveSettings.Disabled;
         List<FileEntry> files = [];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
 
@@ -137,7 +137,7 @@ public static class ConfigParser
 
         return errors.Count > 0 || perms is null || archive is null
             ? ParseResult<FolderConfig>.Failed(errors)
-            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash, archive));
+            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash, archiveIsSet ? archive : null));
     }
 
     /// <summary>
@@ -184,8 +184,6 @@ public static class ConfigParser
         // Coming with later steps: until then, saying true would be a promise the app doesn't keep
         if (encrypted == true)
             errors.Add(errors.Texts.NotSupportedYet(Where(ArchiveEncryptedKey)));
-        if (onLowestLevel == true)
-            errors.Add(errors.Texts.NotSupportedYet(Where(ArchiveOnLowestLevelKey)));
 
         if (errors.Count > before)
             return null;

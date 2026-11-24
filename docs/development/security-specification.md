@@ -194,6 +194,8 @@ Notes on the table:
 
 The pages of the app itself are at its own address (`Config:AppPath`, `/_` by default, so `/_/Login`), not in the notes. They are not covered by the permissions of the notes. Their addresses come first: the name they take at the root of the notes (the first part of the app's address, or with an empty one each page's name: `Login`, `About`, …) is no part of the notes, like `_`. A directory of that name is hidden from everyone (answers like a missing path, as does everything inside it), and no new entry at the root gets that name (400, with the reason).
 
+`_.7z`, `_.zip` and their `.new` forms are reserved names too (`ArchivedFolder.IsArchiveFileName`), in every directory: an archived folder's archive is never an entry (`GetAccess` answers `None` for it, for admins too, whatever the configuration says) and never a user's file, so an archive can't be planted where a folder would then be taken for archived, and turning archiving off can't take a user's file for the archive. `onLowestLevel` can't be turned on over entries that have a password (`ConfigHandler.RefusedArchiveChange`): a folder archived that way would be archived by a configuration above it.
+
 `_` is a reserved name in any case (`PathService.ReservedName`): the `_` directory at the root of the notes holds the app's own data (temporary files of uploads and transfers, the history) and is never part of the notes. So is `_content`, where the scripts and styles of the app are served.
 
 | Page | Request | Required |

@@ -203,6 +203,8 @@ public sealed class PathService(EntryLocations locations) : IPathService
            && !name.EndsWith('.')
            && name is not ("." or ".." or ReservedName)
            && !string.Equals(name, ConfigFileName, StringComparison.OrdinalIgnoreCase)
+           // The archive of an archived folder (and the one being written): reserved everywhere, so that one is never taken for a user's file
+           && !ZippedFolders.ArchivedFolder.IsArchiveFileName(name)
            && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
            && !name.Contains('\\');
 }

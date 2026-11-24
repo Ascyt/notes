@@ -48,7 +48,6 @@ public sealed class ArchiveConfigTests
     [InlineData("""{ "enabled": true, "compressionLevel": 4 }""", "archive.compressionLevel")]
     [InlineData("""{ "enabled": true, "compressionLevel": 1.5 }""", "archive.compressionLevel")]
     [InlineData("""{ "enabled": true, "encrypted": true }""", "archive.encrypted")]
-    [InlineData("""{ "enabled": true, "onLowestLevel": true }""", "archive.onLowestLevel")]
     [InlineData("""{ "enabled": true, "level": 1 }""", "archive.level")]
     [InlineData("""true""", "archive")]
     public void What_is_wrong_with_it_is_said(string archive, string where)
@@ -93,6 +92,29 @@ public sealed class ArchiveConfigTests
         ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(result.Text, existingFiles: null);
         Assert.True(parsed.IsValid, parsed.ErrorText);
         Assert.False(parsed.Value!.Archive.Enabled);
+    }
+
+    [Fact]
+    public void Null_or_none_is_not_set_and_onLowestLevel_may_be_true()
+    {
+        Assert.Null(Parse("null").Value!.OwnArchive);
+        Assert.Null(ConfigParser.ParseFolder("""{ "perms": { "inherit": true }, "gitignore": false, "files": [] }""", existingFiles: null)
+            .Value!.OwnArchive);
+        Assert.Equal(new ArchiveSettings(true, ArchiveFormat.SevenZip, ArchiveCompression.High, false, true),
+            Parse("""{ "enabled": true, "onLowestLevel": true }""").Value!.OwnArchive);
+    }
+
+    [Theory]
+    [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "archive": { "enabled": false }, "files": [] }""")]
+    [InlineData("""{ "perms": { "inherit": true }, "gitignore": false, "files": [] }""")]
+    public void Setting_it_to_inherit_replaces_or_adds_it(string text)
+    {
+        string inheriting = ConfigText.SetArchiveToInherit(text)!;
+
+        ParseResult<FolderConfig> parsed = ConfigParser.ParseFolder(inheriting, existingFiles: null);
+        Assert.True(parsed.IsValid, parsed.ErrorText);
+        Assert.Null(parsed.Value!.OwnArchive);
+        Assert.Contains("\"archive\": null", inheriting);
     }
 
     [Fact]

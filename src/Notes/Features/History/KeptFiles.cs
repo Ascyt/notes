@@ -7,10 +7,11 @@ namespace Notes.Features.History;
 
 /// <summary>
 /// What the history keeps: every file, unless the configuration of its folder (or of the nearest folder above that has one) says
-/// <c>gitignore</c>. Configuration files are always kept, and the app's own data (<c>_</c>) never is. The folders above are those of the entries:
+/// <c>gitignore</c>, or it is larger than <see cref="HistoryConfig.MaxFileMegabytes"/>. Configuration files are always kept, and the app's own
+/// data (<c>_</c>) never is. The folders above are those of the entries:
 /// above a bridge, whose history is a repository of its own, comes the directory it is mounted in.
 /// </summary>
-public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, EntryLocations locations)
+public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, EntryLocations locations, HistoryConfig settings)
 {
     /// <summary>Whether the file (git path) is kept.</summary>
     public bool IsKept(string path)
@@ -132,11 +133,13 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, Ent
         if (locations.IsHiddenByBridge(physicalPath) && !(IsConfigFile(path) && IsUnzippedArchiveFolder(folder)))
             return false;
 
-        // The archive of an archived folder never is: what is in it has a history of its own (in it), and it changes as a whole every time
-        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(physicalPath)) && configs.Get(folder).Config?.Archive.Enabled == true)
+        // The archive of an archived folder never is: what is in it has a history of its own (in it), and it changes as a whole every time.
+        // (Its name is reserved: no user's file has it.)
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(physicalPath)))
             return false;
 
-        return IsConfigFile(path) || !IsLeftOut(folder, known);
+        // A file that grew too big leaves the history like one its gitignore left out: its earlier versions stay in it
+        return IsConfigFile(path) || (!IsLeftOut(folder, known) && !settings.IsTooBig(physicalPath));
     }
 
     /// <summary>Whether the (physical) folder is an archived folder whose unzipped copy is mounted there now.</summary>

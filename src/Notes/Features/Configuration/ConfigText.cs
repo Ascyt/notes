@@ -224,6 +224,37 @@ public static class ConfigText
     public static string? AddDisabledArchive(string text)
         => InsertBeforeFiles(text, [ConfigParser.ArchiveKey], ArchiveComment, DisabledArchive);
 
+    /// <summary>
+    /// The text with <c>"archive": null</c>: in place of the value <c>archive</c> has, or added before <c>files</c> (with its comment) if it has
+    /// none. What a folder below an <c>onLowestLevel</c> one says, which leaves it to that one. Nothing else changes, comments included. Null if
+    /// the text isn't valid JSON or its root isn't an object.
+    /// </summary>
+    public static string? SetArchiveToInherit(string text)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        try
+        {
+            Utf8JsonReader reader = new(bytes, ReaderOptions);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                return null;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                bool isArchive = reader.ValueTextEquals(ConfigParser.ArchiveKey);
+                _ = reader.Read();
+                int valueStart = (int)reader.TokenStartIndex;
+                reader.Skip();
+                if (isArchive)
+                    return Encoding.UTF8.GetString(Replace(bytes, valueStart, (int)reader.BytesConsumed, "null"));
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return InsertBeforeFiles(text, [ConfigParser.ArchiveKey], ArchiveComment, $"\"{ConfigParser.ArchiveKey}\": null");
+    }
+
     /// <summary>What a folder that isn't archived says, with every setting at its default (principle 19).</summary>
     private const string DisabledArchive
         = "\"archive\": { \"enabled\": false, \"filetype\": \"7z\", \"compressionLevel\": 2, \"encrypted\": false, \"onLowestLevel\": false }";
@@ -232,7 +263,8 @@ public static class ConfigText
     private static readonly string[] ArchiveComment =
     [
         "true keeps this folder in an archive (_.7z or _.zip in it), unzipped while it is used and zipped again after a while.",
-        "filetype: \"7z\" or \"zip\". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted, onLowestLevel: not supported yet."
+        "filetype: \"7z\" or \"zip\". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted: not supported yet.",
+        "onLowestLevel: true archives only the folders below that hold files, instead of this one. Below such a folder, null leaves it to that one."
     ];
 
     /// <summary>

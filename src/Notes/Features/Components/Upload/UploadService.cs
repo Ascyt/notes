@@ -52,8 +52,10 @@ public sealed class UploadRefusedException(int statusCode, string message) : Exc
     public int StatusCode { get; } = statusCode;
 }
 
+/// <param name="archives">The archived folders (the app always has them; the tests of uploads alone go without).</param>
 public sealed class UploadService(EntryLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs,
-    LimitsConfig limits, TimeProvider time, UploadTexts texts, NameTexts nameTexts) : IUploadService
+    LimitsConfig limits, TimeProvider time, UploadTexts texts, NameTexts nameTexts, ZippedFolders.ArchivedFolders? archives = null)
+    : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -126,6 +128,9 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
             // While this waited for the lock, the upload may have been cleared as stale: then it is gone like any other cleared upload
             if (!File.Exists(tempPath))
                 return null;
+            // The directory may have been made an archived folder meanwhile: then it is in its unzipped copy now
+            if (archives is not null)
+                physicalDirectory = archives.WhereItIsNow(physicalDirectory);
 
             // Checked again now that nothing can change it: the directory may have gone while the chunks arrived
             if (!Directory.Exists(physicalDirectory))
@@ -173,7 +178,11 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
                         tempPath = MoveToVolumeOf(tempPath, physicalDirectory);
                         File.Move(tempPath, finalPath);
                         configs.FileAdded(physicalDirectory, finalName);
-                        return path.ToVirtualPath(finalPath);
+                        string virtualPath = path.ToVirtualPath(finalPath);
+                        // Below an onLowestLevel folder, a directory that holds a file now is archived right away
+                        if (archives is not null)
+                            await archives.ArchiveLowestLevelAfterChangeAsync(physicalDirectory);
+                        return virtualPath;
                     }
                     catch (FileNotFoundException) when (!File.Exists(tempPath))
                     {

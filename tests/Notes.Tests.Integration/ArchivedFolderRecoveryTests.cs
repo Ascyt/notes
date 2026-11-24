@@ -88,6 +88,61 @@ public sealed class ArchivedFolderRecoveryTests() : IntegrationTest(new NotesApp
     }
 
     [Fact]
+    public async Task Turning_it_off_that_stopped_after_the_copy_was_moved_aside_is_finished()
+    {
+        await ZippedVaultAsync("in the archive");
+        // Turned off: the marker written and the copy moved next to it, but nothing after that
+        Tree.Config("docs/vault", Cfg.Folder(Cfg.Perms()));
+        Tree.File("_/temp/zipping/turning-off/abc/note.md", "in the copy");
+        Tree.File("_/temp/zipping/turning-off/abc/_/history/HEAD", "ref: refs/heads/main");
+        Tree.File("_/temp/zipping/turning-off/abc.target", "docs/vault");
+        await StartAsync();
+
+        Assert.Equal("in the copy", await ContentsOf("/docs/vault/note.md"));
+        Assert.Equal([".config.json", "note.md"], Directory.EnumerateFileSystemEntries(Outer).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Tree.Physical("_/temp/zipping/turning-off")));
+        // Its own history set aside, not deleted
+        Assert.Single(Directory.EnumerateFiles(Tree.Physical("_/archived-history/docs/vault"), "HEAD", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task A_folder_turned_off_while_the_app_did_not_run_is_unzipped_into_place()
+    {
+        await ZippedVaultAsync("in the archive");
+        Tree.Config("docs/vault", Cfg.Folder(Cfg.Perms()));
+        await StartAsync();
+
+        Assert.Equal("in the archive", await ContentsOf("/docs/vault/note.md"));
+        Assert.Equal([".config.json", "note.md"], Directory.EnumerateFileSystemEntries(Outer).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task An_invalid_configuration_never_counts_as_turned_off()
+    {
+        await ZippedVaultAsync("in the archive");
+        Tree.Config("docs/vault", "{ not valid");
+        await StartAsync();
+
+        // Left as it is until the configuration is fixed
+        Assert.Equal([".config.json", "_.7z"], Directory.EnumerateFileSystemEntries(Outer).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Both_formats_after_a_change_of_filetype_leave_the_newer_while_the_copy_counts()
+    {
+        await ZippedVaultAsync("in the archive");
+        File.SetLastWriteTimeUtc(Path.Combine(Outer, "_.7z"), DateTime.UtcNow.AddMinutes(-5));
+        // The new archive in place, the old one not deleted yet, the copy still there
+        File.Copy(Path.Combine(Outer, "_.7z"), Path.Combine(Outer, "_.zip"));
+        File.SetLastWriteTimeUtc(Path.Combine(Outer, "_.zip"), DateTime.UtcNow);
+        Tree.File("_/temp/unzipped/docs/vault/note.md", "in the copy");
+        await StartAsync();
+
+        Assert.Equal("in the copy", await ContentsOf("/docs/vault/note.md"));
+        Assert.Equal([".config.json", "_.zip"], Directory.EnumerateFileSystemEntries(Outer).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task A_folder_whose_archiving_was_turned_on_but_not_done_yet_is_made_one()
     {
         Tree.File("docs/vault/note.md", "inside");

@@ -107,6 +107,15 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
             throw;
         }
 
+        // The archive of the format it had: gone before the copy, so that two archives are only ever there while the copy counts. If it
+        // can't be deleted, zipping fails here (the copy stays, and counts).
+        if (folder.FormerArchivePath is { } former && !string.Equals(former, folder.ArchivePath, StringComparison.OrdinalIgnoreCase)
+            && File.Exists(former))
+        {
+            File.Delete(former);
+            DurableFiles.FlushDirectory(Path.GetDirectoryName(folder.ArchivePath)!);
+        }
+
         // From here on, the archive holds everything: the copy can go. Renamed first, so that it is gone at once and a half deleted copy
         // is never taken for the folder.
         string trash = Path.Combine(TrashDirectory(folder), Guid.NewGuid().ToString("N"));
@@ -274,14 +283,26 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
     /// </summary>
     public ArchivedFolderState Recover(ArchivedFolder folder)
     {
-        if (File.Exists(folder.NewArchivePath))
+        string folderPath = Path.GetDirectoryName(folder.ArchivePath)!;
+        foreach (string written in ArchivedFolder.ArchivePathsIn(folderPath).Select(path => path + ".new").Where(File.Exists))
         {
-            logger.LogWarning("Deleting {archive}, which was being written when the app stopped", folder.NewArchivePath);
-            DeleteIfThere(folder.NewArchivePath);
+            logger.LogWarning("Deleting {archive}, which was being written when the app stopped", written);
+            DeleteIfThere(written);
         }
 
         if (Directory.Exists(folder.UnzippedDirectory))
+        {
+            // Both formats: the app stopped while the filetype was changed, between the new archive taking its place and the old one being
+            // deleted. The copy counts; the older archive is the one that was being replaced.
+            string[] archives = [.. ArchivedFolder.ArchivePathsIn(folderPath).Where(File.Exists)];
+            if (archives.Length == 2)
+            {
+                string older = archives.MinBy(File.GetLastWriteTimeUtc)!;
+                logger.LogWarning("Deleting {archive}, which was being replaced by the other format when the app stopped", older);
+                DeleteIfThere(older);
+            }
             return ArchivedFolderState.Unzipped;
+        }
         return File.Exists(folder.ArchivePath) ? ArchivedFolderState.Zipped : ArchivedFolderState.Missing;
     }
 

@@ -23,4 +23,10 @@ public sealed class JobsConfig
     /// <c>Archives:ZipAfterMinutes</c>.
     /// </summary>
     public string ZipIdleArchives { get; init; } = "* * * * *";
+
+    /// <summary>
+    /// When the soft restart runs (what the start does that is safe while the app runs, for what was changed outside of it). Never by default
+    /// (the 31st of February): started by hand in the jobs' dashboard.
+    /// </summary>
+    public string SoftRestart { get; init; } = "0 0 31 2 *";
 }

@@ -21,6 +21,16 @@ public sealed record ArchivedFolder(string ArchivePath, string UnzippedDirectory
 
     public ArchiveFormat Format => ArchivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ArchiveFormat.Zip : ArchiveFormat.SevenZip;
 
+    /// <summary>
+    /// The archive of the other format that zipping replaces (the folder's <c>filetype</c> changed), or null: deleted once the new one took
+    /// its place, before the unzipped copy is taken away.
+    /// </summary>
+    public string? FormerArchivePath { get; init; }
+
+    /// <summary>Both archive files the folder could have (<c>_.7z</c>, <c>_.zip</c>).</summary>
+    public static string[] ArchivePathsIn(string folderPath)
+        => [Path.Combine(folderPath, ArchiveFileName(ArchiveFormat.SevenZip)), Path.Combine(folderPath, ArchiveFileName(ArchiveFormat.Zip))];
+
     /// <summary>The archive's name for the format: <c>_.7z</c> or <c>_.zip</c>.</summary>
     public static string ArchiveFileName(ArchiveFormat format) => ArchiveName + (format == ArchiveFormat.SevenZip ? ".7z" : ".zip");
 

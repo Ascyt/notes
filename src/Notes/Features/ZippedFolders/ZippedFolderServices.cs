@@ -15,6 +15,7 @@ public static class ZippedFolderServices
         settings.Check();
         _ = services.AddSingleton(settings);
         _ = services.AddSingleton<FolderArchiver>();
+        _ = services.AddSingleton<ArchiveSettingsResolver>();
         _ = services.AddSingleton<ArchivedFolders>();
         _ = services.AddSingleton<ArchiveGate>();
         _ = services.AddScoped<ZipIdleArchivesJob>();

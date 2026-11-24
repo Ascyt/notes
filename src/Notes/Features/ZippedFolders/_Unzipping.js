@@ -152,7 +152,6 @@
             notify(texts.connectionLost, 'danger');
             return;
         }
-        notifyAfterNavigation(texts.zippingAll, 'info');
         // (Leaving an editor with unsaved changes asks first)
         if (location)
             window.location.assign(location);

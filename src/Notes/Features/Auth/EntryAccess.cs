@@ -152,9 +152,9 @@ public sealed class EntryAccess(EntryLocations locations, FolderConfigStore stor
             return EntryAccessInfo.None;
 
         // The archive of an archived folder is no entry, for admins neither: what is in it is (once it is unzipped), with the permissions and
-        // passwords of its own. Otherwise a download of the directory around it would hand it out whole.
-        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(path)) && !isDirectory(path)
-            && configOf(Path.GetDirectoryName(path)!).Config?.Archive.Enabled == true)
+        // passwords of its own. Otherwise a download of the directory around it would hand it out whole. Its name is reserved (no user's file
+        // has it), so this doesn't depend on the folder's configuration, which may be about to change (archiving turned off).
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(path)) && !isDirectory(path))
             return EntryAccessInfo.None;
 
         if (CanManageConfiguration(user))
