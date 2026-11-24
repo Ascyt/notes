@@ -199,6 +199,52 @@ public sealed class FolderArchiverTests : IDisposable
         Assert.Equal(told.Order(), told);
     }
 
+    [Theory]
+    [InlineData("7z")]
+    [InlineData("zip")]
+    public async Task Zipping_tells_how_far_it_got_through_writing_and_checking(string format)
+    {
+        ArchiveOptions options = Options(format, null);
+        ArchivedFolder folder = Folder(options);
+        Write(folder.UnzippedDirectory, Original);
+        List<double> told = [];
+
+        await _archiver.ZipAsync(folder, options, TestContext.Current.CancellationToken, new SynchronousProgress(told.Add));
+
+        Assert.NotEmpty(told);
+        Assert.Equal(told.Order(), told);
+        // Writing is the first 70 %, reading it back the rest; it never says it is done before the caller does
+        Assert.Contains(told, value => value < 0.7);
+        Assert.Contains(told, value => value > 0.7);
+        Assert.True(told[^1] < 1);
+    }
+
+    [Theory]
+    [InlineData("7z")]
+    [InlineData("zip")]
+    public async Task Stopping_zipping_before_the_archive_is_replaced_leaves_everything_as_it_was(string format)
+    {
+        ArchiveOptions options = Options(format, null);
+        ArchivedFolder folder = await ZippedOriginal(options);
+        await _archiver.UnzipAsync(folder, null, null, TestContext.Current.CancellationToken);
+        File.WriteAllText(Path.Combine(folder.UnzippedDirectory, "note.md"), "changed");
+        // As when the folder is opened while it is zipped: stopped once the new archive is written, before it is checked
+        using CancellationTokenSource stop = new();
+        _archiver.StepReached = step =>
+        {
+            if (step == ArchiveStep.ArchiveWritten)
+                stop.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _archiver.ZipAsync(folder, options, stop.Token));
+
+        Assert.False(File.Exists(folder.NewArchivePath));
+        Assert.Equal("changed", File.ReadAllText(Path.Combine(folder.UnzippedDirectory, "note.md")));
+        _archiver.StepReached = null;
+        TestDirectories.Delete(folder.UnzippedDirectory);
+        Assert.Equal(new SortedDictionary<string, string>(Original, StringComparer.Ordinal), await ContentsOfArchive(folder, null));
+    }
+
     private sealed class SynchronousProgress(Action<double> report) : IProgress<double>
     {
         public void Report(double value) => report(value);

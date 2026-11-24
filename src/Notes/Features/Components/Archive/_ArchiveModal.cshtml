@@ -1,7 +1,8 @@
 @model _ArchiveModal
 @inject ArchiveTexts Texts
 
-@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password. Opened by the toolbar's download
+@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password (or, for an admin in an
+   archived folder, its own archive as it is kept). Opened by the toolbar's download
    button of a directory (where OpensFromToolbar), and by the selection card (archiveDownload.open in _ArchiveModal.js). *@
 
 @Html.AntiForgeryToken()
@@ -14,39 +15,53 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
             </div>
             <form id="archive-form" class="modal-body d-flex flex-column gap-3" autocomplete="off">
-                <fieldset>
-                    <legend class="form-label fs-6">@Texts.Format</legend>
-                    <div class="btn-group" role="group">
-                        <input type="radio" class="btn-check" name="archive-format" id="archive-format-7z" value="7z" checked/>
-                        <label class="btn btn-outline-secondary" for="archive-format-7z">.7z</label>
-                        <input type="radio" class="btn-check" name="archive-format" id="archive-format-zip" value="zip"/>
-                        <label class="btn btn-outline-secondary" for="archive-format-zip">.zip</label>
+                @if (Model.OffersAsIs)
+                {
+                    @* While it is on, the options below are greyed out: the archive is the one the folder is kept in (_ArchiveModal.js) *@
+                    <div id="archive-as-is-field">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" id="archive-as-is" checked
+                                aria-describedby="archive-as-is-hint"/>
+                            <label class="form-check-label" for="archive-as-is">@Texts.AsIs</label>
+                        </div>
+                        <div id="archive-as-is-hint" class="form-text">@Texts.AsIsHint</div>
+                    </div>
+                }
+                <fieldset id="archive-options" class="d-flex flex-column gap-3">
+                    <fieldset>
+                        <legend class="form-label fs-6">@Texts.Format</legend>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="archive-format" id="archive-format-7z" value="7z" checked/>
+                            <label class="btn btn-outline-secondary" for="archive-format-7z">.7z</label>
+                            <input type="radio" class="btn-check" name="archive-format" id="archive-format-zip" value="zip"/>
+                            <label class="btn btn-outline-secondary" for="archive-format-zip">.zip</label>
+                        </div>
+                    </fieldset>
+                    <div>
+                        <label class="form-label" for="archive-compression">@Texts.Compression</label>
+                        @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.js): a zip can
+                           be stored without compression, a 7z only compressed as little as can be *@
+                        <select id="archive-compression" class="form-select">
+                            <option value="min" id="archive-compression-min">@Texts.Min</option>
+                            <option value="store" id="archive-compression-store">@Texts.Store</option>
+                            <option value="medium">@Texts.Medium</option>
+                            <option value="high" selected>@Texts.High</option>
+                            <option value="max">@Texts.Max</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="archive-password">@Texts.Password</label>
+                        <div class="input-group">
+                            <input type="password" id="archive-password" class="form-control" maxlength="@ArchiveOptions.MaxPasswordLength"
+                                autocomplete="new-password" spellcheck="false" aria-describedby="archive-password-hint"/>
+                            <button type="button" id="archive-password-toggle" class="btn btn-outline-secondary" aria-pressed="false"
+                                title="@Texts.ShowPassword" aria-label="@Texts.ShowPassword">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <div id="archive-password-hint" class="form-text">@Texts.PasswordHint</div>
                     </div>
                 </fieldset>
-                <div>
-                    <label class="form-label" for="archive-compression">@Texts.Compression</label>
-                    @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.js): a zip can be stored
-                       without compression, a 7z only compressed as little as can be *@
-                    <select id="archive-compression" class="form-select">
-                        <option value="min" id="archive-compression-min">@Texts.Min</option>
-                        <option value="store" id="archive-compression-store">@Texts.Store</option>
-                        <option value="medium">@Texts.Medium</option>
-                        <option value="high" selected>@Texts.High</option>
-                        <option value="max">@Texts.Max</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label" for="archive-password">@Texts.Password</label>
-                    <div class="input-group">
-                        <input type="password" id="archive-password" class="form-control" maxlength="@ArchiveOptions.MaxPasswordLength"
-                            autocomplete="new-password" spellcheck="false" aria-describedby="archive-password-hint"/>
-                        <button type="button" id="archive-password-toggle" class="btn btn-outline-secondary" aria-pressed="false"
-                            title="@Texts.ShowPassword" aria-label="@Texts.ShowPassword">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
-                    </div>
-                    <div id="archive-password-hint" class="form-text">@Texts.PasswordHint</div>
-                </div>
             </form>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">@Texts.Cancel</button>

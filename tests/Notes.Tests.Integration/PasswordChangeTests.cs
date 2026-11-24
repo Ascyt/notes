@@ -246,4 +246,27 @@ public sealed class PasswordChangeTests(NotesAppFactory app) : PasswordTest(app)
 
         await AssertPasswordRequired("/safe", await GetWithCookieAsync(Users.Alice, "/safe/inside.md", cookie!));
     }
+
+    [Theory]
+    [InlineData("/safe/deeper", "/safe", "/")]
+    [InlineData("/safe/inside.md", "/safe", "/")]
+    [InlineData("/vault/pw", "/vault/pw", "/vault")]
+    public async Task Locking_inside_what_was_unlocked_leads_to_the_folder_above_it(string page, string unlocked, string expected)
+    {
+        // (An admin, who may see the vault)
+        (_, string? cookie) = await UnlockAsync(Users.Admin, unlocked, unlocked == "/safe" ? SafePassword : "vault");
+
+        HttpResponseMessage response = await PostWithCookieAsync(Users.Admin, page + "?lock", cookie!);
+
+        await AssertStatus(HttpStatusCode.OK, response);
+        Assert.Equal(expected, (string)JsonNode.Parse(await BodyOf(response))!["location"]!);
+    }
+
+    [Fact]
+    public async Task Locking_elsewhere_stays_on_the_page()
+    {
+        (_, string? cookie) = await UnlockAsync(Users.Alice, "/safe", SafePassword);
+
+        await AssertStatus(HttpStatusCode.NoContent, await PostWithCookieAsync(Users.Alice, "/vault?lock", cookie!));
+    }
 }

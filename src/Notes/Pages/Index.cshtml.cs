@@ -12,6 +12,7 @@ using Notes.Features.HistoryViewing.Changes;
 using Notes.Features.HistoryViewing.Requests;
 using Notes.Features.HistoryViewing.Views;
 using Notes.Features.Passwords;
+using Notes.Features.ZippedFolders;
 using Notes.Pages.Browse;
 using Notes.Pages.ConfigEditor;
 using Notes.Pages.Editor;
@@ -43,8 +44,13 @@ public sealed class IndexModel(Config config,
     EntryTexts texts,
     HistoryTexts historyTexts,
     PasswordLocks passwordLocks,
-    PasswordGate passwordGate) : PageModel
+    PasswordGate passwordGate,
+    ArchiveGate archiveGate,
+    ArchivedFolders archivedFolders) : PageModel
 {
+    /// <summary>What shows how far an archived folder on the way to the entry got with unzipping, instead of the entry.</summary>
+    public _Unzipping? Unzipping { get; private set; }
+
     public string VirtualPath { get; private set; } = "";
     public string PhysicalPath { get; private set; } = "";
     public DirectoryView? Directory { get; private set; }
@@ -74,6 +80,20 @@ public sealed class IndexModel(Config config,
         // Not a path the site shows (or one an address of the app takes). No body, so the error page is shown instead.
         if (!exposed.IsExposed(VirtualPath))
             return NotFound();
+
+        // An archived folder on the way is unzipped first (and those that are stay so until this is answered)
+        // (A page is what no action answers, also of an earlier state, but for what the history answers a script with)
+        bool isPage = actions.Choose<IEntryGetAction>(Request.Query).Action is null && !Request.Query.ContainsKey(ArchiveGate.UnzipParameter)
+            && (!HistoryRequests.IsFor(Request.Query) || HistoryRequests.ShowsPage(Request.Query));
+        ArchiveGateAnswer unzip = await archiveGate.EnterAsync(HttpContext, VirtualPath, isPage);
+        if (unzip.Result is { } unzipAnswer)
+            return unzipAnswer;
+        if (unzip.Page is { } unzipping)
+        {
+            Unzipping = unzipping;
+            Response.StatusCode = StatusCodes.Status202Accepted;
+            return Page();
+        }
 
         // Earlier states have their own rules, also for paths that aren't there any more. What a password locks now is asked for first,
         // as for the entry as it is now (a state that a password locked then, and that isn't unlocked, is not shown either).
@@ -151,6 +171,7 @@ public sealed class IndexModel(Config config,
                 Viewer = User,
                 CanBrowse = access.CanRead,
                 Passwords = passwordLocks,
+                Archives = archivedFolders,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
                 Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
@@ -218,6 +239,10 @@ public sealed class IndexModel(Config config,
         VirtualPath = VirtualPathOfRequest();
         if (!exposed.IsExposed(VirtualPath))
             return NotFound(texts.PathNotFound);
+
+        // An archived folder on the way is unzipped first (and those that are stay so until this is answered)
+        if ((await archiveGate.EnterAsync(HttpContext, VirtualPath, isPage: false)).Result is { } unzipAnswer)
+            return unzipAnswer;
 
         // Whether the entry has to exist is up to the action (an upload finds out what is in the directory under the lock). Known as for a GET.
         string? physicalPath = path.ToPhysicalPath(VirtualPath);

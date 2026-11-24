@@ -56,6 +56,15 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     /// </summary>
     public bool IsUnlocked { get; init; }
 
+    /// <summary>
+    /// How it is kept if it is an archived folder (zipped or unzipped now), which a zipper after its name shows; otherwise null. Only for an
+    /// entry that can be opened.
+    /// </summary>
+    public Features.ZippedFolders.ArchiveState? Archived { get; init; }
+
+    /// <summary>How far its zipping got (0 to 1), while <see cref="Archived"/> is <c>Zipping</c>.</summary>
+    public double ZipProgress { get; init; }
+
     public bool CanOpen => Kind == ListedKind.Open;
 }
 
@@ -91,6 +100,9 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
 
     /// <summary>What tells entries that a password locks from those the user may not read, for the directory as it is now.</summary>
     public Features.Passwords.PasswordLocks? Passwords { get; init; }
+
+    /// <summary>What tells archived folders, for the directory as it is now (none for an earlier state).</summary>
+    public Features.ZippedFolders.ArchivedFolders? Archives { get; init; }
 
     /// <summary>How an entry of the directory as it is now is shown, by what the user may do with it.</summary>
     private ListedKind KindOf(string physicalPath, bool isDirectory)
@@ -129,6 +141,12 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// user's own id, as the selection is kept, so it is where selecting is; elsewhere the directory is downloaded as a zip at once.
     /// </summary>
     public bool OffersArchiveOptions => CanSelect;
+
+    /// <summary>
+    /// Whether the dialog offers downloading the directory as it is kept (its own archive), for an admin in an archived folder (see
+    /// <see cref="Features.Components.Archive.ArchiveHandler"/>).
+    /// </summary>
+    public bool OffersArchiveAsIs => OffersArchiveOptions && Viewer.IsInRole(AppAccess.AdminRole) && Archives?.ArchiveStateOf(PhysicalPath) is not null;
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
     public bool CanConfigure { get; init; }
@@ -197,8 +215,14 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
         Func<string, ListedEntry> ToListed(bool isDirectory) => entry =>
         {
             ListedKind kind = KindOf(entry, isDirectory);
+            Features.ZippedFolders.ArchiveState? archived = kind == ListedKind.Open && isDirectory ? Archives?.ArchiveStateOf(entry) : null;
             // What can be read with a password of its own has it unlocked
-            return new(entry, kind) { IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true };
+            return new(entry, kind)
+            {
+                IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true,
+                Archived = archived,
+                ZipProgress = archived == Features.ZippedFolders.ArchiveState.Zipping ? Archives?.ZipProgressOf(entry) ?? 0 : 0
+            };
         };
         // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames), but are asked for the
         // password of what they could read with it

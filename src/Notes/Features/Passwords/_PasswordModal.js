@@ -177,6 +177,10 @@
         const button = lockButton();
         if (button)
             button.closest('[data-lock-item]').hidden = false;
+        // The lock button goes first, with the same shortcut: the archive button waits until nothing is unlocked
+        const zipItem = document.querySelector('[data-zip-item]');
+        if (zipItem)
+            zipItem.hidden = true;
     }
 
     let lastRenewal = Date.now();
@@ -203,14 +207,21 @@
     document.addEventListener('input', renew, true);
 
     onClickOf('lock-button', async function () {
+        // Where the page goes: the folder above what was unlocked here, if the server names one (instead of the password prompt)
+        let location = null;
         try {
-            await originalFetch(window.location.pathname + '?lock', {
+            const response = await originalFetch(window.location.pathname + '?lock', {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': token() }
             });
+            if (response.status === 200)
+                location = (await response.json()).location;
         } catch { /* the unlocks run out by themselves */ }
         notifyAfterNavigation(texts.lockedAll, 'info');
-        // What is shown of a locked entry goes with the page (leaving an editor with unsaved changes asks first)
-        window.location.reload();
+        // (Leaving an editor with unsaved changes asks first)
+        if (location)
+            window.location.assign(location);
+        else
+            window.location.reload();
     });
 })();

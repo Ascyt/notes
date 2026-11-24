@@ -53,7 +53,7 @@ public sealed class CreateHandler(EntryLocations locations, IPathService path, A
                 return new BadRequestObjectResult(nameTexts.PathTooLong(path.ToVirtualPath(newPhysicalPath), limits.MaxPathBytes));
 
             // The configuration of the directory gets an entry for a new file
-            string[] changed = isFile ? [newPhysicalPath, Path.Combine(physicalDirectory, PathService.ConfigFileName)] : [newPhysicalPath];
+            string[] changed = isFile ? [newPhysicalPath, configs.ConfigPathOf(physicalDirectory)] : [newPhysicalPath];
             history.BeforeChange(user, changed);
             if (isFile)
             {

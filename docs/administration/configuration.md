@@ -19,7 +19,7 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
 
 ```jsonc
 {
-    "version": "1.4.0",                       // the version of this format, see "Versions and migrations"
+    "version": "1.5.0",                       // the version of this format, see "Versions and migrations"
     "perms": {                                // required: who may do what, see Permissions
         "inherit": true,                      // required
         "rwAllow":      ["g:team-a"],         // may read and write
@@ -34,6 +34,7 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
     },
     "gitignore": false,                       // required: whether the history leaves this directory out
     "passwordHash": "$2a$12$…",               // optional: the hash of a password that protects the directory, see Passwords
+    "archive": { "enabled": false, "filetype": "7z", "compressionLevel": 2, "encrypted": false, "onLowestLevel": false },
     "files": [                                // required: one entry per file, kept up to date by the app
         { "name": "plan.md", "perms": { "inherit": true } },
         { "name": "secret.md", "perms": { "inherit": false, "rwAllow": ["u:alice"] } },
@@ -48,6 +49,8 @@ JSON, in which comments are allowed (`//` and `/* */`). Everything is checked st
 - **`files`** has an entry for every file of the directory. The app adds one when a file is created, uploaded, copied or moved in, renames it when the file is renamed, and removes it when the file is deleted or moved away; saving the directory's configuration adds the ones that are missing. Entries are for files only: a directory has its own `.config.json`. The permissions of a file do not travel when it is copied or moved. A file without an entry has the permissions of its directory.
 
 - **`password`** (in the editor) or **`passwordHash`** (as it is saved), of the directory or of a file's entry, protects it with a password that everyone needs to open it, admins included. Saving replaces a password with its hash. `"password": null` is no password; a new configuration has it, so that it says how one is set. How it works is in [Passwords](passwords.md).
+
+- **`archive`** (directories only) keeps the directory in an archive, `_.7z` or `_.zip` inside it, which is unzipped while it is used and zipped again after a while (see [Archived directories](archived-directories.md)). `enabled` is required in it; the rest have defaults: `filetype` `"7z"` or `"zip"` (default 7z), `compressionLevel` from 0 (none; a 7z, which always compresses, the least) to 3 (most), default 2. `encrypted` and `onLowestLevel` must be `false` for now (they come later). Without `archive`, a directory is not archived; a new configuration has it, with every setting.
 
 A directory without a `.config.json` says nothing: for each setting, the directory above decides.
 
@@ -69,5 +72,6 @@ The migrations there are:
 | 1.2.0 | `historyAllow`, `historyExistingOnly` and `historyDeny` come in. They are optional, so files only get the new version: nobody but admins may see the history until it is given. |
 | 1.3.0 | `password` and `passwordHash` come in (see [Passwords](passwords.md)). They are optional, so files only get the new version. |
 | 1.4.0 | A directory without a password gets `"password": null` before `files`, with the comment a new configuration has there, so that every file says how a password is set. This migration works on the text: comments and layout stay. (A file's entry doesn't get one; the comment says that it can.) |
+| 1.5.0 | `archive` comes in. Every directory gets it, not enabled, with every setting at its default and a comment, before `files` (on the text, so comments stay). |
 
 How a migration is added is in [Migrations of the configuration files](../development/config-migrations.md).

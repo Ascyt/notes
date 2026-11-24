@@ -26,6 +26,9 @@ public class TransferTexts
     public virtual string NoReadAccessToTarget => "No read access to the target directory.";
     public virtual string IntoItself(WhatIsDone what, string name) => $"Cannot {Verb(what)} '{name}' into itself.";
     public virtual string AlreadyHere => "Everything selected is already in this directory.";
+
+    public virtual string ArchivedFolderUnzipFailed
+        => "An archived folder in what was selected could not be unzipped, so what is in it couldn't be checked. Nothing was changed.";
     public virtual string SameNameTwice(string name) => $"More than one of the selected entries is called '{name}'.";
     public virtual string NoReadAccess(string display, WhatIsDone what) => $"No read access to '{display}', so it can't be {Done(what)}.";
 

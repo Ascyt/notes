@@ -91,7 +91,7 @@
 
 @if (Model.OffersArchiveOptions)
 {
-    <partial name="/Features/Components/Archive/_ArchiveModal.cshtml" model="new _ArchiveModal { OpensFromToolbar = true }"/>
+    <partial name="/Features/Components/Archive/_ArchiveModal.cshtml" model="new _ArchiveModal { OpensFromToolbar = true, OffersAsIs = Model.OffersArchiveAsIs }"/>
 }
 
 @* Selecting is for copying, moving, deleting and downloading, which need an account: without one there is nothing to select for *@

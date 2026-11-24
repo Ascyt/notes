@@ -63,10 +63,11 @@ public sealed class PasswordLocks(PasswordUnlocks unlocks, PasswordAttempts atte
                 protections.Add(new Protection(path, fileHash));
         }
 
-        // Then the folder's and each one's above, up to the root
+        // Then the folder's and each one's above, up to the root. (An archived folder's is that of the folder, zipped or unzipped: its unzipped
+        // copy is the same entry, so what was unlocked stays unlocked when it is unzipped.)
         for (; folder is not null; folder = locations.ParentOf(folder))
             if (configOf(folder).Config?.PasswordHash is { } hash)
-                protections.Add(new Protection(folder, hash));
+                protections.Add(new Protection(locations.ConfigDirectoryOf(folder), hash));
 
         protections.Reverse();
         return protections;

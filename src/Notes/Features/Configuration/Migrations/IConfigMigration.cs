@@ -45,5 +45,5 @@ public interface ITextConfigMigration : IConfigMigration
 /// </summary>
 public static class ConfigMigrations
 {
-    public static IReadOnlyList<IConfigMigration> All { get; } = [new AddGitignore(), new AddNoPassword()];
+    public static IReadOnlyList<IConfigMigration> All { get; } = [new AddGitignore(), new AddNoPassword(), new AddDisabledArchive()];
 }

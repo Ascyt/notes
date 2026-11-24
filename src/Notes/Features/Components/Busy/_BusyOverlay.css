@@ -19,3 +19,13 @@
 .busy-overlay-box {
     max-width: 100%;
 }
+
+/* Wide enough that a step of a percent can be seen */
+.busy-overlay-progress {
+    width: 18rem;
+    max-width: 100%;
+}
+
+.busy-overlay-progress .progress-bar {
+    width: 0;
+}

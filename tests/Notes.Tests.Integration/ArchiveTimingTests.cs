@@ -95,6 +95,93 @@ public sealed class ArchiveTimingTests() : ArchiveTest(new NotesAppFactory()), I
         Assert.False(File.Exists(orphan));
     }
 
+    private Task<HttpResponseMessage> PrepareAtOnceAsync(TestUser user, string address)
+        => Client.SendAsync(user, HttpMethod.Post, address + "?archive=directory",
+            JsonContent.Create(new { format = "7z", compression = "high" }), headers: new Dictionary<string, string> { ["Prefer"] = "respond-async" });
+
+    private sealed record ProgressDto(bool Done, double Progress, bool LeftOutUnreadable);
+
+    private async Task<HttpResponseMessage> ProgressAsync(TestUser user, Guid id)
+        => await Client.GetAsync(user, "/docs?archive=" + id + "&progress");
+
+    [Fact]
+    public async Task Asked_to_answer_at_once_it_is_made_meanwhile_and_says_how_far_it_got()
+    {
+        (Task reached, Action release) = PauseAt("docs/nested");
+        HttpResponseMessage started = await PrepareAtOnceAsync(Users.Alice, "/docs");
+        await AssertStatus(HttpStatusCode.Accepted, started);
+        Guid id = (await started.Content.ReadFromJsonAsync<PreparedArchiveDto>(Cancellation))!.Id;
+        await reached.WaitAsync(Timeout, Cancellation);
+
+        ProgressDto running = (await (await ProgressAsync(Users.Alice, id)).Content.ReadFromJsonAsync<ProgressDto>(Cancellation))!;
+        Assert.False(running.Done);
+        Assert.InRange(running.Progress, 0, 0.999);
+        // Not to be downloaded yet, and nobody else's to ask about
+        await AssertStatus(HttpStatusCode.Conflict, await Client.GetAsync(Users.Alice, "/docs?archive=" + id));
+        await AssertStatus(HttpStatusCode.NotFound, await ProgressAsync(Users.Carol, id));
+        release();
+
+        ProgressDto done = await WaitUntilDoneAsync(id);
+        Assert.Equal(1, done.Progress);
+        await AssertStatus(HttpStatusCode.OK, await Client.GetAsync(Users.Alice, "/docs?archive=" + id));
+    }
+
+    [Fact]
+    public async Task One_nobody_asks_about_for_a_minute_is_cancelled_and_nothing_is_kept()
+    {
+        (Task reached, Action release) = PauseAt("docs/nested");
+        HttpResponseMessage started = await PrepareAtOnceAsync(Users.Alice, "/docs");
+        Guid id = (await started.Content.ReadFromJsonAsync<PreparedArchiveDto>(Cancellation))!.Id;
+        await reached.WaitAsync(Timeout, Cancellation);
+
+        App.Time.Advance(PreparedArchives.AbandonAfter + TimeSpan.FromSeconds(1));
+        release();
+
+        // Waited for without asking (which would count as the page still waiting)
+        ArchiveJob job = App.Services.GetRequiredService<PreparedArchives>().FindJob(Users.Alice.Sub!, id)!;
+        ArchiveJobResult result = await job.Finished.WaitAsync(Timeout, Cancellation);
+        Assert.Null(result.Archive);
+        await AssertStatus(HttpStatusCode.Gone, await ProgressAsync(Users.Alice, id));
+        Assert.Empty(ArchiveFiles());
+        // Another one can be made right away
+        await AssertStatus(HttpStatusCode.OK, await PrepareAsync(Users.Alice, "/docs", "directory"));
+    }
+
+    [Fact]
+    public async Task A_refusal_at_the_end_is_what_asking_about_it_answers()
+    {
+        (Task reached, Action release) = PauseAt("docs/nested");
+        HttpResponseMessage started = await PrepareAtOnceAsync(Users.Alice, "/docs");
+        Guid id = (await started.Content.ReadFromJsonAsync<PreparedArchiveDto>(Cancellation))!.Id;
+        await reached.WaitAsync(Timeout, Cancellation);
+
+        Tree.Config("docs", Cfg.Folder(Cfg.Perms(), ("a.md", Cfg.Perms(inherit: false))));
+        release();
+
+        await AssertStatus(HttpStatusCode.Conflict, await WaitUntilFinishedAsync(id));
+        Assert.Empty(ArchiveFiles());
+    }
+
+    /// <summary>Asks about it (as the page does) until it is no longer being made; the last answer.</summary>
+    private async Task<HttpResponseMessage> WaitUntilFinishedAsync(Guid id)
+    {
+        for (int i = 0; i < 200; i++)
+        {
+            HttpResponseMessage response = await ProgressAsync(Users.Alice, id);
+            if (!response.IsSuccessStatusCode || (await response.Content.ReadFromJsonAsync<ProgressDto>(Cancellation))!.Done)
+                return response;
+            await Task.Delay(50, Cancellation);
+        }
+        throw new TimeoutException("The archive was not finished.");
+    }
+
+    private async Task<ProgressDto> WaitUntilDoneAsync(Guid id)
+    {
+        HttpResponseMessage response = await WaitUntilFinishedAsync(id);
+        await AssertStatus(HttpStatusCode.OK, response);
+        return (await (await ProgressAsync(Users.Alice, id)).Content.ReadFromJsonAsync<ProgressDto>(Cancellation))!;
+    }
+
     private void RunStaleArchivesJob()
     {
         using IServiceScope scope = App.Services.CreateScope();

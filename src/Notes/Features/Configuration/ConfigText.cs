@@ -55,6 +55,9 @@ public static class ConfigText
                         // {{PasswordComment(FolderProtects)}}
                         // {{FilesHavePasswordsToo}}
                         "password": null,
+                        // {{ArchiveComment[0]}}
+                        // {{ArchiveComment[1]}}
+                        {{DisabledArchive}},
                         // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions
                         // of the folder.
                         "files": [
@@ -211,6 +214,32 @@ public static class ConfigText
     /// (which the parser reports). Nothing else changes, comments included. Null if the text isn't valid JSON or its root isn't an object.
     /// </summary>
     public static string? AddNoPassword(string text)
+        => InsertBeforeFiles(text, [ConfigParser.PasswordKey, ConfigParser.PasswordHashKey],
+            [PasswordComment(FolderProtects), FilesHavePasswordsToo], $"\"{ConfigParser.PasswordKey}\": null");
+
+    /// <summary>
+    /// The text with <c>archive</c> added before <c>files</c>, as in <see cref="Default"/> (not archived, with its comment), as
+    /// <see cref="AddNoPassword"/> adds the password. Unchanged if it has one already, or no <c>files</c>.
+    /// </summary>
+    public static string? AddDisabledArchive(string text)
+        => InsertBeforeFiles(text, [ConfigParser.ArchiveKey], ArchiveComment, DisabledArchive);
+
+    /// <summary>What a folder that isn't archived says, with every setting at its default (principle 19).</summary>
+    private const string DisabledArchive
+        = "\"archive\": { \"enabled\": false, \"filetype\": \"7z\", \"compressionLevel\": 2, \"encrypted\": false, \"onLowestLevel\": false }";
+
+    /// <summary>The lines of the comment above <c>archive</c>.</summary>
+    private static readonly string[] ArchiveComment =
+    [
+        "true keeps this folder in an archive (_.7z or _.zip in it), unzipped while it is used and zipped again after a while.",
+        "filetype: \"7z\" or \"zip\". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted, onLowestLevel: not supported yet."
+    ];
+
+    /// <summary>
+    /// The text with the property (and the comment above it, a line for each) added to the root object right before <c>files</c>, laid out as
+    /// the other properties are. Unchanged if one of <paramref name="presentKeys"/> is there already, or there is no <c>files</c>.
+    /// </summary>
+    private static string? InsertBeforeFiles(string text, string[] presentKeys, string[] commentLines, string property)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(text);
         try
@@ -224,8 +253,9 @@ public static class ConfigText
             int files = -1;
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
-                if (reader.ValueTextEquals(ConfigParser.PasswordKey) || reader.ValueTextEquals(ConfigParser.PasswordHashKey))
-                    return text;
+                foreach (string present in presentKeys)
+                    if (reader.ValueTextEquals(present))
+                        return text;
                 if (files < 0 && reader.ValueTextEquals(ConfigParser.FilesKey))
                     files = (int)reader.TokenStartIndex;
 
@@ -240,18 +270,15 @@ public static class ConfigText
             if (files < 0)
                 return text;
 
-            string property = $"\"{ConfigParser.PasswordKey}\": null,";
             if (!StartsLine(bytes, files))
-                return Encoding.UTF8.GetString(Replace(bytes, files, files, property + " "));
+                return Encoding.UTF8.GetString(Replace(bytes, files, files, property + ", "));
 
             // On lines of their own, after the comma and a comment on the line of the property before, so that a comment above files stays there
             string indent = IndentOfLine(bytes, files);
             int at = EndOfLine(bytes, afterPrevious);
             string lineBreak = at < bytes.Length && bytes[at] == '\r' ? "\r\n" : "\n";
-            return Encoding.UTF8.GetString(Replace(bytes, at, at,
-                lineBreak + indent + "// " + PasswordComment(FolderProtects)
-                + lineBreak + indent + "// " + FilesHavePasswordsToo
-                + lineBreak + indent + property));
+            string comment = string.Concat(commentLines.Select(line => lineBreak + indent + "// " + line));
+            return Encoding.UTF8.GetString(Replace(bytes, at, at, comment + lineBreak + indent + property + ","));
         }
         catch (JsonException)
         {

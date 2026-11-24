@@ -25,6 +25,10 @@ public class ArchiveTexts
     public virtual string Cancel => "Cancel";
     public virtual string Download => "Download";
 
+    /// <summary>The switch of the dialog for an archived folder, for admins: its own archive, instead of a new one of what is in it.</summary>
+    public virtual string AsIs => "Download as it is kept (its own archive)";
+    public virtual string AsIsHint => "As it is on the server, with the configurations and the history inside it.";
+
     // The script's
     public virtual string Preparing => "Preparing the archive…";
     public virtual string LeftOutUnreadable => "Entries without read access were left out of the archive.";
@@ -48,4 +52,8 @@ public class ArchiveTexts
 
     public virtual string ServerCantRead => "Part of what was to go into the archive can't be read by the server.";
     public virtual string ArchiveGone => "The archive is no longer there. Downloading again prepares a new one.";
+    public virtual string StillPreparing => "The archive is still being prepared.";
+    public virtual string AsIsAdminsOnly => "Only admins may download an archived folder as it is kept.";
+    public virtual string NotArchived => "This directory isn't kept as an archive.";
+    public virtual string ArchivedFolderInUse => "The folder is in use right now, so it couldn't be zipped first. Try again in a moment.";
 }

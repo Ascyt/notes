@@ -1,0 +1,25 @@
+@using System.Globalization
+@model _ArchivedMark
+@inject UnzipTexts Texts
+
+@* After the name of an archived folder (where its archive begins), in the listing and the breadcrumb. Zipped: solid and in the primary
+   color, as going into it takes a moment (it is unzipped first). Unzipped: an outline in gray, as it only tells how it is kept. Being zipped
+   (in the listing): the outline with a bar of how far it got, which _Unzipping.js keeps up to date and turns into the mark it ends as. *@
+@if (Model.State == ArchiveState.Zipped)
+{
+    <i class="fa-solid fa-file-zipper fa-xs ms-1 text-primary" title="@Texts.Zipped" aria-label="@Texts.Zipped" data-archived-mark="zipped"></i>
+}
+else if (Model.State == ArchiveState.Zipping && Model.Address is not null)
+{
+    int percent = (int)Math.Round(Model.Progress * 100);
+    <span class="archived-zipping" data-archived-mark="zipping" data-zipping-address="@Model.Address" title="@Texts.ZippingNow"><i
+        class="fa-regular fa-file-zipper fa-xs ms-1 text-secondary"></i><span class="progress archived-zipping-progress ms-2"
+        role="progressbar" aria-label="@Texts.ZippingNow" aria-valuemin="0" aria-valuemax="100"
+        aria-valuenow="@percent.ToString(CultureInfo.InvariantCulture)"><span class="progress-bar"
+        style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span></span>
+}
+else
+{
+    <i class="fa-regular fa-file-zipper fa-xs ms-1 text-secondary" title="@Texts.Unzipped" aria-label="@Texts.Unzipped"
+        data-archived-mark="unzipped"></i>
+}

@@ -30,7 +30,11 @@ public sealed class HistoryService : IDisposable
     private readonly TimeProvider _time;
     private readonly ILogger<HistoryService> _logger;
     private readonly EntryLocations _locations;
-    private readonly List<RepositoryHistory> _histories;
+    private readonly FolderConfigStore _configs;
+
+    /// <summary>Replaced as a whole when an archived folder's history opens or closes (under the lock), so that it can be read without it.</summary>
+    private volatile IReadOnlyList<RepositoryHistory> _histories;
+
     private readonly Lock _lock = new();
 
     private DateTimeOffset _lastChange;
@@ -41,10 +45,53 @@ public sealed class HistoryService : IDisposable
         _time = time;
         _logger = logger;
         _locations = locations;
+        _configs = configs;
         _histories = [.. locations.All.Where(location => location.KeepsHistory)
             .Select(location => new RepositoryHistory(location, locations, config.History, configs, time, logger))];
         _lastChange = time.GetUtcNow();
     }
+
+    /// <summary>
+    /// An archived folder was unzipped (and mounted, <see cref="EntryLocations.MountArchive"/>): its history (in its <c>_/history</c>, which
+    /// the archive held) is kept from now on, and what changed in it since it was last committed (nothing, normally) is committed.
+    /// </summary>
+    public void ArchiveUnzipped(EntryLocation archive)
+    {
+        if (!archive.KeepsHistory)
+            return;
+        Run(() =>
+        {
+            RepositoryHistory history = new(archive, _locations, _settings, _configs, _time, _logger);
+            _histories = [.. _histories, history];
+            history.Commit(CommitReason.Startup);
+        });
+    }
+
+    /// <summary>
+    /// An archived folder is about to be zipped: what is pending in it is committed, and its repository closed, so that the archive holds it as
+    /// it is and nothing in it is open. Its history (and those of the folders unzipped inside it) is no longer kept until it is unzipped again.
+    /// </summary>
+    public void ArchiveZipping(EntryLocation archive)
+        => Run(() =>
+        {
+            // (One unzipped inside it is in its unzipped copy, in its own _/temp/unzipped)
+            List<RepositoryHistory> closing = [.. _histories.Where(history => history.Location.IsArchive
+                && (string.Equals(history.Location.PhysicalPath, archive.PhysicalPath, StringComparison.OrdinalIgnoreCase)
+                    || history.Location.PhysicalPath.StartsWith(archive.PhysicalPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))];
+            _histories = [.. _histories.Except(closing)];
+            // The innermost first, which are zipped first too
+            foreach (RepositoryHistory history in Enumerable.Reverse(closing))
+            {
+                try
+                {
+                    history.Commit(CommitReason.Zipping);
+                }
+                finally
+                {
+                    history.Dispose();
+                }
+            }
+        });
 
     /// <summary>Where the repository of the root is (physical). Its work tree is the root.</summary>
     public string GitDirectory => Path.Combine(_locations.Root.DataDirectory, "history");

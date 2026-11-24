@@ -1,0 +1,30 @@
+@using Notes.Features.Components.Breadcrumb
+@using System.Globalization
+@model _Unzipping
+@inject BreadcrumbStarts BreadcrumbStarts
+@inject UnzipTexts Texts
+
+@* The page of an entry in an archived folder that is still being unzipped. _Unzipping.js asks how far it got (by #unzipping) and loads the
+   page again once it is done. *@
+@{
+    string unzipping = Texts.Unzipping.Replace("{entry}", Model.Display);
+    int percent = (int)Math.Round(Model.Progress * 100);
+}
+
+<partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb
+{
+    Start = BreadcrumbStarts.Of(Model.Display),
+    IsFile = false,
+    VirtualPath = Model.Display,
+    RenameDisabledReason = unzipping
+}"/>
+
+<div id="unzipping" class="d-flex flex-column align-items-start gap-3 mt-3" data-address="@Model.Address">
+    <p class="text-secondary mb-0">
+        <i class="fa-solid fa-file-zipper"></i> @unzipping
+    </p>
+    <div id="unzipping-progress" class="progress unzipping-progress" role="progressbar" aria-label="@unzipping" aria-valuemin="0"
+         aria-valuemax="100" aria-valuenow="@percent.ToString(CultureInfo.InvariantCulture)">
+        <div class="progress-bar"></div>
+    </div>
+</div>

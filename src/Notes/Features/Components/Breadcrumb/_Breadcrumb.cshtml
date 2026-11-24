@@ -3,12 +3,16 @@
 @inject BreadcrumbTexts Texts
 @inject Notes.Features.Passwords.PasswordLocks Passwords
 @inject IPathService Paths
+@inject Notes.Features.ZippedFolders.ArchivedFolders Archives
 
 @{
     // An open lock goes after each entry along the way whose password is unlocked: the outermost entry of that password, as what is in it
-    // has the same one
+    // has the same one. The zipper goes after each archived folder.
     HashSet<string> unlocked = Model.UnlockedPaths(Passwords, Paths);
+    Dictionary<string, Notes.Features.ZippedFolders.ArchiveState> archived = Model.ArchivedPaths(Archives, Paths);
     Func<object?, object> unlockedMark = @<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>;
+    Func<Notes.Features.ZippedFolders.ArchiveState, object> archivedMark = @<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml"
+        model="new Notes.Features.ZippedFolders._ArchivedMark { State = item }"/>;
 }
 
 @* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.css) *@
@@ -67,7 +71,7 @@
                 {
                     @* (The open lock is part of the name, so it goes with it where a dot takes its place) *@
                     <a class="text-decoration-none" href="@address" key="@key"><span class="breadcrumb-name">@name@if (unlocked.Contains(virtualPath))
-                        {@unlockedMark(null)}</span>@dot(null)</a>
+                        {@unlockedMark(null)}@if (archived.TryGetValue(virtualPath, out var parentState)) {@archivedMark(parentState)}</span>@dot(null)</a>
                 }
                 else
                 {
@@ -94,6 +98,10 @@
         @if (Model.IsUnlocked(unlocked))
         {
             @unlockedMark(null)
+        }
+        @if (archived.TryGetValue(Model.VirtualPath.Trim('/'), out var ownState))
+        {
+            @archivedMark(ownState)
         }
         <script component-asset="@_Breadcrumb.Script"></script>
     }

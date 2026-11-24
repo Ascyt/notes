@@ -8,7 +8,7 @@ A password is set in the [configuration](configuration.md) of the entry, as `pas
 
 ```jsonc
 {
-    "version": "1.4.0",
+    "version": "1.5.0",
     "perms": { "inherit": true },
     "gitignore": false,
     "password": "correct horse battery staple",   // protects this directory and everything in it
@@ -30,7 +30,7 @@ In the configuration of a single file (the gear button on its page), it is `pass
 The page of a protected entry (and of anything inside a protected directory, whether it exists or not) asks for the password. Listings show such an entry like any other, but with a yellow lock after its name (and a Markdown file by its file name, not its title): it can be opened, with the password. It can't be selected while it is locked. Once it is unlocked, a gray open lock takes the yellow one's place, in the listing and in the breadcrumb, so it stays clear that the password will be asked for again. In the breadcrumb it is after the entry that has the password, not after what is inside it. The dialog that asks also comes up whenever something done on a page needs a password: saving a file after the password ran out, say. The change that wasn't saved yet stays in the editor, and is saved once the password is typed.
 
 - **An unlock lasts 10 minutes** after it was last used (`Config:Passwords:UnlockMinutes`): every request for the entry counts, and so does typing on its page, saved or not. It is kept in the memory of the app for that browser (a cookie of its own leads to it) and for that user; a restart of the app locks everything again.
-- **The lock button** (yellow, next to the account, Alt+L) locks everything the browser has unlocked, at once. Logging out and in moved to Alt+Shift+L for it.
+- **The lock button** (yellow, next to the account, Alt+L) locks everything the browser has unlocked, at once. If the page was inside something unlocked, it then goes to the folder that holds the outermost of those entries, which still opens without a password, instead of asking for it. Logging out and in moved to Alt+Shift+L for it. While nothing is unlocked, the same place and shortcut zip the archived directories that are unzipped (see [Archived directories](archived-directories.md)).
 - **Wrong passwords make the next ones wait.** After 5 wrong ones in a row (`Config:Passwords:FreeAttempts`) for one entry, each further try waits: 1 second, then 2, 4, … up to a minute (`Config:Passwords:MaxWaitSeconds`). The dialog counts down. It is counted for each user (or, for someone not logged in, each address) and entry, and a right password ends it.
 - **Programs** can send the password along with any request in the header `X-Notes-Password`, encoded in base64 (of its UTF-8, as in Basic authentication: `X-Notes-Password: b3BlbiBzZXNhbWU=` for "open sesame"), instead of going through the dialog. It unlocks for that request only, and wrong passwords count towards the wait like typed ones. An answer that needs a password is a 403 with the header `X-Notes-Password-Required` (the address of the entry whose password it is), or a 429 with `Retry-After` while it has to wait. A request that needs several passwords sends one header per password, or one with them separated by commas. A value that isn't base64 of UTF-8 counts as no password.
 

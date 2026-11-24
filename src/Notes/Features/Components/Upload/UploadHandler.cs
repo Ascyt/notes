@@ -15,7 +15,8 @@ namespace Notes.Features.Components.Upload;
 /// there. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
 /// </summary>
 public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history,
-    AppAddresses appAddresses, UploadTexts texts, EntryTexts entryTexts, NameTexts nameTexts) : IEntryPostAction
+    AppAddresses appAddresses, UploadTexts texts, EntryTexts entryTexts, NameTexts nameTexts, Configuration.FolderConfigStore configs)
+    : IEntryPostAction
 {
     public const string UploadParameter = "upload";
 
@@ -109,7 +110,7 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
 
         // The last chunk gave the file its place (the path of it), and an entry in the configuration of its directory
         if (result != "" && path.ToPhysicalPath(result) is { } finished)
-            history.AfterChange(user, [finished, Path.Combine(Path.GetDirectoryName(finished)!, PathService.ConfigFileName)],
+            history.AfterChange(user, [finished, configs.ConfigPathOf(Path.GetDirectoryName(finished)!)],
                 HistoryChangeKind.Change);
 
         return new ContentResult { Content = result };

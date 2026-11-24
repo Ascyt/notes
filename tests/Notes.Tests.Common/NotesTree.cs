@@ -109,6 +109,7 @@ public static class Cfg
             ["version"] = Version,
             ["perms"] = perms,
             ["gitignore"] = gitignore,
+            ["archive"] = new JsonObject { ["enabled"] = false },
             ["files"] = new JsonArray([..files.Select(file => (JsonNode)new JsonObject { ["name"] = file.Name, ["perms"] = file.Perms })])
         }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 }

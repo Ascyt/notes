@@ -7,6 +7,7 @@ using Notes.Features.Helpers;
 using Notes.Features.History;
 using Notes.Features.Passwords;
 using Notes.Features.Permissions;
+using Notes.Features.ZippedFolders;
 using Notes.Pages.ConfigEditor;
 
 namespace Notes.Features.Configuration;
@@ -26,7 +27,8 @@ namespace Notes.Features.Configuration;
 /// </remarks>
 public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history,
     ConfigSchema schema, ConfigTexts texts, EntryTexts entryTexts, PasswordLocks passwordLocks, PasswordUnlocks unlocks, Config config,
-    IPathService paths, ILogger<ConfigHandler> logger) : IEntryPostAction
+    IPathService paths, ZippedFolders.ArchivedFolders archives, Bridges.EntryLocations locations, ILogger<ConfigHandler> logger)
+    : IEntryPostAction
 {
     public const string ConfigParameter = "config";
 
@@ -64,7 +66,9 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             };
         }
 
-        string defaultText = ConfigText.Default(FolderConfigStore.FileNamesOf(folder), migrator.Current, store.IsLeftOutOfHistory(folder));
+        // (A zipped folder's files are in its archive, whose own name is no file's)
+        IEnumerable<string> fileNames = archives.IsZipped(folder) ? [] : FolderConfigStore.FileNamesOf(folder);
+        string defaultText = ConfigText.Default(fileNames, migrator.Current, store.IsLeftOutOfHistory(folder));
         return new ConfigEditorView
         {
             VirtualPath = virtualPath,
@@ -101,7 +105,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             try
             {
                 if (Directory.Exists(physicalPath))
-                    return SaveFolder(request.HttpContext, physicalPath, text);
+                    return await SaveFolderAsync(request.HttpContext, physicalPath, text);
                 if (File.Exists(physicalPath))
                     return SaveFile(request.HttpContext, physicalPath, text);
 
@@ -115,9 +119,11 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         }
     }
 
-    private IActionResult SaveFolder(HttpContext context, string folder, string text)
+    private async Task<IActionResult> SaveFolderAsync(HttpContext context, string folder, string text)
     {
-        IReadOnlySet<string> files = FolderConfigStore.FileNamesOf(folder);
+        // The files of a zipped folder are in its archive: their entries are neither checked nor added until it is unzipped
+        string folderPath = Path.GetDirectoryName(store.ConfigPathOf(folder))!;
+        IReadOnlySet<string>? files = archives.IsZipped(folderPath) ? null : FolderConfigStore.FileNamesOf(folder);
 
         // What was sent may be an older version's (pasted in, say): it is brought up to date, and then checked as the current version
         MigrationResult migrated = migrator.Migrate(text);
@@ -141,10 +147,13 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
         FolderConfig? before = store.Get(folder).Config;
         if (RefusedPasswordChange(context, folder, before, parsed.Value!) is { } refused)
             return refused;
+        if (RefusedArchiveChange(folderPath, before?.Archive ?? ArchiveSettings.Disabled, parsed.Value!.Archive) is { } refusedArchive)
+            return refusedArchive;
         text = HashPasswords(text);
 
         // Every file has an entry: the ones the text lacks (files that came in from outside the app) get one that changes nothing
-        foreach (string name in files.Order(StringComparer.OrdinalIgnoreCase).Where(name => parsed.Value!.FindFile(name) is null))
+        foreach (string name in (files ?? new HashSet<string>()).Order(StringComparer.OrdinalIgnoreCase)
+                     .Where(name => parsed.Value!.FindFile(name) is null))
             text = ConfigText.AddFile(text, name) ?? text;
 
         // What was added must not have broken it: a configuration that doesn't hold up closes the folder to everyone but admins
@@ -156,9 +165,48 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
                 texts.FilesNotAdded + "\n" + completed.ErrorText);
         }
 
+        string? textBefore = store.ReadText(folder);
         Write(context.User, folder, text);
         UnlockNewPasswords(context, folder, before, completed.Value!);
+
+        // Archiving on: what is in the folder becomes its unzipped copy (zipped once it isn't used for a while). Nothing happens to one that is
+        // archived already.
+        if (completed.Value!.Archive.Enabled)
+        {
+            try
+            {
+                await archives.ConvertAsync(folderPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Nothing of the folder changed: neither does its configuration
+                logger.LogWarning(e, "Could not make {folder} an archived folder", folderPath);
+                if (textBefore is not null)
+                    Write(context.User, folder, textBefore);
+                return Failed(StatusCodes.Status409Conflict, texts.CantArchiveNow);
+            }
+        }
+
         return Saved(text);
+    }
+
+    /// <summary>
+    /// The answer if the change of <c>archive</c> can't be made (yet), or null. Turning it off and changing the format of an archived folder
+    /// come later; the root, a bridge and what holds a bridge can't be archived, as their place is the configuration's.
+    /// </summary>
+    private ObjectResult? RefusedArchiveChange(string folderPath, ArchiveSettings before, ArchiveSettings after)
+    {
+        bool isArchived = archives.MountedAt(folderPath) is not null || ArchivedFolders.ArchiveFileOf(folderPath) is not null;
+        if (isArchived && !after.Enabled)
+            return Failed(StatusCodes.Status400BadRequest, texts.ArchiveOffNotYet);
+        if (isArchived && ArchivedFolders.ArchiveFileOf(folderPath) is { } archive
+            && archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) != (after.Format == Components.Archive.ArchiveFormat.Zip))
+            return Failed(StatusCodes.Status400BadRequest, texts.ArchiveFormatNotYet);
+        if (!before.Enabled && after.Enabled
+            && (locations.All.Any(location => string.Equals(location.PhysicalPath, folderPath, StringComparison.OrdinalIgnoreCase))
+                || locations.HoldsBridge(folderPath)))
+            return Failed(StatusCodes.Status400BadRequest, texts.CantArchiveBridge);
+        return null;
     }
 
     private IActionResult SaveFile(HttpContext context, string physicalPath, string text)
@@ -201,15 +249,17 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
     /// The passwords of the folder and of its files, each with the entry it protects (see <see cref="PasswordLocks.ProtectionsOf"/>), by the
     /// physical path of that entry.
     /// </summary>
-    private static Dictionary<string, Protection> ProtectionsIn(string folder, FolderConfig? config)
+    private Dictionary<string, Protection> ProtectionsIn(string folder, FolderConfig? config)
     {
         Dictionary<string, Protection> protections = new(StringComparer.OrdinalIgnoreCase);
         if (config is null)
             return protections;
 
         string folderPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        // (That of an archived folder is the folder's, as PasswordLocks has it, also while it is unzipped)
+        string protectedFolder = Path.GetDirectoryName(store.ConfigPathOf(folderPath))!;
         if (config.PasswordHash is { } hash)
-            protections[folderPath] = new Protection(folderPath, hash);
+            protections[protectedFolder] = new Protection(protectedFolder, hash);
         foreach (FileEntry file in config.Files)
             if (file.PasswordHash is { } fileHash)
                 protections[Path.Combine(folderPath, file.Name)] = new Protection(Path.Combine(folderPath, file.Name), fileHash);
@@ -251,7 +301,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
     /// <summary>Writes the folder's configuration file, which the history sees as a save of it.</summary>
     private void Write(ClaimsPrincipal user, string folder, string text)
     {
-        string path = Path.Combine(folder, PathService.ConfigFileName);
+        string path = store.ConfigPathOf(folder);
         history.BeforeChange(user, [path], text);
         store.WriteText(folder, text);
         history.AfterChange(user, [path], HistoryChangeKind.Save);

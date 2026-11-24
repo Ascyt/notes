@@ -24,6 +24,7 @@ using Notes.Features.KillSwitch;
 using Notes.Features.Markdown;
 using Notes.Features.Media;
 using Notes.Features.Passwords;
+using Notes.Features.ZippedFolders;
 using Notes.Pages.App;
 using Notes.Pages.Browse;
 using Notes.Pages.Shared.AppLayout;
@@ -114,6 +115,7 @@ public static class NotesHosting
         _ = services.AddMedia();
         _ = services.AddHistory();
         _ = services.AddHistoryViewing();
+        _ = services.AddArchivedFolders(config.Archives);
 
         // The background jobs (scheduled in UseNotes)
         _ = services.AddHangfire(setup.ConfigureHangfire);
@@ -230,6 +232,9 @@ public static class NotesHosting
         // Writes what was migrated while reading back to the files, now that nothing else is using them
         if (app.Services.GetRequiredService<FolderConfigStore>().MigrateAll() > 0)
             history.CommitPending(CommitReason.Migration);
+
+        // What zipping or unzipping an archived folder left when the app stopped is put right (nothing of it is lost), before it is used
+        app.Services.GetRequiredService<ArchivedFolders>().RecoverAsync().GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -246,6 +251,8 @@ public static class NotesHosting
             schedule => recurringJobs.AddOrUpdate<ClearStaleArchivesJob>(ClearStaleArchivesJob.Id, job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.CommitIdleChanges), jobs.CommitIdleChanges,
             schedule => recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), schedule));
+        Schedule(nameof(JobsConfig.ZipIdleArchives), jobs.ZipIdleArchives,
+            schedule => recurringJobs.AddOrUpdate<ZipIdleArchivesJob>(ZipIdleArchivesJob.Id, job => job.RunAsync(), schedule));
     }
 
     // Hangfire refuses what isn't a cron expression with an ArgumentException that doesn't say which setting it was

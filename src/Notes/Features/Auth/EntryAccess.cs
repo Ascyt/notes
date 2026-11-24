@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Notes.Features.Bridges;
+using Notes.Features.ZippedFolders;
 using Notes.Features.Configuration;
 using Notes.Features.Helpers;
 using Notes.Features.Passwords;
@@ -148,6 +149,12 @@ public sealed class EntryAccess(EntryLocations locations, FolderConfigStore stor
     {
         string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
         if (passwordLocks.IsLocked(path, configOf, isDirectory(path)))
+            return EntryAccessInfo.None;
+
+        // The archive of an archived folder is no entry, for admins neither: what is in it is (once it is unzipped), with the permissions and
+        // passwords of its own. Otherwise a download of the directory around it would hand it out whole.
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(path)) && !isDirectory(path)
+            && configOf(Path.GetDirectoryName(path)!).Config?.Archive.Enabled == true)
             return EntryAccessInfo.None;
 
         if (CanManageConfiguration(user))

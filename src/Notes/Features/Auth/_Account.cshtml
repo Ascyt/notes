@@ -1,6 +1,7 @@
 @model Notes.Features.Auth._Account
 @inject AuthTexts Texts
 @inject Notes.Features.Passwords.PasswordTexts PasswordTexts
+@inject Notes.Features.ZippedFolders.UnzipTexts UnzipTexts
 
 <ul class="navbar-nav align-items-sm-center gap-sm-2">
     @* Locks everything the browser has unlocked (_PasswordModal.js). Shown while anything is, also once the dialog unlocks something. *@
@@ -8,6 +9,14 @@
         <button type="button" id="lock-button" class="btn btn-sm btn-warning" title="@PasswordTexts.LockAll"
             aria-label="@PasswordTexts.LockAll" key="!L">
             <i class="fa-solid fa-lock"></i>
+        </button>
+    </li>
+    @* Zips every archived folder that is unzipped now (_Unzipping.js), instead of waiting for them to be idle. Only while there is nothing to
+       lock: the lock button goes first, with the same shortcut. *@
+    <li class="nav-item" data-zip-item hidden="@(Model.HasUnlocked || !Model.HasZippable)">
+        <button type="button" id="zip-button" class="btn btn-sm btn-secondary" title="@UnzipTexts.ZipAll" aria-label="@UnzipTexts.ZipAll"
+            key="!L">
+            <i class="fa-solid fa-file-zipper"></i>
         </button>
     </li>
     @if (Model.IsAuthenticated)

@@ -72,7 +72,9 @@ internal static class ArchiveReading
         });
 
     /// <summary>What the archive holds, with the hash of every file.</summary>
-    public static FolderManifest ManifestOf(string archivePath, ArchiveFormat format, string? password, CancellationToken cancellationToken)
+    /// <param name="fileRead">Called after each file is read (for telling how far it got).</param>
+    public static FolderManifest ManifestOf(string archivePath, ArchiveFormat format, string? password, CancellationToken cancellationToken,
+        Action? fileRead = null)
     {
         FolderManifest manifest = new();
         ForEachEntry(archivePath, format, password, (entry, contents) =>
@@ -81,6 +83,8 @@ internal static class ArchiveReading
                 manifest.AddDirectory(entry.Path);
             else if (!manifest.AddFile(entry.Path, SHA256.HashData(contents)))
                 throw new ArchiveUnreadableException($"{archivePath} has {entry.Path} twice.");
+            else
+                fileRead?.Invoke();
         }, cancellationToken);
         return manifest;
     }

@@ -120,6 +120,7 @@ public class HistoryTexts
         History.CommitKeywords.OtherUser => "Before a change by another user",
         History.CommitKeywords.BinaryDeleted => "Binary file deleted",
         History.CommitKeywords.Startup => "Changed while the app was not running",
+        History.CommitKeywords.Zipping => "Before it was zipped",
         History.CommitKeywords.Migration when managesConfiguration => "Configuration brought up to date",
         History.CommitKeywords.BeforeGitignore when managesConfiguration => "Before a change of what the history keeps",
         History.CommitKeywords.Gitignore when managesConfiguration => "What the history keeps changed",

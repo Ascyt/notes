@@ -40,12 +40,34 @@ public sealed class ConfigSchema(ConfigTexts texts)
                 ["type"] = "string",
                 ["pattern"] = @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
                 ["description"] = texts.SchemaVersion,
-                ["examples"] = new[] { "1.4.0" }
+                ["examples"] = new[] { "1.5.0" }
             };
             properties["gitignore"] = new Dictionary<string, object>
             {
                 ["type"] = "boolean",
                 ["description"] = texts.SchemaGitignore
+            };
+            properties[ConfigParser.ArchiveKey] = new Dictionary<string, object>
+            {
+                ["type"] = "object",
+                ["description"] = texts.SchemaArchive,
+                ["additionalProperties"] = false,
+                ["required"] = new[] { ConfigParser.ArchiveEnabledKey },
+                ["properties"] = new Dictionary<string, object>
+                {
+                    [ConfigParser.ArchiveEnabledKey] = new Dictionary<string, object>
+                        { ["type"] = "boolean", ["description"] = texts.SchemaArchiveEnabled },
+                    [ConfigParser.ArchiveFiletypeKey] = new Dictionary<string, object>
+                        { ["enum"] = new[] { "7z", "zip" }, ["description"] = texts.SchemaArchiveFiletype },
+                    [ConfigParser.ArchiveCompressionLevelKey] = new Dictionary<string, object>
+                        { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = ConfigParser.MaxCompressionLevel,
+                            ["description"] = texts.SchemaArchiveCompressionLevel },
+                    // (Not supported yet: only false is accepted)
+                    [ConfigParser.ArchiveEncryptedKey] = new Dictionary<string, object>
+                        { ["const"] = false, ["description"] = texts.SchemaArchiveEncrypted },
+                    [ConfigParser.ArchiveOnLowestLevelKey] = new Dictionary<string, object>
+                        { ["const"] = false, ["description"] = texts.SchemaArchiveOnLowestLevel }
+                }
             };
             properties["files"] = new Dictionary<string, object>
             {

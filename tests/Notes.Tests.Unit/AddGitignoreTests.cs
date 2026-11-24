@@ -31,8 +31,8 @@ public sealed class AddGitignoreTests
     {
         MigrationResult result = Migrator.Migrate("""{ "version": "1.0.0", "perms": { "inherit": true }, "files": [] }""");
 
-        // (password comes from the migration to 1.4.0)
-        Assert.Equal(["version", "perms", "gitignore", "password", "files"],JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
+        // (password and archive come from the migrations to 1.4.0 and 1.5.0)
+        Assert.Equal(["version", "perms", "gitignore", "password", "archive", "files"], JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
     }
 
     [Fact]

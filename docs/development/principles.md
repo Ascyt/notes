@@ -76,10 +76,13 @@ No animations: things appear, move and go away at once, without sliding, fading 
 
 ### 13. Long operations show that they run, and check again at the end
 
-Whatever may take a while shows that it is running: a progress bar where it is known how far it is (an upload, a copy or move), a spinner otherwise (renaming a directory with much in it, preparing an archive). In the scripts, `whileBusy` (`site.js`) does this for one request:
+Whatever may take a while shows that it is running: a progress bar where it can be told how far it is (an upload, a copy or move, preparing an archive), a spinner only where that can't be told without great effort (renaming a directory with much in it). When building something long, plan for the bar: it is often only counting what was done against what was measured before. In the scripts, `whileBusy` (`site.js`) does this for one request:
 
 - While it runs, leaving the page asks first (the browser's own warning), as its answer would be lost with the page.
 - Where using the page meanwhile could get in its way (renaming again, changing what is being copied or archived), the page is covered until it is done (`blockPage`, with `_BusyOverlay`), and its shortcuts do nothing. The messages and the card of the selection stay above it, so its progress can still be seen.
+- Work that knows how far it got is given `setProgress` (0 to 1), which shows a bar in the cover in place of the spinner.
+
+Something that may take minutes is not done within the request that asks for it: a proxy in front of the app cuts off a request that gets no answer for a minute or so (nginx after 60 s by default). It runs on its own, the request is answered at once, and the page asks how far it got until it is done (as the archive does with `Prefer: respond-async` and `?progress`). Nobody asking for a while means the page was left, which cancels it.
 
 On the server, such an operation checks the permissions when it starts and again when it ends, as they may change while it runs: an archive is checked once it is written against every entry in it, and it is not handed out if the user may no longer read one of them. Changes of structure hold the `StructureLock` instead, from their checks until they are done, so that what they checked can't change in between (see [User input](user-input.md#concurrency)).
 

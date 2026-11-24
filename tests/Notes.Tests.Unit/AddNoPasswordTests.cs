@@ -36,8 +36,8 @@ public sealed class AddNoPasswordTests
         Assert.Null(result.Error);
         Assert.Contains("// mine", result.Text);
         Assert.Contains("\"gitignore\": false, // kept in the history\n", result.Text);
-        // The comment above files stays right above it, the new lines come before that comment
-        Assert.Contains("\"password\": null,\n    // the files\n    \"files\"", result.Text);
+        // The comment above files stays right above it, the new lines (and those of the archive, from 1.5.0) come before that comment
+        Assert.Matches(@"""password"": null,\n(    //[^\n]*\n)*    ""archive"": [^\n]*,\n    // the files\n    ""files""", result.Text);
         Assert.Matches(@"\n    // [^\n]*passwordHash[^\n]*\n    // [^\n]*\n    ""password"": null,", result.Text);
         Assert.Equal(Cfg.Version, JsonNode.Parse(result.Text, documentOptions: new() { CommentHandling = System.Text.Json.JsonCommentHandling.Skip })!["version"]!.GetValue<string>());
         Assert.Null(Parsed(result.Text).PasswordHash);
@@ -70,7 +70,7 @@ public sealed class AddNoPasswordTests
     {
         MigrationResult result = Migrator.Migrate("""{ "version": "1.3.0", "perms": { "inherit": true }, "gitignore": false, "files": [] }""");
 
-        Assert.Equal(["version", "perms", "gitignore", "password", "files"], JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
+        Assert.Equal(["version", "perms", "gitignore", "password", "archive", "files"],JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
         _ = Parsed(result.Text);
     }
 
@@ -80,7 +80,7 @@ public sealed class AddNoPasswordTests
         MigrationResult result = Migrator.Migrate("""{ "perms": { "inherit": true }, "files": [ { "name": "a.md", "perms": { "inherit": true } } ] }""");
 
         Assert.Null(result.Error);
-        Assert.Equal(["version", "perms", "gitignore", "password", "files"], JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
+        Assert.Equal(["version", "perms", "gitignore", "password", "archive", "files"],JsonNode.Parse(result.Text)!.AsObject().Select(property => property.Key));
         Assert.NotNull(Parsed(result.Text).FindFile("a.md"));
     }
 

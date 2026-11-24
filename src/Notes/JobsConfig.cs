@@ -17,4 +17,10 @@ public sealed class JobsConfig
     /// <c>History:IdleMinutes</c>; this is only how often it is looked at.
     /// </summary>
     public string CommitIdleChanges { get; init; } = "* * * * *";
+
+    /// <summary>
+    /// When the archived folders that weren't used for a while are zipped again. Every minute by default; how long "a while" is, is
+    /// <c>Archives:ZipAfterMinutes</c>.
+    /// </summary>
+    public string ZipIdleArchives { get; init; } = "* * * * *";
 }

@@ -53,7 +53,12 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
     /// <see cref="IOException"/> if it fails: the copy is then still there (and counts), and the archive is the old one, or, if only taking the
     /// copy away failed, the new one, which holds the same.
     /// </summary>
-    public async Task ZipAsync(ArchivedFolder folder, ArchiveOptions options, CancellationToken cancellationToken)
+    /// <param name="cancellationToken">
+    /// Stops it until the new archive takes the old one's place (the copy is then as it was); from there on it is finished either way.
+    /// </param>
+    /// <param name="progress">Told how much is done (0 to 1) as it goes: writing the archive, then reading it back.</param>
+    public async Task ZipAsync(ArchivedFolder folder, ArchiveOptions options, CancellationToken cancellationToken,
+        IProgress<double>? progress = null)
     {
         if (!Directory.Exists(folder.UnzippedDirectory))
             throw new DirectoryNotFoundException($"{folder.UnzippedDirectory} is not there to be zipped.");
@@ -68,13 +73,25 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
                 if (++filesOpened == 2)
                     Reached(ArchiveStep.WritingArchive);
             }
+
+            // Writing takes the most of it, reading it back (unpacking and hashing) the rest
+            ArchiveProgress? writing = null;
+            if (progress is not null)
+            {
+                // (Off the caller's thread: it may be a request, which shouldn't wait for a big folder to be walked)
+                (long bytes, int files) = await Task.Run(() => MeasureCopy(folder.UnzippedDirectory), cancellationToken);
+                writing = new ArchiveProgress(bytes, files, done => progress.Report(done * WritingShare));
+            }
             await ArchiveWriter.WriteAsync(ContentsOf(folder.UnzippedDirectory, "", zipped, Opened), options, folder.NewArchivePath,
-                cancellationToken);
+                cancellationToken, writing);
             DurableFiles.FlushFile(folder.NewArchivePath);
             Reached(ArchiveStep.ArchiveWritten);
 
+            int checkedFiles = 0;
+            int toCheck = Math.Max(1, zipped.FileCount);
+            void Checked() => progress?.Report(WritingShare + (1 - WritingShare) * Math.Min(0.999, (double)++checkedFiles / toCheck));
             FolderManifest inArchive = await Task.Run(() => ArchiveReading.ManifestOf(folder.NewArchivePath, options.Format, options.Password,
-                cancellationToken), cancellationToken);
+                cancellationToken, Checked), cancellationToken);
             if (!inArchive.SameAs(zipped))
                 throw new ArchiveUnreadableException($"The new archive of {folder.UnzippedDirectory} doesn't hold what was zipped.");
             Reached(ArchiveStep.ArchiveChecked);
@@ -101,6 +118,45 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
         DeleteTrash(trash, afterDeletingSome: () => Reached(ArchiveStep.DeletingUnzipped));
     }
 
+    /// <summary>How much of zipping's progress is writing the archive; reading it back is the rest.</summary>
+    private const double WritingShare = 0.7;
+
+    /// <summary>
+    /// What the files of the unzipped copy have together, as <see cref="ContentsOf"/> takes them (no links, not <c>_/temp</c>): only for
+    /// telling how far zipping got, so what can't be read is skipped (the writer fails on it).
+    /// </summary>
+    private static (long Bytes, int Files) MeasureCopy(string root)
+    {
+        long bytes = 0;
+        int files = 0;
+        EnumerationOptions options = new() { AttributesToSkip = 0, IgnoreInaccessible = true };
+        string leftOut = Path.Combine(root, PathService.ReservedName, "temp");
+        Stack<string> pending = new([root]);
+        while (pending.TryPop(out string? directory))
+        {
+            try
+            {
+                foreach (FileSystemInfo entry in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options))
+                {
+                    if (PathService.IsLink(entry))
+                        continue;
+                    if (entry is FileInfo file)
+                    {
+                        bytes += file.Length;
+                        files++;
+                    }
+                    else if (!string.Equals(entry.FullName, leftOut, StringComparison.OrdinalIgnoreCase))
+                        pending.Push(entry.FullName);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Only for telling how far it got
+            }
+        }
+        return (bytes, files);
+    }
+
     /// <summary>
     /// The unzipped copy as the writer lists it, everything in it but links (which could point anywhere), with the hash of each file noted in
     /// <paramref name="manifest"/> as it is read.
@@ -109,6 +165,10 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
         => new(Path.GetFileName(directory), () => new DirectoryInfo(directory).EnumerateFileSystemInfos("*", ListOptions)
             .Where(entry =>
             {
+                // The temporary files of the folder's own data (_/temp: half done work, and the copies of archived folders unzipped inside
+                // it, which are zipped into their own archives first) are never part of it
+                if (entry is DirectoryInfo && relativePath == PathService.ReservedName && entry.Name == "temp")
+                    return false;
                 if (!PathService.IsLink(entry))
                     return true;
                 logger.LogWarning("{link} is a link, which is left out of the archive", entry.FullName);

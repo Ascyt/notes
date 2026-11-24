@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Notes.Features.Components.Archive;
 using Notes.Features.Configuration.Migrations;
 using Notes.Features.Helpers;
 using Notes.Features.Passwords;
@@ -41,6 +42,16 @@ public static class ConfigParser
     public const string PasswordKey = "password";
     public const string PasswordHashKey = "passwordHash";
 
+    public const string ArchiveKey = "archive";
+    public const string ArchiveEnabledKey = "enabled";
+    public const string ArchiveFiletypeKey = "filetype";
+    public const string ArchiveCompressionLevelKey = "compressionLevel";
+    public const string ArchiveEncryptedKey = "encrypted";
+    public const string ArchiveOnLowestLevelKey = "onLowestLevel";
+
+    /// <summary>The highest <c>compressionLevel</c>; 0 is none (a 7z, which can't store, the least).</summary>
+    public const int MaxCompressionLevel = 3;
+
     private static readonly string[] RwKeys = ["rwAllow", "rwReadOnly", "rwDeny"];
     private static readonly string[] CdKeys = ["cdAllow", "cdCreateOnly", "cdDeny"];
     private static readonly string[] HistoryKeys = ["historyAllow", "historyExistingOnly", "historyDeny"];
@@ -81,7 +92,8 @@ public static class ConfigParser
             return ParseResult<FolderConfig>.Failed(errors);
 
         Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "",
-            [VersionKey, PermsKey, GitignoreKey, FilesKey, PasswordKey, PasswordHashKey], required: [PermsKey, GitignoreKey, FilesKey], errors);
+            [VersionKey, PermsKey, GitignoreKey, PasswordKey, PasswordHashKey, ArchiveKey, FilesKey],
+            required: [PermsKey, GitignoreKey, FilesKey], errors);
         if (root is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
@@ -95,6 +107,10 @@ public static class ConfigParser
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
         string? passwordHash = ParsePassword(root, "", allowsPlainPasswords, errors);
+        // Optional, so that a file without it (written by hand) is still valid; every file the app writes has it (principle 19)
+        ArchiveSettings? archive = root.TryGetValue(ArchiveKey, out JsonElement archiveElement)
+            ? ParseArchive(archiveElement, errors)
+            : ArchiveSettings.Disabled;
         List<FileEntry> files = [];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
 
@@ -119,9 +135,69 @@ public static class ConfigParser
             }
         }
 
-        return errors.Count > 0 || perms is null
+        return errors.Count > 0 || perms is null || archive is null
             ? ParseResult<FolderConfig>.Failed(errors)
-            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash));
+            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash, archive));
+    }
+
+    /// <summary>
+    /// Reads the <c>archive</c> block: <c>enabled</c> is required, the others have the defaults of <see cref="ArchiveSettings.Disabled"/>.
+    /// </summary>
+    private static ArchiveSettings? ParseArchive(JsonElement element, Problems errors)
+    {
+        Dictionary<string, JsonElement>? properties = ReadObject(element, ArchiveKey,
+            [ArchiveEnabledKey, ArchiveFiletypeKey, ArchiveCompressionLevelKey, ArchiveEncryptedKey, ArchiveOnLowestLevelKey],
+            required: [ArchiveEnabledKey], errors);
+        if (properties is null)
+            return null;
+
+        string Where(string key) => ArchiveKey + "." + key;
+        int before = errors.Count;
+        bool? BooleanOf(string key, bool fallback)
+        {
+            if (!properties.TryGetValue(key, out JsonElement value))
+                return fallback;
+            if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                return value.GetBoolean();
+            errors.Add(errors.Texts.NotABoolean(Where(key)));
+            return null;
+        }
+
+        bool? enabled = BooleanOf(ArchiveEnabledKey, false);
+        bool? encrypted = BooleanOf(ArchiveEncryptedKey, false);
+        bool? onLowestLevel = BooleanOf(ArchiveOnLowestLevelKey, false);
+
+        ArchiveFormat format = ArchiveSettings.Disabled.Format;
+        if (properties.TryGetValue(ArchiveFiletypeKey, out JsonElement filetype))
+        {
+            if (filetype.ValueKind == JsonValueKind.String && filetype.GetString() is "7z" or "zip")
+                format = filetype.GetString() == "7z" ? ArchiveFormat.SevenZip : ArchiveFormat.Zip;
+            else
+                errors.Add(errors.Texts.NotAFiletype(Where(ArchiveFiletypeKey)));
+        }
+
+        int level = 2;
+        if (properties.TryGetValue(ArchiveCompressionLevelKey, out JsonElement levelElement)
+            && !(levelElement.ValueKind == JsonValueKind.Number && levelElement.TryGetInt32(out level) && level is >= 0 and <= MaxCompressionLevel))
+            errors.Add(errors.Texts.NotACompressionLevel(Where(ArchiveCompressionLevelKey), MaxCompressionLevel));
+
+        // Coming with later steps: until then, saying true would be a promise the app doesn't keep
+        if (encrypted == true)
+            errors.Add(errors.Texts.NotSupportedYet(Where(ArchiveEncryptedKey)));
+        if (onLowestLevel == true)
+            errors.Add(errors.Texts.NotSupportedYet(Where(ArchiveOnLowestLevelKey)));
+
+        if (errors.Count > before)
+            return null;
+
+        ArchiveCompression compression = level switch
+        {
+            0 => format == ArchiveFormat.SevenZip ? ArchiveCompression.Min : ArchiveCompression.Store,
+            1 => ArchiveCompression.Medium,
+            2 => ArchiveCompression.High,
+            _ => ArchiveCompression.Max
+        };
+        return new ArchiveSettings(enabled!.Value, format, compression, encrypted!.Value, onLowestLevel!.Value);
     }
 
     /// <summary>

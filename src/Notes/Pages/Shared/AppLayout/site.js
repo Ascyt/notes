@@ -44,7 +44,9 @@ window.setButtonBusy = function (button, busy) {
 //   const response = await whileBusy(() => fetch(…), { blockPage: true, message: texts.renaming });
 //
 // It returns what the work returns (and throws what it throws). Leaving the page afterwards (to show the result) asks nothing, as long as
-// nothing else is still running.
+// nothing else is still running. Work that knows how far it got is given setProgress (0 to 1), which shows a bar in place of the spinner:
+//
+//   await whileBusy(async setProgress => { … setProgress(0.4); … }, { blockPage: true, message: texts.preparing });
 (function () {
     let running = 0;
     let blocking = 0;
@@ -54,9 +56,23 @@ window.setButtonBusy = function (button, busy) {
         if (!overlay)
             return;
         document.getElementById('busy-overlay-message').textContent = message || '';
+        showProgress(null);
         overlay.hidden = blocking === 0;
         if (blocking > 0)
             overlay.focus(); // so that Enter doesn't press the button that started it again
+    }
+
+    // null hides the bar (and shows the spinner again)
+    function showProgress(fraction) {
+        const bar = document.getElementById('busy-overlay-progress');
+        if (!bar)
+            return;
+        const known = typeof fraction === 'number';
+        bar.hidden = !known;
+        document.getElementById('busy-overlay-spinner').hidden = known;
+        const percent = known ? Math.round(Math.min(1, Math.max(0, fraction)) * 100) : 0;
+        bar.setAttribute('aria-valuenow', String(percent));
+        bar.querySelector('.progress-bar').style.width = percent + '%';
     }
 
     window.whileBusy = async function (work, options) {
@@ -67,7 +83,7 @@ window.setButtonBusy = function (button, busy) {
             showOverlay(message);
         }
         try {
-            return await work();
+            return await work(blockPage ? showProgress : () => { });
         } finally {
             running--;
             if (blockPage) {

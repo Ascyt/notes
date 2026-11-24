@@ -21,4 +21,7 @@ public class EntryTexts
     public virtual string RootCantBeDeleted => "Cannot delete the root directory.";
     public virtual string RootCantBeRenamed => "Cannot rename the root directory.";
     public virtual string NameTaken => "A file or directory with that name already exists.";
+
+    /// <summary>An archived folder that had to be zipped first couldn't be (something in it is open on the server).</summary>
+    public virtual string InUse => "Something in it is in use right now. Nothing was changed; try again.";
 }

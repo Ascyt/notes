@@ -27,8 +27,9 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
     /// <summary>How many times a configuration file was written by the app, so that a read knows whether a write came in between.</summary>
     private long _writes;
 
-    private static string ConfigPathOf(string physicalDirectory)
-        => Path.Combine(physicalDirectory, PathService.ConfigFileName);
+    /// <summary>The configuration file of the directory (for the unzipped copy of an archived folder, the one next to its archive).</summary>
+    public string ConfigPathOf(string physicalDirectory)
+        => Path.Combine(locations.ConfigDirectoryOf(physicalDirectory), PathService.ConfigFileName);
 
     /// <summary>
     /// What the folder's configuration says: nothing if there is no file, otherwise what is in it, or why that can't be used. Inside a
@@ -168,8 +169,9 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
         // Written into the app's data of its location (the root or a bridge), where no listing shows it, and put in place of the file (same
         // volume, so it is a rename). File.Replace rather than a move over it: only it replaces a file on Windows that is being read (by a
         // reader that allows that, as ReadFile does), but it needs a file to replace, so a folder's first configuration is moved in.
+        // (The temporary file goes where the file is: for an archived folder that is outside its unzipped copy, whose data is zipped)
         string path = ConfigPathOf(physicalDirectory);
-        string temp = Path.Combine(locations.TempDirectoryFor(physicalDirectory, "config"), Guid.NewGuid().ToString("N"));
+        string temp = Path.Combine(locations.TempDirectoryFor(Path.GetDirectoryName(path)!, "config"), Guid.NewGuid().ToString("N"));
         _ = Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
         File.WriteAllText(temp, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         try

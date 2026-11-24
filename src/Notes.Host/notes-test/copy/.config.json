@@ -1,6 +1,6 @@
 {
     // The version of this file's format. The app keeps it up to date: don't change it.
-    "version": "1.4.0",
+    "version": "1.5.0",
     // Who may do what in this folder. Subfolders and files start from these permissions.
     // "inherit": true also applies what the folder above gives to those the lists don't mention; false gives them nothing.
     // Principals: "u:<user name>", "g:<group>", "r:<role>", "l" for all who are logged in, or "a" for all users (who may only be allowed to read and to see the history).
@@ -13,10 +13,13 @@
     // true leaves the files of this folder and its subfolders out of the history (configuration files are always kept).
     // A subfolder with a configuration of its own decides for itself.
     "gitignore": false,
+    // true keeps this folder in an archive (_.7z or _.zip in it), unzipped while it is used and zipped again after a while.
+    // filetype: "7z" or "zip". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted, onLowestLevel: not supported yet.
+    "archive": { "enabled": true, "filetype": "7z", "compressionLevel": 0, "encrypted": false, "onLowestLevel": false },
     // The files of this folder, which the app keeps up to date. A file with "inherit": true and no lists has the permissions of the folder.
     "files": [
         { "name": "2026-11-11_13-50.md", "perms": { "inherit": true } },
-        { "name": "2026-11-11_13-54.md", "perms": { "inherit": true } }
-    ],
-    "passwordHash": "$2a$12$5AhBY1ZpcxNe4ve4Mda0.eHt5LXcDjkt7Vo0dWhH6iw0pNQHKjNsa"
+        { "name": "2026-11-11_13-54.md", "perms": { "inherit": true } },
+        { "name": "2026-11-24_18-03.md", "perms": { "inherit": true } }
+    ]
 }

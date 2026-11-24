@@ -68,6 +68,12 @@ public class ConfigTexts
     public virtual string NotAPasswordHash(string where, string passwordWhere)
         => $"{where}: is not the hash of a password as the app makes them. A new password is set with {passwordWhere}.";
 
+    // What is wrong with the archive
+
+    public virtual string NotAFiletype(string where) => $"{where}: must be \"7z\" or \"zip\".";
+    public virtual string NotACompressionLevel(string where, int max) => $"{where}: must be a whole number from 0 (none) to {max} (most).";
+    public virtual string NotSupportedYet(string where) => $"{where}: not supported yet. Must be false.";
+
     // What is wrong with a principal (u:alice, g:team, …)
 
     public virtual string NotAPrincipal(string text)
@@ -109,6 +115,18 @@ public class ConfigTexts
     public virtual string PasswordChangeNeedsUnlock(string display)
         => $"The password of '{display}' can only be changed or removed while '{display}' is unlocked. Nothing was saved.";
 
+    public virtual string ArchiveOffNotYet
+        => "archive.enabled: an archived folder can't be turned back into a normal one yet. Nothing was saved.";
+
+    public virtual string ArchiveFormatNotYet
+        => "archive.filetype: the format of an archived folder can't be changed yet (it keeps the one of its archive). Nothing was saved.";
+
+    public virtual string CantArchiveBridge
+        => "archive.enabled: the root, a bridge, or a folder with a bridge in it can't be archived. Nothing was saved.";
+
+    public virtual string CantArchiveNow
+        => "The folder can't be archived right now: something in it is in use (a file open on the server?). Nothing was saved; try again.";
+
     public virtual string FolderUnreadable
         => "The configuration of the folder this file is in can't be edited, as it is not valid. The configuration of the folder has to be fixed first.";
 
@@ -128,6 +146,18 @@ public class ConfigTexts
     public virtual string SchemaGitignore
         => "Whether the history leaves out the files of this folder and of its subfolders (a subfolder with its own configuration decides for "
             + "itself). Configuration files are always kept.";
+
+    public virtual string SchemaArchive
+        => "Whether this folder is kept in an archive (_.7z or _.zip in it), which is unzipped while it is used and zipped again after a while.";
+
+    public virtual string SchemaArchiveEnabled => "true keeps the folder in an archive; false keeps it as it is.";
+    public virtual string SchemaArchiveFiletype => "The format of the archive. Default 7z.";
+
+    public virtual string SchemaArchiveCompressionLevel
+        => "0 (none; for 7z, which always compresses, the least) to 3 (most, slowest). Default 2.";
+
+    public virtual string SchemaArchiveEncrypted => "Encrypts the archive with the folder's password. Not supported yet.";
+    public virtual string SchemaArchiveOnLowestLevel => "Archives only the lowest folders below instead of this one. Not supported yet.";
 
     public virtual string SchemaFiles => "The files of this folder, which the app keeps up to date. A file without an entry has the settings of the folder.";
     public virtual string SchemaFileName => "The name of the file.";

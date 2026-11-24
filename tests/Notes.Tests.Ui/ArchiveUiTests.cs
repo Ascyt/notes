@@ -180,6 +180,38 @@ public sealed class ArchiveUiTests(UiFixture fixture) : UiTest(fixture), IClassF
     }
 
     [Fact]
+    public async Task While_the_archive_is_made_a_bar_shows_how_far_it_got()
+    {
+        // The first answer about it says it is 40% done, until the test lets the real ones through
+        TaskCompletionSource letThrough = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await Page.RouteAsync(new Regex(@"\?archive=[0-9a-f-]{36}&progress$"), async route =>
+        {
+            if (!letThrough.Task.IsCompleted)
+            {
+                await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = """{"done":false,"progress":0.4}""" });
+                return;
+            }
+            await route.ContinueAsync();
+        });
+        await OpenAsync("/docs");
+        await Page.Locator("#download-button").ClickAsync();
+        await Page.Locator("#archive-confirm").ClickAsync();
+
+        ILocator bar = Page.Locator("#busy-overlay-progress");
+        await Expect(bar).ToBeVisibleAsync();
+        await Expect(bar).ToHaveAttributeAsync("aria-valuenow", "40");
+        await Expect(Page.Locator("#busy-overlay-spinner")).ToBeHiddenAsync();
+
+        IDownload download = await Page.RunAndWaitForDownloadAsync(() =>
+        {
+            letThrough.SetResult();
+            return Task.CompletedTask;
+        });
+        Assert.Matches(@"\?archive=[0-9a-f-]{36}$", download.Url);
+        await Expect(Overlay).ToBeHiddenAsync();
+    }
+
+    [Fact]
     public async Task A_refusal_of_the_server_is_shown_and_the_page_is_usable_again()
     {
         await Page.RouteAsync(new Regex(@"\?archive=directory"), route => route.FulfillAsync(new() { Status = 409, Body = "refused" }));

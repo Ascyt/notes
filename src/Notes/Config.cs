@@ -41,4 +41,6 @@ public sealed class Config
     public LimitsConfig Limits { get; init; } = new();
     /// <summary>How the passwords of entries behave, see <see cref="Features.Passwords.PasswordsConfig"/>.</summary>
     public Features.Passwords.PasswordsConfig Passwords { get; init; } = new();
+    /// <summary>How archived folders behave, see <see cref="Features.ZippedFolders.ArchivesConfig"/>.</summary>
+    public Features.ZippedFolders.ArchivesConfig Archives { get; init; } = new();
 }

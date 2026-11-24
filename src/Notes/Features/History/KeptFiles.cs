@@ -1,6 +1,7 @@
 using Notes.Features.Bridges;
 using Notes.Features.Configuration;
 using Notes.Features.Helpers;
+using Notes.Features.ZippedFolders;
 
 namespace Notes.Features.History;
 
@@ -83,8 +84,12 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, Ent
                 continue;
 
             string subfolderPattern = pattern + EscapeForPattern(name) + "/";
-            // What a bridge hides is no part of the entries, so nothing in it is kept
-            if (locations.IsHiddenByBridge(subfolder) || PatternsInside(subfolder, subfolderPattern, known) is not { } inside)
+            // What a bridge hides is no part of the entries, so nothing in it is kept. An unzipped archived folder hides its archive too, but
+            // its own configuration is next to it, and kept here (what is in the folder has the history of its unzipped copy).
+            List<string>? inside = IsUnzippedArchiveFolder(subfolder)
+                ? [subfolderPattern + "*", "!" + subfolderPattern + EscapeForPattern(PathService.ConfigFileName)]
+                : locations.IsHiddenByBridge(subfolder) ? null : PatternsInside(subfolder, subfolderPattern, known);
+            if (inside is null)
             {
                 // (In a folder that is left out, it already is by the folder's pattern)
                 if (!leftOut)
@@ -117,12 +122,27 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, Ent
 
     private bool IsKept(string path, Dictionary<string, bool> known)
     {
-        // What a bridge hides is no part of the entries, though it is in the work tree
-        if (path.Split('/')[0] == PathService.ReservedName || locations.IsHiddenByBridge(paths.ToPhysicalPath(path)))
+        if (path.Split('/')[0] == PathService.ReservedName)
             return false;
 
-        return IsConfigFile(path) || !IsLeftOut(Path.GetDirectoryName(paths.ToPhysicalPath(path))!, known);
+        // What a bridge hides is no part of the entries, though it is in the work tree; but for the configuration of an archived folder, which
+        // stays next to its archive while the folder is unzipped
+        string physicalPath = paths.ToPhysicalPath(path);
+        string folder = Path.GetDirectoryName(physicalPath)!;
+        if (locations.IsHiddenByBridge(physicalPath) && !(IsConfigFile(path) && IsUnzippedArchiveFolder(folder)))
+            return false;
+
+        // The archive of an archived folder never is: what is in it has a history of its own (in it), and it changes as a whole every time
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(physicalPath)) && configs.Get(folder).Config?.Archive.Enabled == true)
+            return false;
+
+        return IsConfigFile(path) || !IsLeftOut(folder, known);
     }
+
+    /// <summary>Whether the (physical) folder is an archived folder whose unzipped copy is mounted there now.</summary>
+    private bool IsUnzippedArchiveFolder(string folder)
+        => locations.UnzippedArchives.Any(archive => string.Equals(archive.MountPath, Path.TrimEndingDirectorySeparator(folder),
+            StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// What the nearest folder with a valid configuration says (an invalid one says nothing here: leaving something out of the history is never

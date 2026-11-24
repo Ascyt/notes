@@ -42,7 +42,9 @@
                 <a class="@_EntryGroup.LinkDecoration(entry)" href="@VirtualPaths.ToAddress(virtualPath)" key="@Model.OpenKey(i)"
                     key-anchor="i" title="@(entry.DisplayName is null ? null : name)"
                     key-held-text="@(entry.DisplayName is null ? null : name)">@shownName</a>@if (entry.IsUnlocked)
-                {<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>}@if (entry.Mark is { } mark)
+                {<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>}@if (entry.Archived is { } archived)
+                {<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml" model="new Notes.Features.ZippedFolders._ArchivedMark
+                    { State = archived, Progress = entry.ZipProgress, Address = VirtualPaths.ToAddress(virtualPath) }"/>}@if (entry.Mark is { } mark)
                 {<partial name="/Features/HistoryViewing/Changes/_ChangeMark.cshtml" model="new _ChangeMark { Mark = mark }"/>}</td>
         </tr>
     }

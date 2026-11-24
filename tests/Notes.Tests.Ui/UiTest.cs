@@ -18,6 +18,12 @@ public class UiFixture : IAsyncLifetime
         App = new NotesAppFactory();
     }
 
+    /// <summary>With an app of the kind given (with other settings).</summary>
+    protected UiFixture(NotesAppFactory app)
+    {
+        App = app;
+    }
+
     /// <param name="clockStart">Where the app's clock starts, instead of the real time.</param>
     protected UiFixture(DateTimeOffset clockStart)
     {

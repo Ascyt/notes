@@ -1,3 +1,4 @@
+using Notes.Features.Components.Archive;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Configuration;
@@ -8,13 +9,28 @@ namespace Notes.Features.Configuration;
 /// <param name="PasswordHash">The hash of the file's password (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.</param>
 public sealed record FileEntry(string Name, PermsBlock Perms, string? PasswordHash = null);
 
+/// <summary>
+/// Whether a folder is kept in an archive (<c>_.7z</c> or <c>_.zip</c> in it), which is unzipped while it is used (see
+/// docs/development/zipped-folders.md), and how it is made.
+/// </summary>
+/// <param name="Compression">As the archive is written; for a 7z never <see cref="ArchiveCompression.Store"/>, which it can't do.</param>
+/// <param name="Encrypted">Whether it is encrypted with the folder's password (not supported yet).</param>
+/// <param name="OnLowestLevel">Whether only the lowest folders below are archived, instead of this one (not supported yet).</param>
+public sealed record ArchiveSettings(bool Enabled, ArchiveFormat Format, ArchiveCompression Compression, bool Encrypted, bool OnLowestLevel)
+{
+    /// <summary>What a folder whose configuration doesn't say has: not archived.</summary>
+    public static ArchiveSettings Disabled { get; } = new(false, ArchiveFormat.SevenZip, ArchiveCompression.High, false, false);
+}
+
 /// <summary>The valid content of the configuration file of one folder.</summary>
 /// <param name="Perms">The permissions of the folder, and what is in it unless it says otherwise.</param>
 /// <param name="Gitignore">Whether the history leaves out the folder's files and what is below it (see <see cref="History.HistoryService"/>).</param>
 /// <param name="PasswordHash">
 /// The hash of the folder's password, which protects everything in it (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.
 /// </param>
-public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList<FileEntry> files, string? passwordHash = null)
+/// <param name="Archive">Whether the folder is kept in an archive; <see cref="ArchiveSettings.Disabled"/> if not given.</param>
+public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList<FileEntry> files, string? passwordHash = null,
+    ArchiveSettings? archive = null)
 {
     private readonly Dictionary<string, FileEntry> _files = files.ToDictionary(file => file.Name, StringComparer.OrdinalIgnoreCase);
 
@@ -23,6 +39,8 @@ public sealed class FolderConfig(PermsBlock perms, bool gitignore, IReadOnlyList
     public bool Gitignore { get; } = gitignore;
 
     public string? PasswordHash { get; } = passwordHash;
+
+    public ArchiveSettings Archive { get; } = archive ?? ArchiveSettings.Disabled;
 
     public IEnumerable<FileEntry> Files => _files.Values;
 

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Notes.Features.Bridges;
 using Notes.Features.EntryActions;
+using Notes.Features.Helpers;
 
 namespace Notes.Features.Passwords;
 
@@ -88,8 +90,12 @@ public sealed class UnlockHandler(PasswordLocks locks, PasswordUnlocks unlocks, 
     }
 }
 
-/// <summary><c>POST /?lock</c> (any entry): locks everything the browser has unlocked, at once.</summary>
-public sealed class LockHandler(PasswordUnlocks unlocks) : IEntryPostAction
+/// <summary>
+/// <c>POST /entry?lock</c>: locks everything the browser has unlocked, at once. If that locks the entry, the answer is
+/// <c>{ "location": "…" }</c>, the address of the folder the outermost unlocked password along it is in (the deepest one that can still be
+/// opened), where the page goes instead of to the password prompt; otherwise 204.
+/// </summary>
+public sealed class LockHandler(PasswordUnlocks unlocks, PasswordLocks locks, EntryLocations locations) : IEntryPostAction
 {
     public const string LockParameter = "lock";
 
@@ -101,7 +107,13 @@ public sealed class LockHandler(PasswordUnlocks unlocks) : IEntryPostAction
     {
         if (request.Value != "")
             return Task.FromResult<IActionResult>(new BadRequestResult());
+
+        // Asked before locking: afterwards nothing along the path is unlocked any more
+        string? outermostUnlocked = locks.UnlockedAlong(request.PhysicalPath, Directory.Exists(request.PhysicalPath)).FirstOrDefault();
         unlocks.LockAll(request.Context);
-        return Task.FromResult<IActionResult>(new NoContentResult());
+
+        if (outermostUnlocked is null || locations.ParentOf(outermostUnlocked) is not { } folder)
+            return Task.FromResult<IActionResult>(new NoContentResult());
+        return Task.FromResult<IActionResult>(new OkObjectResult(new { location = VirtualPaths.ToAddress(locations.ToVirtualPath(folder)) }));
     }
 }

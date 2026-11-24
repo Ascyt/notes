@@ -5,6 +5,9 @@
 //
 // The archive is made by the server first (POST ?archive=…, with the password in the body, never in an address) while the page is covered,
 // and then downloaded (GET ?archive=<id>). The format and compression chosen last are kept in the browser; the password never is.
+//
+// For an admin in an archived folder, the dialog has a switch (#archive-as-is, on whenever it opens) to download the folder's own archive as
+// it is kept instead (POST ?archive=as-is): the other options are greyed out while it is on. Only for the directory, not the selection.
 (function () {
     const modal = document.getElementById('archive-modal');
     const form = document.getElementById('archive-form');
@@ -13,6 +16,9 @@
     const minOption = document.getElementById('archive-compression-min');
     const password = document.getElementById('archive-password');
     const passwordToggle = document.getElementById('archive-password-toggle');
+    const asIs = document.getElementById('archive-as-is');            // (only there where the page offers it)
+    const asIsField = document.getElementById('archive-as-is-field');
+    const options = document.getElementById('archive-options');
     const texts = textsOf('archive-texts');
     const CHOICE_KEY = 'notes.archive-options';
 
@@ -51,11 +57,22 @@
         } catch { /* storage not allowed: chosen again next time */ }
     }
 
+    const downloadsAsIs = () => asIs !== null && !asIsField.hidden && asIs.checked;
+
+    function updateAsIs() {
+        options.disabled = downloadsAsIs();
+    }
+
     function open(what) {
         request = what;
         password.value = '';
         setPasswordShown(false);
         restoreChoice();
+        if (asIs !== null) {
+            asIsField.hidden = what.kind !== 'directory';
+            asIs.checked = true;
+        }
+        updateAsIs();
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }
 
@@ -77,24 +94,28 @@
     async function confirm() {
         if (request === null)
             return;
-        const body = { ...(request.kind === 'selection' ? { version: request.version } : {}),
+        const kind = downloadsAsIs() ? 'as-is' : request.kind;
+        const body = kind === 'as-is' ? {} : { ...(request.kind === 'selection' ? { version: request.version } : {}),
             format: chosenFormat(), compression: compression.value, password: password.value };
-        const kind = request.kind;
         request = null;
-        keepChoice();
+        if (kind !== 'as-is')
+            keepChoice();
         password.value = ''; // not kept in the page longer than needed
         bootstrap.Modal.getOrCreateInstance(modal).hide();
 
-        const answer = await whileBusy(async function () {
+        const answer = await whileBusy(async function (setProgress) {
             try {
+                // Answered at once; the archive is made meanwhile, and asked about until it is done
                 const response = await fetch(window.location.pathname + '?archive=' + kind, {
                     method: 'POST',
-                    headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json' },
+                    headers: { 'RequestVerificationToken': token(), 'Content-Type': 'application/json', 'Prefer': 'respond-async' },
                     body: JSON.stringify(body)
                 });
-                if (response.ok)
-                    return { archive: await response.json() };
-                return { message: (await response.text()) || fillIn(texts.failed, { status: response.status }) };
+                if (!response.ok)
+                    return { message: await messageOf(response) };
+                const { id } = await response.json();
+                setProgress(0);
+                return await waitUntilMade(id, setProgress);
             } catch {
                 return { message: texts.connectionLost };
             }
@@ -104,12 +125,47 @@
             notify(answer.message, 'danger');
             return;
         }
-        if (answer.archive.leftOutUnreadable)
+        if (answer.leftOutUnreadable)
             notify(texts.leftOutUnreadable, 'info');
-        download(answer.archive.id);
+        download(answer.id);
     }
 
-    form.addEventListener('change', updateCompressionChoices);
+    const POLL_EVERY_MS = 700;
+    const TRIES_WITHOUT_CONNECTION = 5;
+
+    async function messageOf(response) {
+        return (await response.text()) || fillIn(texts.failed, { status: response.status });
+    }
+
+    // Asks how far the archive got until it is done: { id, leftOutUnreadable }, or { message } if it failed. A few answers lost on the way
+    // (a connection that comes back) are tried again.
+    async function waitUntilMade(id, setProgress) {
+        const address = window.location.pathname + '?archive=' + encodeURIComponent(id) + '&progress';
+        let lost = 0;
+        for (;;) {
+            await new Promise(resolve => setTimeout(resolve, POLL_EVERY_MS));
+            let response;
+            try {
+                response = await fetch(address, { headers: { 'Accept': 'application/json' } });
+            } catch {
+                if (++lost >= TRIES_WITHOUT_CONNECTION)
+                    return { message: texts.connectionLost };
+                continue;
+            }
+            lost = 0;
+            if (!response.ok)
+                return { message: await messageOf(response) };
+            const state = await response.json();
+            setProgress(state.progress);
+            if (state.done)
+                return { id, leftOutUnreadable: state.leftOutUnreadable };
+        }
+    }
+
+    form.addEventListener('change', function () {
+        updateCompressionChoices();
+        updateAsIs();
+    });
     // Enter in the password field submits the form
     form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -117,7 +173,7 @@
     });
     document.getElementById('archive-confirm').addEventListener('click', confirm);
     passwordToggle.addEventListener('click', () => setPasswordShown(password.type === 'password'));
-    modal.addEventListener('shown.bs.modal', () => compression.focus());
+    modal.addEventListener('shown.bs.modal', () => (downloadsAsIs() ? asIs : compression).focus());
     // A dialog that was closed without downloading forgets the password typed into it
     modal.addEventListener('hidden.bs.modal', function () {
         request = null;
