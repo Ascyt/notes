@@ -88,13 +88,19 @@
 
     const ZIPPING_POLL_EVERY_MS = 700;
 
-    function markOf(state) {
+    // (The same classes and titles as _ArchivedMark.IconClasses and Title)
+    function markOf(state, encrypted) {
         const mark = document.createElement('i');
         const zipped = state === 'zipped';
-        mark.className = zipped ? 'fa-solid fa-file-zipper fa-xs ms-1 text-primary' : 'fa-regular fa-file-zipper fa-xs ms-1 text-secondary';
-        mark.title = zipped ? texts.zipped : texts.unzipped;
+        mark.className = encrypted
+            ? (zipped ? 'fa-solid fa-shield fa-xs ms-1 text-warning' : 'fa-solid fa-shield-halved fa-xs ms-1 text-secondary')
+            : (zipped ? 'fa-solid fa-file-zipper fa-xs ms-1 text-primary' : 'fa-regular fa-file-zipper fa-xs ms-1 text-secondary');
+        mark.title = encrypted
+            ? (zipped ? texts.encryptedZipped : texts.encryptedUnzipped)
+            : (zipped ? texts.zipped : texts.unzipped);
         mark.setAttribute('aria-label', mark.title);
         mark.dataset.archivedMark = zipped ? 'zipped' : 'unzipped';
+        mark.dataset.encrypted = String(encrypted);
         return mark;
     }
 
@@ -119,7 +125,7 @@
             if (state.state !== 'zipping') {
                 // (Null: no longer archived; the mark goes)
                 if (state.state)
-                    zipping.replaceWith(markOf(state.state));
+                    zipping.replaceWith(markOf(state.state, zipping.dataset.encrypted === 'true'));
                 else
                     zipping.remove();
                 return;

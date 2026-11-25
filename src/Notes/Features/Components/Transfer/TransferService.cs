@@ -96,6 +96,10 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
                 }
                 return result;
             }
+            catch (ZippedFolders.ArchivePasswordNeededException e)
+            {
+                return new TransferResult(StatusCodes.Status403Forbidden, e.Message) { PasswordNeeded = e.Protection };
+            }
             catch (IOException e)
             {
                 logger.LogWarning(e, "The archived folders of a {kind} into {target} could not be zipped first", kind, physicalTarget);

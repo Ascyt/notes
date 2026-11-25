@@ -10,7 +10,11 @@ namespace Notes.Features.ZippedFolders;
 /// False if a configuration that decides it isn't valid: then it can't be told, and nothing may be done about it (above all, archiving is never
 /// taken as turned off).
 /// </param>
-public readonly record struct ResolvedArchive(ArchiveSettings? Settings, bool IsCertain);
+/// <param name="SettingsFolder">
+/// The folder whose configuration gives the settings (physical): the folder itself, or the <c>onLowestLevel</c> folder above. Its password is
+/// what an encrypted archive is encrypted with. Null if it isn't archived.
+/// </param>
+public readonly record struct ResolvedArchive(ArchiveSettings? Settings, bool IsCertain, string? SettingsFolder = null);
 
 /// <summary>
 /// Whether a folder is archived, and how, from the configurations: its own <c>archive</c> (enabled, and not <c>onLowestLevel</c>), or, if it
@@ -32,10 +36,13 @@ public sealed class ArchiveSettingsResolver(FolderConfigStore configs, EntryLoca
         if (own.IsInvalid)
             return new ResolvedArchive(null, IsCertain: false);
         if (own.Config?.OwnArchive is { } set)
-            return new ResolvedArchive(set.Enabled && !set.OnLowestLevel ? set : null, IsCertain: true);
+            return set.Enabled && !set.OnLowestLevel
+                ? new ResolvedArchive(set, IsCertain: true, folder)
+                : new ResolvedArchive(null, IsCertain: true);
 
         // The nearest folder above that says something; the ones on the way don't
         ArchiveSettings? lowestLevel = null;
+        string? lowestLevelFolder = null;
         List<string> between = [];
         for (string? up = IsLocationRoot(folder) ? null : locations.ParentOf(folder); up is not null;
              up = IsLocationRoot(up) ? null : locations.ParentOf(up))
@@ -46,7 +53,7 @@ public sealed class ArchiveSettingsResolver(FolderConfigStore configs, EntryLoca
             if (state.Config?.OwnArchive is { } above)
             {
                 if (above.Enabled && above.OnLowestLevel)
-                    lowestLevel = above;
+                    (lowestLevel, lowestLevelFolder) = (above, OuterOf(up));
                 break;
             }
             between.Add(up);
@@ -56,10 +63,10 @@ public sealed class ArchiveSettingsResolver(FolderConfigStore configs, EntryLoca
 
         ArchiveSettings inherited = lowestLevel with { OnLowestLevel = false };
         if (IsArchivedOnDisk(folder))
-            return new ResolvedArchive(inherited, IsCertain: true);
+            return new ResolvedArchive(inherited, IsCertain: true, lowestLevelFolder);
         // The lowest level: it holds files, and none of the folders on the way is archived (it would hold this one) or holds files
         bool isLowest = HoldsFiles(folder) && !between.Any(above => IsArchivedOnDisk(OuterOf(above)) || HoldsFiles(above));
-        return new ResolvedArchive(isLowest ? inherited : null, IsCertain: true);
+        return isLowest ? new ResolvedArchive(inherited, IsCertain: true, lowestLevelFolder) : new ResolvedArchive(null, IsCertain: true);
     }
 
     /// <summary>

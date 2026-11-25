@@ -19,4 +19,10 @@ public sealed class UnzipJob
 
     /// <summary>Done once it is unzipped (and mounted). Null if it worked, otherwise why not (for the log; the user is told less).</summary>
     public Task<string?> Finished { get; internal set; } = Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// The folder whose password it needs, if it ended because its archive is encrypted and the password isn't known (nobody unlocked it
+    /// since the app started, or it was changed): whoever opens it is asked for it.
+    /// </summary>
+    public string? NeedsPasswordOf { get; internal set; }
 }

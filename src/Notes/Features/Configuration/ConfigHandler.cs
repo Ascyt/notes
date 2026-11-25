@@ -27,7 +27,8 @@ namespace Notes.Features.Configuration;
 /// </remarks>
 public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrator, StructureLock structureLock, HistoryService history,
     ConfigSchema schema, ConfigTexts texts, EntryTexts entryTexts, PasswordLocks passwordLocks, PasswordUnlocks unlocks, Config config,
-    IPathService paths, ZippedFolders.ArchivedFolders archives, Bridges.EntryLocations locations, ILogger<ConfigHandler> logger)
+    IPathService paths, ZippedFolders.ArchivedFolders archives, Bridges.EntryLocations locations, ArchiveEncryptionChanges encryptionChanges,
+    ILogger<ConfigHandler> logger)
     : IEntryPostAction
 {
     public const string ConfigParameter = "config";
@@ -145,11 +146,21 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
             return Failed(StatusCodes.Status400BadRequest, parsed.ErrorText);
 
         FolderConfig? before = store.Get(folder).Config;
-        if (RefusedPasswordChange(context, folder, before, parsed.Value!) is { } refused)
+        if (RefusedPasswordChange(context, folder, before, parsed.Value!, ConfigText.FolderPassword(text)) is { } refused)
             return refused;
         if (RefusedArchiveChange(folderPath, before?.OwnArchive, parsed.Value!.OwnArchive) is { } refusedArchive)
             return refusedArchive;
-        text = HashPasswords(text);
+        // Encryption on or off, or a new password of an encrypted folder: its archives are unzipped first where they have to be
+        EncryptionChange encryption = await encryptionChanges.BeforeSaveAsync(folderPath, before, parsed.Value!, text);
+        if (encryption.Refusal is { } refusedEncryption)
+            return Failed(encryption.Status, refusedEncryption);
+        // (Encryption turned off: the password that was typed to prove it is known is saved as the hash it had, not as a new one)
+        string? typedPassword = ConfigText.FolderPassword(text);
+        text = encryption.KeptHash is { } keptHash
+            ? ConfigText.HashPasswords(text, password => password == typedPassword ? keptHash
+                  : PasswordHashing.Hash(password, config.Passwords.WorkFactor))
+              ?? throw new InvalidOperationException("A configuration that was parsed can't be read for its passwords.")
+            : HashPasswords(text);
 
         // Every file has an entry: the ones the text lacks (files that came in from outside the app) get one that changes nothing
         foreach (string name in (files ?? new HashSet<string>()).Order(StringComparer.OrdinalIgnoreCase)
@@ -194,6 +205,7 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
                 context.Response.Headers[ConfigWarningHeader] = Uri.EscapeDataString(texts.ArchiveInsideArchive);
         }
 
+        encryptionChanges.AfterSave(folderPath, encryption, completed.Value!.PasswordHash);
         return Saved(text);
     }
 
@@ -327,12 +339,21 @@ public sealed class ConfigHandler(FolderConfigStore store, ConfigMigrator migrat
     /// The answer if what is sent changes or removes a password of an entry that isn't unlocked (a password that is only being typed counts as a
     /// change, as its hash isn't made yet); null if it doesn't. Setting a password where there was none needs nothing.
     /// </summary>
-    private ObjectResult? RefusedPasswordChange(HttpContext context, string folder, FolderConfig? before, FolderConfig sent)
+    /// <param name="typedFolderPassword">
+    /// The folder's password as typed into what was sent, if it was: the right one proves it is known, as unlocking would (turning encryption
+    /// off asks for it).
+    /// </param>
+    private ObjectResult? RefusedPasswordChange(HttpContext context, string folder, FolderConfig? before, FolderConfig sent,
+        string? typedFolderPassword = null)
     {
         Dictionary<string, Protection> after = ProtectionsIn(folder, sent);
+        string folderPath = Path.GetDirectoryName(store.ConfigPathOf(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder))))!;
         foreach ((string path, Protection old) in ProtectionsIn(folder, before))
         {
             if (after.TryGetValue(path, out Protection? kept) && kept.Hash == old.Hash)
+                continue;
+            if (typedFolderPassword is not null && string.Equals(path, folderPath, StringComparison.OrdinalIgnoreCase)
+                && PasswordHashing.Verify(typedFolderPassword, old.Hash))
                 continue;
             if (!passwordLocks.IsUnlocked(context, old))
                 return Failed(StatusCodes.Status403Forbidden, texts.PasswordChangeNeedsUnlock(paths.ToVirtualPath(path)));

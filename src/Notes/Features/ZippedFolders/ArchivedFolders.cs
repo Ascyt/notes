@@ -25,8 +25,8 @@ namespace Notes.Features.ZippedFolders;
 /// what is done at the start, after a crash, in <c>ArchivedFolders.Recovery.cs</c>.
 /// </remarks>
 public sealed partial class ArchivedFolders(EntryLocations locations, IPathService paths, FolderConfigStore configs, FolderArchiver archiver,
-    ArchiveSettingsResolver resolver, HistoryService history, ArchivesConfig settings, TimeProvider time, IHostApplicationLifetime lifetime,
-    ILogger<ArchivedFolders> logger)
+    ArchiveSettingsResolver resolver, ArchivePasswords passwords, HistoryService history, ArchivesConfig settings, TimeProvider time,
+    IHostApplicationLifetime lifetime, ILogger<ArchivedFolders> logger)
 {
     public const string UnzippedKind = "unzipped";
     public const string ZippingKind = "zipping";
@@ -88,6 +88,10 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
     /// </summary>
     public bool IsArchived(string physicalDirectory)
         => resolver.SettingsOf(physicalDirectory) is not null;
+
+    /// <summary>Whether the folder (its physical path, or that of its unzipped copy) is archived encrypted, as the configurations say now.</summary>
+    public bool IsEncrypted(string physicalDirectory)
+        => resolver.SettingsOf(physicalDirectory) is { Encrypted: true };
 
     /// <summary>The unzipped copy mounted for the folder (its physical path), or null if it is zipped (or not archived).</summary>
     public EntryLocation? MountedAt(string folderPath)
@@ -157,12 +161,19 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
     /// <paramref name="action"/> moves or deletes them: they go as their folders, archive and configuration. The entries are given to it as
     /// such folders (<see cref="OuterOf"/>), in the order given.
     /// </summary>
+    /// <exception cref="ArchivePasswordNeededException">
+    /// If an encrypted one can't be zipped because its password isn't known: nothing was done then.
+    /// </exception>
     /// <exception cref="IOException">If one can't be zipped now (something in it is in use): nothing was done then.</exception>
     public async Task<T> WhileZippedAsync<T>(IReadOnlyList<string> physicalPaths, Func<IReadOnlyList<string>, Task<T>> action)
     {
         List<string> outer = [.. physicalPaths.Select(OuterOf)];
         for (;;)
         {
+            // (Rather than waiting for its uses only to find that it can't be zipped)
+            if (UnknownPasswordToZipAtOrBelow(physicalPaths) is { } needed)
+                throw new ArchivePasswordNeededException(needed);
+
             foreach (string path in physicalPaths)
                 if (!await ZipAtOrBelowAsync(path))
                     throw new IOException($"What is unzipped in {path} could not be zipped now.");
@@ -351,7 +362,21 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
             ArchivedFolder folder = FolderOf(folderPath);
             // (A copy left by a crash, not mounted yet, is what the folder holds: it is mounted as it is)
             if (archiver.Recover(folder) != ArchivedFolderState.Unzipped)
-                await archiver.UnzipAsync(folder, password: null, new Progress<double>(job.Report), lifetime.ApplicationStopping);
+            {
+                // An encrypted archive needs the password of the folder that set it up, known since someone unlocked it
+                string? password = null;
+                if (ArchiveReading.IsEncrypted(folder.ArchivePath, folder.Format))
+                {
+                    string passwordFolder = resolver.Resolve(folderPath).SettingsFolder ?? Normalize(folderPath);
+                    if (passwords.PasswordOf(passwordFolder) is not { } known)
+                    {
+                        job.NeedsPasswordOf = passwordFolder;
+                        return $"The password of {passwordFolder} isn't known: it has to be unlocked first.";
+                    }
+                    password = known;
+                }
+                await archiver.UnzipAsync(folder, password, new Progress<double>(job.Report), lifetime.ApplicationStopping);
+            }
 
             Mount(folderPath, folder.UnzippedDirectory, state);
             return null;
@@ -445,12 +470,33 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
         // Written in the format and with the compression as configured now: an archive of the other format (the filetype changed) is
         // replaced by it (FolderArchiver deletes it once the new one is in place)
         ArchivedFolder existing = FolderOf(folderPath);
-        ArchiveSettings archive = resolver.SettingsOf(folderPath) ?? ArchiveSettings.Disabled with { Format = existing.Format };
+        ResolvedArchive resolved = resolver.Resolve(folderPath);
+        ArchiveSettings archive = resolved.Settings ?? ArchiveSettings.Disabled with { Format = existing.Format };
+
+        // Encrypted with the password of the folder that set it up, as long as it is the one its configuration has. Unknown (nobody unlocked
+        // it since the app started): it stays unzipped until someone does, rather than being zipped without it
+        string? password = null;
+        if (archive.Encrypted)
+        {
+            string passwordFolder = resolved.SettingsFolder ?? Normalize(folderPath);
+            password = passwords.PasswordOf(passwordFolder);
+            if (password is null)
+            {
+                logger.LogWarning("The encrypted folder /{folder} stays unzipped until someone unlocks it: its password isn't known now",
+                    location.VirtualPath);
+                return false;
+            }
+        }
+
         string target = Path.Combine(Normalize(folderPath), ArchivedFolder.ArchiveFileName(archive.Format));
         ArchivedFolder folder = FolderOf(Normalize(folderPath), target) with
         {
             FormerArchivePath = ArchivedFolder.ArchivePathsIn(Normalize(folderPath))
-                .FirstOrDefault(path => !string.Equals(path, target, StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+                .FirstOrDefault(path => !string.Equals(path, target, StringComparison.OrdinalIgnoreCase) && File.Exists(path)),
+            // An archive that wasn't encrypted (encryption was just turned on) is overwritten before it goes, not only deleted
+            ShredsReplacedArchives = password is not null && ArchiveFileOf(folderPath) is { } old
+                                     && !ArchiveReading.IsEncrypted(old, old.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+                                         ? ArchiveFormat.Zip : ArchiveFormat.SevenZip)
         };
         ArchiveCompression compression = folder.Format == ArchiveFormat.SevenZip && archive.Compression == ArchiveCompression.Store
             ? ArchiveCompression.Min
@@ -460,8 +506,10 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
         locations.UnmountArchive(location);
         try
         {
-            await archiver.ZipAsync(folder, new ArchiveOptions(folder.Format, compression, Password: null), job.Token, job);
+            await archiver.ZipAsync(folder, new ArchiveOptions(folder.Format, compression, password), job.Token, job);
             logger.LogInformation("Zipped the archived folder /{folder}", location.VirtualPath);
+            if (password is not null)
+                ForgetPasswordIfUnneeded(resolved.SettingsFolder ?? Normalize(folderPath));
             return true;
         }
         catch (Exception e)
@@ -475,6 +523,18 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
                 _ = Mount(folderPath, folder.UnzippedDirectory, state);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Forgets the password of the folder (that sets up encrypted archives) once no unzipped folder needs it to be zipped again: it is only
+    /// in memory while it has to be.
+    /// </summary>
+    private void ForgetPasswordIfUnneeded(string passwordFolder)
+    {
+        bool stillNeeded = UnzippedFolders().Any(folder => resolver.Resolve(folder) is { Settings.Encrypted: true } resolved
+                                                           && IsSame(resolved.SettingsFolder!, passwordFolder));
+        if (!stillNeeded)
+            passwords.Forget(passwordFolder);
     }
 
     private bool IsIdle(FolderState state)

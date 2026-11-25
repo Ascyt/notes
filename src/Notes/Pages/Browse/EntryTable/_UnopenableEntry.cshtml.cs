@@ -33,4 +33,16 @@ public class _UnopenableEntry : PageModel
 
     /// <summary>Whether the other rows have a box to select them, which this one then has too (disabled), to keep the names in line.</summary>
     public bool ShowsCheckbox { get; init; }
+
+    /// <summary>How it is kept, if it is an archived folder a password locks (its zipper goes after the lock); otherwise null.</summary>
+    public Features.ZippedFolders.ArchiveState? Archived { get; init; }
+
+    /// <summary>Whether that archive is encrypted (a shield in place of the zipper).</summary>
+    public bool ArchiveEncrypted { get; init; }
+
+    /// <summary>How far its zipping got (0 to 1), while <see cref="Archived"/> is <c>Zipping</c>: the lock button zips what it locks.</summary>
+    public double ZipProgress { get; init; }
+
+    /// <summary>Its address, where the page asks how far its zipping got (it answers whether or not the password is unlocked).</summary>
+    public string? Address { get; init; }
 }

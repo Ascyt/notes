@@ -116,6 +116,26 @@ public sealed class PasswordUnlocks(PasswordsConfig settings, TimeProvider time)
         }
     }
 
+    /// <summary>
+    /// Locks the protection for the browser of the request: it is asked for its password again (an encrypted archive needs the password itself,
+    /// which the app may have forgotten while the browser still had it unlocked).
+    /// </summary>
+    public void Lock(HttpContext context, Protection protection)
+    {
+        lock (_lock)
+            _ = Of(context)?.LastUsed.Remove(protection);
+    }
+
+    /// <summary>The protections the browser of the request has unlocked now.</summary>
+    public List<Protection> UnlockedBy(HttpContext context)
+    {
+        lock (_lock)
+        {
+            DateTimeOffset now = time.GetUtcNow();
+            return Of(context) is { } unlocked ? [.. unlocked.LastUsed.Where(pair => now - pair.Value < Lifetime).Select(pair => pair.Key)] : [];
+        }
+    }
+
     /// <summary>Locks everything the browser of the request has unlocked.</summary>
     public void LockAll(HttpContext context)
     {

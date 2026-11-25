@@ -15,6 +15,12 @@ public class UnzipTexts
     /// <summary>The icon after the name of an archived folder that is unzipped now.</summary>
     public virtual string Unzipped => "Kept as an archive: unzipped now, zipped again once it isn't used for a while";
 
+    /// <summary>The shield after the name of an encrypted archived folder that is zipped now (in place of the zipper).</summary>
+    public virtual string EncryptedZipped => "Kept as an encrypted archive: zipped now, unzipped with its password when it is opened";
+
+    /// <summary>The shield after the name of an encrypted archived folder that is unzipped now.</summary>
+    public virtual string EncryptedUnzipped => "Kept as an encrypted archive: unzipped now, zipped and encrypted again once it isn't used for a while";
+
     /// <summary>The bar after the name of an archived folder that is being zipped now (in the listing).</summary>
     public virtual string ZippingNow => "Being zipped: opening it stops that";
 

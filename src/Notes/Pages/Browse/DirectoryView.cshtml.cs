@@ -62,6 +62,9 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     /// </summary>
     public Features.ZippedFolders.ArchiveState? Archived { get; init; }
 
+    /// <summary>Whether that archive is encrypted, which a shield in place of the zipper shows.</summary>
+    public bool ArchiveEncrypted { get; init; }
+
     /// <summary>How far its zipping got (0 to 1), while <see cref="Archived"/> is <c>Zipping</c>.</summary>
     public double ZipProgress { get; init; }
 
@@ -215,12 +218,17 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
         Func<string, ListedEntry> ToListed(bool isDirectory) => entry =>
         {
             ListedKind kind = KindOf(entry, isDirectory);
-            Features.ZippedFolders.ArchiveState? archived = kind == ListedKind.Open && isDirectory ? Archives?.ArchiveStateOf(entry) : null;
-            // What can be read with a password of its own has it unlocked
+            // (One a password locks shows its zipper too, after the lock)
+            Features.ZippedFolders.ArchiveState? archived = kind is ListedKind.Open or ListedKind.PasswordLocked && isDirectory
+                ? Archives?.ArchiveStateOf(entry)
+                : null;
+            // The lock only says whether its own password is unlocked; whether it is encrypted is the archive's mark (a folder can be
+            // encrypted with the password of an onLowestLevel folder above, and locked for one browser while it is unzipped for another)
             return new(entry, kind)
             {
                 IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true,
                 Archived = archived,
+                ArchiveEncrypted = archived is not null && Archives?.IsEncrypted(entry) == true,
                 ZipProgress = archived == Features.ZippedFolders.ArchiveState.Zipping ? Archives?.ZipProgressOf(entry) ?? 0 : 0
             };
         };

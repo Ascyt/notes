@@ -13,7 +13,7 @@ In the [configuration](configuration.md) of the directory:
 - `enabled` is all that is needed; the rest have the defaults shown.
 - `filetype`: `"7z"` or `"zip"`. Changing it on an archived directory writes the other format the next time it is zipped, in place of the old archive.
 - `compressionLevel`: 0 (none; a 7z, which always compresses, the least) to 3 (most, and slowest). A new one is used from the next zipping on.
-- `encrypted` must be `false` for now; it comes later.
+- `encrypted`: see [Encrypted](#encrypted).
 - `onLowestLevel`: see [Only the lowest directories](#only-the-lowest-directories).
 
 Saving it moves what is in the directory into its unzipped copy at once (in one step: if something in it is in use on the server, nothing changes and the editor says so). It is zipped the first time once it isn't used for `Archives:ZipAfterMinutes`.
@@ -43,9 +43,34 @@ With `"onLowestLevel": true`, the directory itself isn't archived. Instead, each
 - Saving it sets `"archive": null` in the configuration of every directory below that has one: `null` (or no `archive`) leaves it to the directory above. Directories without a configuration are left to it all the same.
 - It can't be turned on over entries below that have a password: archiving them this way would let the configuration of the directory above get around them. The editor lists them. Nor over directories that are archived with settings of their own (or `onLowestLevel` themselves): set those to `null` first.
 - `{ "enabled": false }` on a directory below takes it and what is below it out: what was archived there is turned off. Below it, a directory can be archived on its own again.
-- A directory that comes to hold files later (a new one, or files moved in) is archived by the job that zips idle directories (every minute; until then it is an ordinary directory). Once archived, a directory stays so while the directory above says `onLowestLevel`, even if a directory above it gains files later (that one is then archived too, with it inside).
+- A directory that comes to hold files later in the app (a file created or uploaded, files copied or moved in) is archived right away, and shows as unzipped. One that comes to hold files on the server is archived by the job that zips idle directories (every minute), or the soft restart ([Background jobs](jobs.md)). Once archived, a directory stays so while the directory above says `onLowestLevel`, even if a directory above it gains files later (that one is then archived too, with it inside).
 - A directory archived this way that is moved somewhere without `onLowestLevel` above it is an ordinary directory again where it is then.
 - Turning `onLowestLevel` off again turns off every directory archived by it.
+
+**Inside an archived directory**, archiving a directory (on its own, or with `onLowestLevel`) is saved, with a warning: what is in it is in the archive around it already, so it is only zipped and unzipped twice. It makes sense with encryption.
+
+## Encrypted
+
+With `"encrypted": true`, the archive is encrypted with the directory's [password](passwords.md) (AES-256; for a 7z the names of the files inside too, for a zip only their contents). It needs a password: a configuration without one is refused. With `onLowestLevel`, every directory it archives is encrypted with the password of the directory that says `onLowestLevel` (they can't have passwords of their own below it).
+
+The app only knows the password while it needs it, **in memory, never on disk**: from when someone unlocks the directory (in the dialog, or with the `X-Notes-Password` header) until it is zipped again, encrypted, and no other unzipped directory needs it. While it is zipped, nobody can get into it without the password, admins included, whatever else they can do on the server.
+
+- **Opening it** asks for the password, as for any protected directory, then unzips it (with a bar). If the app forgot the password meanwhile (it restarted, or the directory was zipped and someone still had it unlocked), it asks again.
+- **The lock button** (Alt+L) locks what the browser unlocked and zips the encrypted directories behind those passwords right away.
+- **Zipping again** after `Archives:ZipAfterMinutes` encrypts it with the password it knows, once the configuration still has the hash that password was found right for. A changed password is never used blindly.
+- **What was unzipped is overwritten** with random data (`Archives:OverwritePasses` times, 3 by default) before it is deleted, as a deleted file stays readable on the disk until something else is written there. So is what a crash left in the work of zipping, and the old archive when encryption is turned on. On an SSD, a copy-on-write file system (btrfs, ZFS, APFS) or with snapshots, the disk may keep the old blocks anyway: encrypting the whole disk is what helps there.
+- **If the app stops while it is unzipped**, the unzipped copy stays (it counts, as always) until someone unlocks the directory again; then it is zipped, encrypted. The log says so.
+- **Moving, renaming, deleting or downloading it as it is** zips it first. If the app doesn't know the password then (someone still has it unlocked from before), the dialog asks for it, and it goes on once it is typed.
+
+**Turning it on** needs the password known: unlocked (as the editor of a protected directory is anyway), or typed into `"password"`. A directory that is zipped is encrypted right away (in the background): unzipped, zipped encrypted, its old archive overwritten. An unzipped one is encrypted the next time it is zipped.
+
+**Turning it off** (or turning archiving off) needs the password typed into `"password"` in place of `"passwordHash"`: the archive is opened with it (also those of the directories it archives, with `onLowestLevel`). It is saved as the hash it had, not as a new password. A wrong one is refused, and encryption stays on.
+
+**A new password** (typed while it is encrypted) unzips the archives encrypted with the old one first (the old one is known: changing a password needs it unlocked); they are encrypted with the new one when they are zipped again.
+
+Forget the password, and what is in the archive is gone: there is no other way in.
+
+In the listing and the breadcrumb, an encrypted directory has a shield in place of the zipper: a whole yellow one while it is zipped (encrypted), a gray half one while it is unzipped. Its lock is a mark of its own, which only says whether its password is unlocked in this browser (yellow while locked, gray once unlocked): a directory below an `onLowestLevel` one is encrypted with the password of that one and has no lock of its own, and one can be unzipped for someone else while it is locked for you.
 
 ## While it is used
 
@@ -62,6 +87,7 @@ In `appsettings.json`, under `Config:Archives`:
 |---|---|---|
 | `ZipAfterMinutes` | `10` | How long an unzipped directory stays unzipped after it was last used. |
 | `WaitSeconds` | `1.5` | How long a request waits for unzipping before the page shows how far it got instead. |
+| `OverwritePasses` | `3` | How often what was unzipped from an encrypted directory is overwritten with random data before it is deleted (0 to 35; 0 only deletes it). |
 
 ## On disk
 

@@ -161,6 +161,32 @@ public static class ConfigText
     // ---- Passwords
 
     /// <summary>
+    /// The folder's own <c>password</c> as it was typed (a string, before it is saved as its hash), or null if there is none (or null, or the
+    /// text isn't valid).
+    /// </summary>
+    public static string? FolderPassword(string text)
+    {
+        try
+        {
+            Utf8JsonReader reader = new(Encoding.UTF8.GetBytes(text), ReaderOptions);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                return null;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                bool isPassword = reader.ValueTextEquals(ConfigParser.PasswordKey);
+                _ = reader.Read();
+                if (isPassword)
+                    return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                reader.Skip();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        return null;
+    }
+
+    /// <summary>
     /// The text with each <c>password</c> (of the root object, or of an entry of <c>files</c>) replaced by a <c>passwordHash</c> with the hash
     /// of it, where it was; one that is null stays. Nothing else changes, comments included. Null if the text isn't valid JSON or a password
     /// is neither a string nor null.
@@ -263,7 +289,7 @@ public static class ConfigText
     private static readonly string[] ArchiveComment =
     [
         "true keeps this folder in an archive (_.7z or _.zip in it), unzipped while it is used and zipped again after a while.",
-        "filetype: \"7z\" or \"zip\". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted: not supported yet.",
+        "filetype: \"7z\" or \"zip\". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted: with the folder's password.",
         "onLowestLevel: true archives only the folders below that hold files, instead of this one. Below such a folder, null leaves it to that one."
     ];
 

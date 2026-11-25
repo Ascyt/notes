@@ -111,6 +111,12 @@ public static class ConfigParser
         // is not set: an "onLowestLevel" folder above may archive this one (ArchiveSettingsResolver)
         bool archiveIsSet = root.TryGetValue(ArchiveKey, out JsonElement archiveElement) && archiveElement.ValueKind != JsonValueKind.Null;
         ArchiveSettings? archive = archiveIsSet ? ParseArchive(archiveElement, errors) : ArchiveSettings.Disabled;
+        // An archive is encrypted with the folder's password: without one there is nothing to encrypt it with (a password only being typed
+        // counts: its hash is made when it is saved)
+        bool hasPassword = passwordHash is not null
+                           || (root.TryGetValue(PasswordKey, out JsonElement plain) && plain.ValueKind == JsonValueKind.String);
+        if (archive is { Enabled: true, Encrypted: true } && !hasPassword)
+            errors.Add(errors.Texts.EncryptedNeedsPassword(ArchiveKey + "." + ArchiveEncryptedKey, PasswordKey));
         List<FileEntry> files = [];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
 
@@ -180,10 +186,6 @@ public static class ConfigParser
         if (properties.TryGetValue(ArchiveCompressionLevelKey, out JsonElement levelElement)
             && !(levelElement.ValueKind == JsonValueKind.Number && levelElement.TryGetInt32(out level) && level is >= 0 and <= MaxCompressionLevel))
             errors.Add(errors.Texts.NotACompressionLevel(Where(ArchiveCompressionLevelKey), MaxCompressionLevel));
-
-        // Coming with later steps: until then, saying true would be a promise the app doesn't keep
-        if (encrypted == true)
-            errors.Add(errors.Texts.NotSupportedYet(Where(ArchiveEncryptedKey)));
 
         if (errors.Count > before)
             return null;

@@ -63,9 +63,8 @@ public sealed class ConfigSchema(ConfigTexts texts)
                     [ConfigParser.ArchiveCompressionLevelKey] = new Dictionary<string, object>
                         { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = ConfigParser.MaxCompressionLevel,
                             ["description"] = texts.SchemaArchiveCompressionLevel },
-                    // (Not supported yet: only false is accepted)
                     [ConfigParser.ArchiveEncryptedKey] = new Dictionary<string, object>
-                        { ["const"] = false, ["description"] = texts.SchemaArchiveEncrypted },
+                        { ["type"] = "boolean", ["description"] = texts.SchemaArchiveEncrypted },
                     [ConfigParser.ArchiveOnLowestLevelKey] = new Dictionary<string, object>
                         { ["type"] = "boolean", ["description"] = texts.SchemaArchiveOnLowestLevel }
                 }

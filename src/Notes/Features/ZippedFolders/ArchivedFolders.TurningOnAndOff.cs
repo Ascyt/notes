@@ -144,7 +144,7 @@ public sealed partial class ArchivedFolders
                     DurableFiles.FlushDirectory(work);
                 }
                 else
-                    await archiver.UnzipAsync(archived with { UnzippedDirectory = staging }, password: null, progress: null,
+                    await archiver.UnzipAsync(archived with { UnzippedDirectory = staging }, PasswordToUnzip(folder, archived), progress: null,
                         lifetime.ApplicationStopping);
             }
             catch (Exception e)
@@ -168,6 +168,44 @@ public sealed partial class ArchivedFolders
     }
 
     private const string MarkerExtension = ".target";
+
+    /// <summary>
+    /// The password an encrypted archive of the folder is unzipped with when it is turned off: of the folder that set it up (its own, or the
+    /// <c>onLowestLevel</c> one above that archived it, as the configurations said then; the folder's own is tried if that one says nothing now).
+    /// </summary>
+    /// <exception cref="IOException">If the archive is encrypted and the password isn't known: nothing is changed then.</exception>
+    private string? PasswordToUnzip(string folder, ArchivedFolder archived)
+    {
+        if (!ArchiveReading.IsEncrypted(archived.ArchivePath, archived.Format))
+            return null;
+        return EncryptionPasswordFolders(folder).Select(passwords.PasswordOf).FirstOrDefault(known => known is not null)
+               ?? throw new IOException($"{archived.ArchivePath} is encrypted, and the password to open it isn't known: unlock it first.");
+    }
+
+    /// <summary>
+    /// The folders whose password may have encrypted the folder's archive: the folder itself, and the folders above (an <c>onLowestLevel</c>
+    /// one), nearest first. (Turned off, the configurations no longer say which.)
+    /// </summary>
+    private IEnumerable<string> EncryptionPasswordFolders(string folder)
+    {
+        for (string? up = folder; up is not null; up = IsLocation(up) ? null : locations.ParentOf(up))
+            yield return OuterOf(up);
+    }
+
+    /// <summary>
+    /// Whether the folder (physical), or a folder below it whose archiving it decides, is zipped encrypted with a password the app doesn't know
+    /// now: turning archiving (or encryption) off there has to wait until it is unlocked.
+    /// </summary>
+    public bool NeedsUnknownPassword(string folderPath)
+    {
+        IEnumerable<string> folders = [Normalize(folderPath), .. DirectoriesBelow(folderPath).Zipped];
+        return folders.Where(folder => ArchiveFileOf(folder) is not null && MountedAt(folder) is null).Any(folder =>
+        {
+            ArchivedFolder archived = FolderOf(folder);
+            return ArchiveReading.IsEncrypted(archived.ArchivePath, archived.Format)
+                   && !EncryptionPasswordFolders(folder).Any(passwords.Knows);
+        });
+    }
 
     /// <summary>
     /// Once the folder's copy is in <paramref name="staging"/> (and counts): its archive is deleted, its own history set aside, and its entries

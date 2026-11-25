@@ -33,7 +33,7 @@ public sealed record ArchiveRequest(string? Format, string? Compression, string?
 /// </summary>
 public sealed class ArchiveHandler(EntryLocations locations, IPathService path, AccessTree tree, ISelectionService selection,
     PreparedArchives archives, DownloadHandler downloads, ArchiveTexts texts, EntryTexts entryTexts, ZippedFolders.ArchivedFolders archivedFolders,
-    ILogger<ArchiveHandler> logger)
+    ZippedFolders.ArchivePasswordPrompt passwordPrompt, ILogger<ArchiveHandler> logger)
     : IEntryGetAction, IEntryPostAction
 {
     public const string ArchiveParameter = "archive";
@@ -138,6 +138,10 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
         string folder = archivedFolders.OuterOf(request.PhysicalPath);
         if (!Directory.Exists(request.PhysicalPath) || archivedFolders.ArchiveStateOf(folder) is null)
             return new BadRequestObjectResult(texts.NotArchived);
+
+        // Unzipped and encrypted, with a password the app doesn't know: asked for now, as it couldn't be zipped
+        if (archivedFolders.UnknownPasswordToZipAtOrBelow([request.PhysicalPath]) is { } passwordNeeded)
+            return passwordPrompt.Ask(request.Context, passwordNeeded, request.PhysicalPath);
 
         if (archives.TryClaimMaking(userId) is not { } claim)
             return new ConflictObjectResult(texts.AlreadyPreparing);

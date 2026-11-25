@@ -32,7 +32,9 @@
             {
                 @Model.Name
             }
-            <i class="fa-solid @mark fa-xs ms-1" aria-label="@reason"></i></td>;
+            <i class="fa-solid @mark fa-xs ms-1" aria-label="@reason"></i>@if (Model.Archived is { } archived)
+            {<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml" model="new Notes.Features.ZippedFolders._ArchivedMark
+                { State = archived, Encrypted = Model.ArchiveEncrypted, Progress = Model.ZipProgress, Address = Model.Address }"/>}</td>;
 }
 
 @* Not an .entry-row: the selection script leaves it alone. The box (where the others have one) is only there to keep the names in line with them,

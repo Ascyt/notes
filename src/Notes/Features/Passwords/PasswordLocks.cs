@@ -14,8 +14,9 @@ namespace Notes.Features.Passwords;
 /// Outside of a request (a background job) nothing is unlocked. The page of an entry asks whether the user may know of it as if nothing
 /// were locked (<see cref="IgnoringLocks"/>), so that it can ask for the password instead of answering as if the entry weren't there.
 /// </remarks>
+/// <param name="witnesses">Told the passwords from the header that are right (encrypted archives need them).</param>
 public sealed class PasswordLocks(PasswordUnlocks unlocks, PasswordAttempts attempts, FolderConfigStore store, EntryLocations locations,
-    IHttpContextAccessor accessor)
+    IHttpContextAccessor accessor, IEnumerable<IPasswordWitness>? witnesses = null)
 {
     /// <summary>The header in which a request may bring passwords along, one in each (a request may need several), each in base64 of its UTF-8.</summary>
     public const string HeaderName = "X-Notes-Password";
@@ -157,10 +158,15 @@ public sealed class PasswordLocks(PasswordUnlocks unlocks, PasswordAttempts atte
         }
 
         checks.Count++;
-        bool right = passwords.Any(password => PasswordHashing.Verify(password, protection.Hash));
+        string? rightOne = passwords.FirstOrDefault(password => PasswordHashing.Verify(password, protection.Hash));
+        bool right = rightOne is not null;
         checks.Results[protection] = right;
         if (right)
+        {
             attempts.Right(context, protection);
+            foreach (IPasswordWitness witness in witnesses ?? [])
+                witness.Verified(protection, rightOne!);
+        }
         else
             attempts.Wrong(context, protection);
         return right;

@@ -35,8 +35,12 @@ public enum ArchivedFolderState
 /// archive is what counts.</para>
 /// Neither may run twice at once for the same folder, nor while its unzipped copy is changed: that is the caller's to make sure of.
 /// </summary>
-public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
+/// <param name="settings">For <see cref="ArchivesConfig.OverwritePasses"/> (its default without).</param>
+public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfig? settings = null)
 {
+    /// <summary>How often plaintext that goes (an encrypted folder's unzipped copy) is overwritten first.</summary>
+    private int OverwritePasses => (settings ?? new ArchivesConfig()).OverwritePasses;
+
     /// <summary>
     /// As the listing has it: hidden and system entries go in like any other, and a directory that can't be read must fail the zipping
     /// rather than look empty.
@@ -96,6 +100,9 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
                 throw new ArchiveUnreadableException($"The new archive of {folder.UnzippedDirectory} doesn't hold what was zipped.");
             Reached(ArchiveStep.ArchiveChecked);
 
+            // The archive it replaces wasn't encrypted: overwritten first (the copy, which counts, is still there)
+            if (folder.ShredsReplacedArchives)
+                Shredding.Overwrite(folder.ArchivePath, OverwritePasses);
             File.Move(folder.NewArchivePath, folder.ArchivePath, overwrite: true);
             DurableFiles.FlushDirectory(Path.GetDirectoryName(folder.ArchivePath)!);
             Reached(ArchiveStep.ArchiveReplaced);
@@ -112,6 +119,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
         if (folder.FormerArchivePath is { } former && !string.Equals(former, folder.ArchivePath, StringComparison.OrdinalIgnoreCase)
             && File.Exists(former))
         {
+            if (folder.ShredsReplacedArchives)
+                Shredding.Overwrite(former, OverwritePasses);
             File.Delete(former);
             DurableFiles.FlushDirectory(Path.GetDirectoryName(folder.ArchivePath)!);
         }
@@ -124,7 +133,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
         DurableFiles.FlushDirectory(Path.GetDirectoryName(folder.UnzippedDirectory)!);
         Reached(ArchiveStep.UnzippedMovedAway);
 
-        DeleteTrash(trash, afterDeletingSome: () => Reached(ArchiveStep.DeletingUnzipped));
+        // (The copy of an encrypted one is what the encryption is for: overwritten before it is deleted)
+        DeleteTrash(trash, afterDeletingSome: () => Reached(ArchiveStep.DeletingUnzipped), shred: options.Password is not null);
     }
 
     /// <summary>How much of zipping's progress is writing the archive; reading it back is the rest.</summary>
@@ -226,7 +236,7 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
         }
         catch
         {
-            DeleteTrash(staging, afterDeletingSome: null);
+            DeleteTrash(staging, afterDeletingSome: null, shred: password is not null);
             throw;
         }
     }
@@ -321,7 +331,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
             foreach (string left in Directory.EnumerateDirectories(directory))
             {
                 logger.LogInformation("Deleting {directory}, which was left by zipping or unzipping when the app stopped", left);
-                DeleteTrash(left, afterDeletingSome: null);
+                // (Whether it was of an encrypted folder isn't known any more: overwritten in any case)
+                DeleteTrash(left, afterDeletingSome: null, shred: true);
                 deleted++;
             }
         }
@@ -354,7 +365,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
     /// Deletes a directory of the work directory, files first. Failing doesn't fail what deletes it: the next start deletes what is left.
     /// </summary>
     /// <param name="afterDeletingSome">Called once the first file is deleted (for the tests: a copy that is partly deleted).</param>
-    private void DeleteTrash(string directory, Action? afterDeletingSome)
+    /// <param name="shred">Whether each file is overwritten first (<see cref="Shredding"/>).</param>
+    private void DeleteTrash(string directory, Action? afterDeletingSome, bool shred)
     {
         try
         {
@@ -364,6 +376,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger)
             foreach (string file in Directory.EnumerateFiles(directory, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }))
             {
                 File.SetAttributes(file, FileAttributes.Normal);
+                if (shred)
+                    Shredding.Overwrite(file, OverwritePasses);
                 File.Delete(file);
                 if (first)
                     afterDeletingSome?.Invoke();

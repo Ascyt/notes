@@ -18,6 +18,22 @@ internal sealed record ArchiveEntry(string Path, bool IsDirectory, DateTime? Las
 /// <summary>Reads 7z and zip archives (with SharpCompress) from the first entry to the last, as a 7z can only be read quickly that way.</summary>
 internal static class ArchiveReading
 {
+    /// <summary>
+    /// Whether the archive needs a password: one of its entries is encrypted, or (a 7z whose names are encrypted too) its index can't even be
+    /// read without one. A damaged archive may count as encrypted too: unzipping it then says so.
+    /// </summary>
+    public static bool IsEncrypted(string archivePath, ArchiveFormat format)
+    {
+        try
+        {
+            return Read(archivePath, format, password: null, archive => archive.Entries.Any(entry => entry.IsEncrypted));
+        }
+        catch (ArchiveUnreadableException)
+        {
+            return true;
+        }
+    }
+
     /// <summary>How many entries the archive has (from its index, without unpacking anything).</summary>
     public static int CountEntries(string archivePath, ArchiveFormat format, string? password)
         => Read(archivePath, format, password, archive => archive.Entries.Count());

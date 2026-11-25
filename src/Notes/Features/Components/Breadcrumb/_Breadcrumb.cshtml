@@ -9,10 +9,10 @@
     // An open lock goes after each entry along the way whose password is unlocked: the outermost entry of that password, as what is in it
     // has the same one. The zipper goes after each archived folder.
     HashSet<string> unlocked = Model.UnlockedPaths(Passwords, Paths);
-    Dictionary<string, Notes.Features.ZippedFolders.ArchiveState> archived = Model.ArchivedPaths(Archives, Paths);
+    Dictionary<string, Notes.Features.ZippedFolders._ArchivedMark> archived = Model.ArchivedPaths(Archives, Paths);
     Func<object?, object> unlockedMark = @<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>;
-    Func<Notes.Features.ZippedFolders.ArchiveState, object> archivedMark = @<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml"
-        model="new Notes.Features.ZippedFolders._ArchivedMark { State = item }"/>;
+    Func<Notes.Features.ZippedFolders._ArchivedMark, object> archivedMark = @<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml"
+        model="item"/>;
 }
 
 @* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.css) *@

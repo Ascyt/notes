@@ -13,7 +13,7 @@ namespace Notes.Features.Passwords;
 /// <c>POST /entry?unlock=renew</c> only keeps what is unlocked unlocked (an edit on the page counts as using it), or says what is locked.
 /// </summary>
 public sealed class UnlockHandler(PasswordLocks locks, PasswordUnlocks unlocks, PasswordAttempts attempts, PasswordGate gate,
-    PasswordTexts texts, EntryTexts entryTexts) : IEntryPostAction
+    PasswordTexts texts, EntryTexts entryTexts, IEnumerable<IPasswordWitness> witnesses) : IEntryPostAction
 {
     public const string UnlockParameter = "unlock";
     public const string RenewValue = "renew";
@@ -61,6 +61,8 @@ public sealed class UnlockHandler(PasswordLocks locks, PasswordUnlocks unlocks, 
 
         attempts.Right(request.Context, locked);
         unlocks.Unlock(request.Context, locked);
+        foreach (IPasswordWitness witness in witnesses)
+            witness.Verified(locked, password);
         return new NoContentResult();
     }
 
@@ -95,7 +97,12 @@ public sealed class UnlockHandler(PasswordLocks locks, PasswordUnlocks unlocks, 
 /// <c>{ "location": "…" }</c>, the address of the folder the outermost unlocked password along it is in (the deepest one that can still be
 /// opened), where the page goes instead of to the password prompt; otherwise 204.
 /// </summary>
-public sealed class LockHandler(PasswordUnlocks unlocks, PasswordLocks locks, EntryLocations locations) : IEntryPostAction
+/// <remarks>
+/// The encrypted archived folders those passwords encrypt are zipped right away (in the background), so that what was unlocked is encrypted
+/// again, not only locked.
+/// </remarks>
+public sealed class LockHandler(PasswordUnlocks unlocks, PasswordLocks locks, EntryLocations locations, ZippedFolders.ArchivedFolders archives)
+    : IEntryPostAction
 {
     public const string LockParameter = "lock";
 
@@ -110,7 +117,9 @@ public sealed class LockHandler(PasswordUnlocks unlocks, PasswordLocks locks, En
 
         // Asked before locking: afterwards nothing along the path is unlocked any more
         string? outermostUnlocked = locks.UnlockedAlong(request.PhysicalPath, Directory.Exists(request.PhysicalPath)).FirstOrDefault();
+        List<string> unlockedFolders = [.. unlocks.UnlockedBy(request.Context).Select(protection => protection.PhysicalPath)];
         unlocks.LockAll(request.Context);
+        archives.ZipEncryptedInBackground(unlockedFolders);
 
         if (outermostUnlocked is null || locations.ParentOf(outermostUnlocked) is not { } folder)
             return Task.FromResult<IActionResult>(new NoContentResult());

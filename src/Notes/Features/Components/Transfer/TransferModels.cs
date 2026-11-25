@@ -16,6 +16,12 @@ public enum TransferKind
 /// <param name="LeftOutUnreadable">After a successful copy: whether entries the user may not read were left out.</param>
 public sealed record TransferResult(int StatusCode, string Message, bool LeftOutUnreadable = false)
 {
+    /// <summary>
+    /// The password to ask for, when an encrypted archived folder couldn't be zipped for a move or delete as the app doesn't know it
+    /// (<see cref="ZippedFolders.ArchivePasswordNeededException"/>): the request is answered with the password prompt, and sent again.
+    /// </summary>
+    public Passwords.Protection? PasswordNeeded { get; init; }
+
     public bool IsSuccess => StatusCode == StatusCodes.Status200OK;
 
     public static TransferResult Success { get; } = new(StatusCodes.Status200OK, "");

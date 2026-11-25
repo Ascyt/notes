@@ -26,8 +26,8 @@ public sealed record ArchiveGateAnswer(IActionResult? Result, _Unzipping? Page)
 /// Only who may open the folder (and has its password, where it has one) gets it unzipped. For everyone else the request goes on as if it
 /// were zipped: what is in it isn't found, which is answered as for anything that isn't there (or with the password prompt).
 /// </summary>
-public sealed class ArchiveGate(ArchivedFolders archives, AccessTree tree, PasswordLocks passwordLocks, IPathService paths,
-    ArchivesConfig settings, UnzipTexts texts)
+public sealed class ArchiveGate(ArchivedFolders archives, AccessTree tree, PasswordLocks passwordLocks, PasswordUnlocks unlocks,
+    Configuration.FolderConfigStore configs, IPathService paths, ArchivesConfig settings, UnzipTexts texts)
 {
     public const string UnzipParameter = "unzip";
     public const string UnzippingHeader = "X-Notes-Unzipping";
@@ -87,6 +87,13 @@ public sealed class ArchiveGate(ArchivedFolders archives, AccessTree tree, Passw
             UnzipJob job = archives.Unzip(zipped);
             if (await Task.WhenAny(job.Finished, waited) == job.Finished)
             {
+                // Encrypted, and its password isn't known (the app restarted, say) though the browser has it unlocked: asked for it again,
+                // which tells the app the password (ArchivePasswords). The request goes on as for a zipped folder, to the password prompt.
+                if (job.NeedsPasswordOf is { } passwordFolder && configs.Get(passwordFolder).Config?.PasswordHash is { } hash)
+                {
+                    unlocks.Lock(context, new Protection(passwordFolder, hash));
+                    return ArchiveGateAnswer.GoOn;
+                }
                 if (await job.Finished is not null)
                     return new ArchiveGateAnswer(new ObjectResult(texts.Failed) { StatusCode = StatusCodes.Status500InternalServerError }, null);
                 // Unzipped: looked at again (an archived folder inside it may be next)

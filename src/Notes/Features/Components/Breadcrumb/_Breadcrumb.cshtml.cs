@@ -91,18 +91,18 @@ public class _Breadcrumb : PageModel
 
     /// <summary>
     /// The archived folders along the way (the parents, and the entry itself if it is a directory), by virtual path, with how each is kept
-    /// now: each gets the zipper after its name. Of the entries as they are now.
+    /// now: each gets the zipper (or the shield, if encrypted) after its name. Of the entries as they are now.
     /// </summary>
-    public Dictionary<string, ZippedFolders.ArchiveState> ArchivedPaths(ZippedFolders.ArchivedFolders archives, IPathService paths)
+    public Dictionary<string, ZippedFolders._ArchivedMark> ArchivedPaths(ZippedFolders.ArchivedFolders archives, IPathService paths)
     {
-        Dictionary<string, ZippedFolders.ArchiveState> archived = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, ZippedFolders._ArchivedMark> archived = new(StringComparer.OrdinalIgnoreCase);
         IEnumerable<string> along = Parents.Select(parent => parent.Path);
         if (!IsFile && !IsRoot)
             along = along.Append(VirtualPath.Trim('/'));
         foreach (string virtualPath in along)
             if (paths.ToPhysicalPath(virtualPath) is { } physical && Directory.Exists(physical)
                 && archives.ArchiveStateOf(physical) is { } state)
-                archived[virtualPath] = state;
+                archived[virtualPath] = new ZippedFolders._ArchivedMark { State = state, Encrypted = archives.IsEncrypted(physical) };
         return archived;
     }
 

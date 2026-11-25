@@ -15,8 +15,8 @@ public sealed record TransferRequest(long Version);
 /// Answers when it is all done; the selection is cleared after a success and kept after a failure. A success answers
 /// <c>{ "leftOutUnreadable": bool }</c>: whether a copy left out entries the user may not read.
 /// </summary>
-public sealed class TransferHandler(ISelectionService selection, ITransferService transfer, TransferTexts texts, EntryTexts entryTexts)
-    : IEntryPostAction
+public sealed class TransferHandler(ISelectionService selection, ITransferService transfer, TransferTexts texts, EntryTexts entryTexts,
+    ZippedFolders.ArchivePasswordPrompt passwordPrompt) : IEntryPostAction
 {
     public const string TransferParameter = "transfer";
 
@@ -90,6 +90,8 @@ public sealed class TransferHandler(ISelectionService selection, ITransferServic
             selection.EndTransfer(userId, clear: result.IsSuccess);
         }
 
+        if (result.PasswordNeeded is { } passwordNeeded)
+            return passwordPrompt.Ask(request.HttpContext, passwordNeeded, physicalDirectory);
         return result.IsSuccess
             ? new JsonResult(new { result.LeftOutUnreadable })
             : new ObjectResult(result.Message) { StatusCode = result.StatusCode };

@@ -16,7 +16,7 @@ namespace Notes.Features.Components.Rename;
 public sealed class RenameHandler(EntryLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock,
     FolderConfigStore configs, HistoryService history, EntryTexts entryTexts, NameTexts nameTexts, Passwords.PasswordUnlocks unlocks,
     ZippedFolders.ArchivedFolders archives, TransferTexts transferTexts, Auth.AccessTree tree, Passwords.PasswordLocks passwordLocks,
-    ILogger<RenameHandler> logger) : IEntryPostAction
+    ZippedFolders.ArchivePasswordPrompt passwordPrompt, ILogger<RenameHandler> logger) : IEntryPostAction
 {
     public const string RenameParameter = "rename";
 
@@ -83,6 +83,10 @@ public sealed class RenameHandler(EntryLocations locations, IPathService path, T
             {
                 return await archives.WhileZippedAsync([physicalPath],
                     folders => Task.FromResult(Rename(request.Context, user, directory, folders[0], newPhysicalPath, isDirectory: true)));
+            }
+            catch (ZippedFolders.ArchivePasswordNeededException e)
+            {
+                return passwordPrompt.Ask(request.Context, e.Protection, physicalPath);
             }
             catch (IOException e)
             {

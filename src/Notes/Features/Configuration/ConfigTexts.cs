@@ -74,6 +74,27 @@ public class ConfigTexts
     public virtual string NotACompressionLevel(string where, int max) => $"{where}: must be a whole number from 0 (none) to {max} (most).";
     public virtual string NotSupportedYet(string where) => $"{where}: not supported yet. Must be false.";
 
+    public virtual string EncryptionOffNeedsPassword
+        => "archive.encrypted: to turn encryption off, type the folder's password into \"password\" (in place of \"passwordHash\"): the "
+           + "archives are opened with it. It is saved as the hash it had. Nothing was saved.";
+
+    public virtual string EncryptionOffWrongPassword
+        => "archive.encrypted: that is not the folder's password, so its archives can't be opened, and encryption stays on. Nothing was saved.";
+
+    public virtual string EncryptionOnNeedsPassword
+        => "archive.encrypted: the app needs the folder's password to encrypt its archives. Type it into \"password\" (in place of "
+           + "\"passwordHash\"), or unlock the folder again. Nothing was saved.";
+
+    public virtual string UnlockBeforePasswordChange
+        => "The archives are encrypted with the old password, which the app doesn't know right now: unlock the folder (or the folders below it "
+           + "that are encrypted) first. Nothing was saved.";
+
+    public virtual string CantUnzipEncryptedNow
+        => "The encrypted archives couldn't be unzipped right now (in use, or damaged). Nothing was saved; try again.";
+
+    public virtual string EncryptedNeedsPassword(string where, string passwordKey)
+        => $"{where}: the archive is encrypted with the folder's password, and it has none. Set \"{passwordKey}\" too.";
+
     // What is wrong with a principal (u:alice, g:team, …)
 
     public virtual string NotAPrincipal(string text)
@@ -169,7 +190,9 @@ public class ConfigTexts
     public virtual string SchemaArchiveCompressionLevel
         => "0 (none; for 7z, which always compresses, the least) to 3 (most, slowest). Default 2.";
 
-    public virtual string SchemaArchiveEncrypted => "Encrypts the archive with the folder's password. Not supported yet.";
+    public virtual string SchemaArchiveEncrypted
+        => "Encrypts the archive with the folder's password (needs one), for a 7z the names inside too. With onLowestLevel, the folders it "
+           + "archives are encrypted with this folder's password. Default false.";
     public virtual string SchemaArchiveOnLowestLevel
         => "Archives only the lowest folders below (those that hold files) with these settings, instead of this one. Default false.";
 

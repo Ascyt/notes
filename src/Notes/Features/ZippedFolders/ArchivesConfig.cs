@@ -12,9 +12,17 @@ public sealed class ArchivesConfig
     /// </summary>
     public double WaitSeconds { get; init; } = 1.5;
 
+    /// <summary>
+    /// How many times what was in an encrypted folder while it was unzipped is overwritten with random data before it is deleted (also what
+    /// a crash left in the work of zipping, which may have been). 0 only deletes it.
+    /// </summary>
+    public int OverwritePasses { get; init; } = 3;
+
     /// <summary>Throws if a setting makes no sense, so that the app doesn't start with it.</summary>
     public void Check()
     {
+        if (OverwritePasses is < 0 or > 35)
+            throw new InvalidOperationException("Config:Archives:OverwritePasses must be from 0 to 35.");
         if (ZipAfterMinutes <= 0)
             throw new InvalidOperationException("Config:Archives:ZipAfterMinutes must be more than 0.");
         if (WaitSeconds < 0)

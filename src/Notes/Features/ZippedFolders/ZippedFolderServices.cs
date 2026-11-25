@@ -16,8 +16,12 @@ public static class ZippedFolderServices
         _ = services.AddSingleton(settings);
         _ = services.AddSingleton<FolderArchiver>();
         _ = services.AddSingleton<ArchiveSettingsResolver>();
+        _ = services.AddSingleton<ArchivePasswords>();
+        _ = services.AddSingleton<Passwords.IPasswordWitness>(provider => provider.GetRequiredService<ArchivePasswords>());
         _ = services.AddSingleton<ArchivedFolders>();
         _ = services.AddSingleton<ArchiveGate>();
+        _ = services.AddSingleton<ArchivePasswordPrompt>();
+        _ = services.AddSingleton<Configuration.ArchiveEncryptionChanges>();
         _ = services.AddScoped<ZipIdleArchivesJob>();
         services.TryAddSingleton<UnzipTexts>();
         return services.AddComponentStyles("Features/ZippedFolders/_Unzipping.css").AddEntryAction<ZipHandler>()

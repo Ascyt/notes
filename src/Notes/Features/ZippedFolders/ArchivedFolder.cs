@@ -27,6 +27,12 @@ public sealed record ArchivedFolder(string ArchivePath, string UnzippedDirectory
     /// </summary>
     public string? FormerArchivePath { get; init; }
 
+    /// <summary>
+    /// Whether the archives the new one replaces are overwritten before they go (they weren't encrypted, the new one is): a file that is only
+    /// deleted stays readable on the disk until something else is written there.
+    /// </summary>
+    public bool ShredsReplacedArchives { get; init; }
+
     /// <summary>Both archive files the folder could have (<c>_.7z</c>, <c>_.zip</c>).</summary>
     public static string[] ArchivePathsIn(string folderPath)
         => [Path.Combine(folderPath, ArchiveFileName(ArchiveFormat.SevenZip)), Path.Combine(folderPath, ArchiveFileName(ArchiveFormat.Zip))];
