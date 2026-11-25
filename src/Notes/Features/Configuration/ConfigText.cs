@@ -480,6 +480,114 @@ public static class ConfigText
         });
     }
 
+    /// <summary>
+    /// The text with a property of the file's entry set to <paramref name="rawValue"/> (JSON), the entry made if there is none (one that
+    /// changes nothing else). Null if the text can't be edited.
+    /// </summary>
+    public static string? SetFileProperty(string text, string name, string key, string rawValue)
+    {
+        string body = GetFileBody(text, name) ?? DefaultFileBody();
+        return SetProperty(body, key, rawValue) is { } changed ? SetFileBody(text, name, changed) : null;
+    }
+
+    /// <summary>The text without those properties of the file's entry (unchanged if it has none of them, or no entry).</summary>
+    public static string? RemoveFileProperties(string text, string name, IReadOnlyCollection<string> keys)
+    {
+        if (GetFileBody(text, name) is not { } body)
+            return FileNames(text) is null ? null : text;
+        // (Rewritten only if it had any: the entry stays laid out as it is)
+        return RemoveProperties(body, keys) is { } changed ? changed == body ? text : SetFileBody(text, name, changed) : null;
+    }
+
+    /// <summary>
+    /// The object (its text) with the property set to <paramref name="rawValue"/> (JSON): its value replaced if it is there, whatever it is,
+    /// otherwise the property added first, laid out like the others. Null if it isn't an object.
+    /// </summary>
+    public static string? SetProperty(string objectText, string key, string rawValue)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(objectText);
+        try
+        {
+            Utf8JsonReader reader = new(bytes, ReaderOptions);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                return null;
+
+            int open = (int)reader.TokenStartIndex;
+            int firstProperty = -1;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (firstProperty < 0)
+                    firstProperty = (int)reader.TokenStartIndex;
+                bool isKey = reader.ValueTextEquals(key);
+                _ = reader.Read();
+                int valueStart = (int)reader.TokenStartIndex;
+                reader.Skip();
+                if (isKey)
+                    return Encoding.UTF8.GetString(Replace(bytes, valueStart, (int)reader.BytesConsumed, rawValue));
+            }
+            if (reader.TokenType != JsonTokenType.EndObject)
+                return null;
+
+            string property = $"\"{key}\": {rawValue}";
+            string inserted = firstProperty < 0 ? " " + property + " "
+                : StartsLine(bytes, firstProperty) ? "\n" + IndentOfLine(bytes, firstProperty) + property + ","
+                : " " + property + ",";
+            return Encoding.UTF8.GetString(Replace(bytes, open + 1, open + 1, inserted));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The object (its text) without those properties, with the commas that belong to them. Null if it isn't an object.</summary>
+    public static string? RemoveProperties(string objectText, IReadOnlyCollection<string> keys)
+    {
+        for (;;)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(objectText);
+            (int From, int To)? removed = null;
+            try
+            {
+                Utf8JsonReader reader = new(bytes, ReaderOptions);
+                if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                    return null;
+
+                // (Where the value before ended, for the comma before the last property)
+                int previousEnd = -1;
+                while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+                {
+                    int start = (int)reader.TokenStartIndex;
+                    bool isKey = false;
+                    foreach (string key in keys)
+                        isKey |= reader.ValueTextEquals(key);
+                    _ = reader.Read();
+                    reader.Skip();
+                    int end = (int)reader.BytesConsumed;
+                    if (isKey)
+                    {
+                        // The comma after it goes with it; the last one takes the comma before it along instead
+                        int afterComma = AfterSeparator(bytes, end);
+                        removed = afterComma >= 0 ? (start, afterComma) : previousEnd >= 0 ? (previousEnd, end) : (start, end);
+                        break;
+                    }
+                    previousEnd = end;
+                }
+                if (removed is null && reader.TokenType != JsonTokenType.EndObject)
+                    return null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+
+            if (removed is not var (from, to))
+                return objectText;
+            // One at a time: the positions of the others change
+            objectText = Encoding.UTF8.GetString(Replace(bytes, from, to, ""));
+        }
+    }
+
     // ---- Where things are
 
     private static string? Edit(string text, Func<byte[], FilesSpan, byte[]?> edit)

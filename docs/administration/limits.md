@@ -14,6 +14,8 @@ In `appsettings.json` (or the environment, e.g. `Config__Limits__MaxUploadBytes`
 | `Config:Limits:MaxPathBytes` | `2048` | The longest path (in UTF-8 bytes, from the root) a new entry may get, also for everything in a directory that is renamed, copied or moved. At least 255. Entries that are already deeper stay usable. |
 | `Config:Limits:MaxConvertedImageBytes` | `268435456` (256 MiB) | The largest image that is converted for the browser (HEIC, raw photos, …). Larger ones can be downloaded. |
 | `Config:Limits:MaxConvertedImagePixels` | `200000000` | The most pixels an image that is converted may have. |
+| `Config:Limits:MaxUnzippedBytes` | `68719476736` (64 GiB) | How much an uploaded archive that is unzipped may hold, unzipped. What is written counts, not what the archive says about itself: an archive of a few kilobytes can unzip to more than the disk has. Then nothing of it is unzipped: it stays a file, marked as one that couldn't be. |
+| `Config:Limits:MaxUnzippedEntries` | `100000` | How many entries an uploaded archive that is unzipped may have (more: as above). |
 
 A value of zero or less stops the app from starting, as does a `MaxPathBytes` below 255.
 

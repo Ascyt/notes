@@ -436,6 +436,9 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
             if (MountedAt(folderPath) is not { } location)
                 return true;
             Volatile.Write(ref state.Zipping, job);
+            // The rest apart from the caller: it shows as being zipped from here on, and a request that started it (the zip buttons) is
+            // answered now, rather than once the history is committed (which may be all of it, for a folder that was just made one)
+            await Task.Yield();
 
             // Those unzipped inside it first: their archives are part of this one
             foreach (EntryLocation inner in locations.UnzippedArchives.Where(other => other != location

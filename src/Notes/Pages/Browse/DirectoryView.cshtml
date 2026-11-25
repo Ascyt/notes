@@ -11,6 +11,7 @@
 @inject ToolbarButtons Buttons
 @inject BreadcrumbStarts BreadcrumbStarts
 @inject ListingTexts Texts
+@inject Notes.Features.Components.Upload.UploadTexts UploadTexts
 
 @* The page of a directory: its breadcrumb and toolbar, then what is in it, in three groups (directories, files, media), and what is
    done with them (upload, the selection). *@
@@ -111,4 +112,11 @@
         Selection = Model.Selection,
         CreateDeniedReason = Model.CreateDeniedReason
     }"/>
+}
+
+@* The bars of uploaded archives that are being unzipped, kept up to date (also where nothing may be uploaded: whoever uploaded may still be at it) *@
+@if (Model.Files.Any(file => file.UnzipProgress is not null))
+{
+    <script-texts id="unzip-mark-texts" texts="@UploadTexts"/>
+    <script component-asset="@Notes.Features.Components.Upload._UnzipMark.Script"></script>
 }

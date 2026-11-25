@@ -62,7 +62,7 @@ public sealed class ArchiveContents
         return new ZipFolderEntry(name, () =>
         {
             List<ZipEntry> kept = [];
-            foreach (string file in new[] { Path.Combine(folder, PathService.ConfigFileName), ZippedFolders.ArchivedFolders.ArchiveFileOf(folder) })
+            foreach (string? file in new[] { Path.Combine(folder, PathService.ConfigFileName), ZippedFolders.ArchivedFolders.ArchiveFileOf(folder) })
                 if (file is not null && File.Exists(file))
                     kept.Add(new ZipFileEntry(Path.GetFileName(file), File.GetLastWriteTime(file), () => OpenForReading(file)));
             return kept;

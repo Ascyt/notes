@@ -15,8 +15,8 @@
        lock: the lock button goes first, with the same shortcut. *@
     <li class="nav-item" data-zip-item hidden="@(Model.HasUnlocked || !Model.HasZippable)">
         <button type="button" id="zip-button" class="btn btn-sm btn-secondary" title="@UnzipTexts.ZipAll" aria-label="@UnzipTexts.ZipAll"
-            key="!L">
-            <i class="fa-solid fa-file-zipper"></i>
+            data-label="@UnzipTexts.ZipAll" key="!L">
+            <i class="fa-solid fa-file-zipper btn-icon"></i><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
         </button>
     </li>
     @if (Model.IsAuthenticated)

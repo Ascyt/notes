@@ -9,6 +9,159 @@ public sealed class UploadAndConfigUiTests(UiFixture fixture) : UiTest(fixture),
 
     private static FilePayload File(string name, byte[] contents) => new() { Name = name, MimeType = "application/octet-stream", Buffer = contents };
 
+    /// <summary>A zip of one file, encrypted with the password if there is one (as the app writes it).</summary>
+    private static async Task<byte[]> ZipOf(string name, string contents, string? password)
+    {
+        string target = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".zip");
+        try
+        {
+            Notes.Features.Components.Download.ZipFolderEntry root = new("", () =>
+                [new Notes.Features.Components.Download.ZipFileEntry(name, DateTimeOffset.UtcNow,
+                    () => new MemoryStream(System.Text.Encoding.UTF8.GetBytes(contents)))]);
+            await Notes.Features.Components.Archive.ArchiveWriter.WriteAsync(root, new Notes.Features.Components.Archive.ArchiveOptions(
+                Notes.Features.Components.Archive.ArchiveFormat.Zip, Notes.Features.Components.Archive.ArchiveCompression.Store, password),
+                target, CancellationToken.None);
+            return await System.IO.File.ReadAllBytesAsync(target);
+        }
+        finally
+        {
+            System.IO.File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task Ticked_archives_are_unzipped_after_the_upload_and_one_that_cant_be_is_marked()
+    {
+        await OpenAsync("/docs");
+
+        await Input.SetInputFilesAsync([File("plain-ui.zip", await ZipOf("a.md", "A", null)), File("secret-ui.zip", await ZipOf("b.md", "B", "pw"))]);
+        await Expect(Page.Locator("#upload-unzip-all")).ToBeCheckedAsync();
+        await Expect(Page.Locator(".upload-unzip-one")).ToHaveCountAsync(2);
+        await Page.Locator("#upload-confirm").ClickAsync();
+
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
+        await Eventually(() => Tree.Exists("docs/plain-ui/a.md"), "the plain one is unzipped");
+        Assert.Equal("A", Tree.Read("docs/plain-ui/a.md"));
+        // The encrypted one stays a file, with a red mark that says why
+        await Eventually(() => Tree.ReadConfig("docs")?.Contains("unzipError") == true, "the encrypted one failed");
+        _ = await Page.ReloadAsync();
+        await Expect(Page.Locator("[data-unzip-failed]")).ToHaveAttributeAsync("title", new System.Text.RegularExpressions.Regex("encrypted"));
+        Assert.True(Tree.IsFile("docs/secret-ui.zip"));
+    }
+
+    [Fact]
+    public async Task An_unticked_archive_is_uploaded_as_a_file_and_the_box_above_shows_a_dash()
+    {
+        await OpenAsync("/docs");
+
+        await Input.SetInputFilesAsync([File("as-file-ui.zip", await ZipOf("a.md", "A", null)), File("other-ui.zip", await ZipOf("b.md", "B", null))]);
+        await Page.Locator(".upload-unzip-one").First.UncheckAsync();
+        Assert.True(await Page.Locator("#upload-unzip-all").EvaluateAsync<bool>("box => box.indeterminate"));
+        await Page.Locator("#upload-confirm").ClickAsync();
+
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
+        await Eventually(() => Tree.Exists("docs/other-ui/b.md"), "the ticked one is unzipped");
+        Assert.True(Tree.IsFile("docs/as-file-ui.zip"));
+        Assert.False(Tree.Exists("docs/as-file-ui"));
+    }
+
+    [Fact]
+    public async Task The_box_above_unticks_all_archives()
+    {
+        await OpenAsync("/docs");
+
+        await Input.SetInputFilesAsync([File("none-ui.zip", await ZipOf("a.md", "A", null))]);
+        await Page.Locator("#upload-unzip-all").UncheckAsync();
+        await Expect(Page.Locator(".upload-unzip-one")).Not.ToBeCheckedAsync();
+        await Page.Locator("#upload-confirm").ClickAsync();
+
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
+        Assert.True(Tree.IsFile("docs/none-ui.zip"));
+        Assert.DoesNotContain("unzipPending", Tree.ReadConfig("docs") ?? "");
+    }
+
+    [Fact]
+    public async Task A_file_that_is_there_already_the_same_is_not_uploaded_again()
+    {
+        await OpenAsync("/docs");
+
+        // a.md is "a"; b-ui.md is new
+        await Input.SetInputFilesAsync([File("a.md", "a"u8.ToArray()), File("b-ui.md", "b"u8.ToArray())]);
+        await Page.Locator("#upload-confirm").ClickAsync();
+
+        await Expect(ToastOf("success")).ToContainTextAsync("there already");
+        Assert.False(Tree.Exists("docs/a (1).md"));
+        Assert.Equal("b", Tree.Read("docs/b-ui.md"));
+    }
+
+    [Fact]
+    public async Task Cancel_stops_the_upload_and_keeps_nothing_of_the_file_being_sent()
+    {
+        await OpenAsync("/docs");
+        // Each part takes a while, so that there is time to cancel
+        await Page.RouteAsync("**/docs?upload=*", async route =>
+        {
+            await Task.Delay(1500);
+            await route.ContinueAsync();
+        });
+
+        await Input.SetInputFilesAsync([File("slow-ui.bin", new byte[100])]);
+        await Page.Locator("#upload-confirm").ClickAsync();
+        await Expect(Page.Locator("#upload-progress")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#upload-cancel")).ToBeEnabledAsync();
+        await Page.Locator("#upload-cancel").ClickAsync();
+
+        await Expect(Page.Locator("#upload-modal")).ToBeHiddenAsync();
+        await Expect(ToastOf("info")).ToContainTextAsync("cancelled");
+        Assert.False(Tree.Exists("docs/slow-ui.bin"));
+        Assert.Null(await Page.EvaluateAsync<string?>("() => localStorage.getItem('notes.upload')"));
+    }
+
+    [Fact]
+    public async Task An_upload_that_didnt_finish_is_offered_on_the_next_page_and_continued_with_the_files_picked_again()
+    {
+        await OpenAsync("/docs");
+        // As a closed tab leaves it: one file done, one not started
+        _ = await Page.EvaluateAsync("""
+            () => localStorage.setItem('notes.upload', JSON.stringify({
+                directory: '/docs', beat: 0,
+                files: [
+                    { name: 'done-ui.md', size: 1, lastModified: 1, unzip: false, state: 'done', id: null, offset: 0 },
+                    { name: 'later-ui.md', size: 5, lastModified: 1000, unzip: false, state: 'todo', id: null, offset: 0 }
+                ]
+            }))
+            """);
+
+        _ = await Page.GotoAsync("/shelf");
+        await Expect(Page.Locator("#upload-resume-modal")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#upload-resume-text")).ToContainTextAsync("1 of 2");
+        await Page.Locator("#upload-resume-continue").ClickAsync();
+
+        await Page.WaitForURLAsync("**/docs");
+        await Expect(Page.Locator("#upload-modal")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#upload-resume-note")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#upload-confirm")).ToBeDisabledAsync();
+        await Input.SetInputFilesAsync([new FilePayload { Name = "later-ui.md", MimeType = "text/markdown", Buffer = "later"u8.ToArray() }]);
+        // Matched to the one that was in it: the list stays two long
+        await Expect(Page.Locator("#upload-list li")).ToHaveCountAsync(2);
+        await Page.Locator("#upload-confirm").ClickAsync();
+
+        await Expect(ToastOf("success")).ToBeVisibleAsync();
+        Assert.Equal("later", Tree.Read("docs/later-ui.md"));
+        Assert.Null(await Page.EvaluateAsync<string?>("() => localStorage.getItem('notes.upload')"));
+    }
+
+    [Fact]
+    public async Task The_switch_is_only_there_for_archives()
+    {
+        await OpenAsync("/docs");
+
+        await Input.SetInputFilesAsync([File("text-ui.md", "x"u8.ToArray())]);
+
+        await Expect(Page.Locator("#upload-unzip-field")).ToBeHiddenAsync();
+        await Expect(Page.Locator(".upload-unzip-one")).ToHaveCountAsync(0);
+    }
+
     [Fact]
     public async Task Uploading_files_through_the_dialog()
     {

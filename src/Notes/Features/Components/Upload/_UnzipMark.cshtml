@@ -1,0 +1,18 @@
+@using System.Globalization
+@model _UnzipMark
+@inject UploadTexts Texts
+
+@* The bar stays where it is until _UnzipMark.js sees it ended: then the page is loaded again (the archive has become a folder) *@
+@if (Model.Progress is { } progress)
+{
+    int percent = (int)Math.Round(progress * 100);
+    <span class="upload-unzipping ms-2" data-unzipping-directory="@Model.DirectoryAddress" data-unzipping-name="@Model.Name"
+        title="@Texts.UnzippingNow"><span class="progress upload-unzipping-progress" role="progressbar" aria-label="@Texts.UnzippingNow"
+        aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent.ToString(CultureInfo.InvariantCulture)"><span
+        class="progress-bar progress-bar-striped progress-bar-animated" style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span></span>
+}
+else if (Model.Error is { } error)
+{
+    string title = Texts.CouldNotUnzip.Replace("{reason}", error);
+    <i class="fa-solid fa-circle-exclamation fa-xs ms-1 text-danger" title="@title" aria-label="@title" data-unzip-failed="true"></i>
+}

@@ -7,7 +7,14 @@ namespace Notes.Features.Configuration;
 
 /// <summary>The settings of one file of a folder, which are there by the file's name only (so also for a name that is about to be created).</summary>
 /// <param name="PasswordHash">The hash of the file's password (see <see cref="Passwords.PasswordHashing"/>), or null if it has none.</param>
-public sealed record FileEntry(string Name, PermsBlock Perms, string? PasswordHash = null);
+public sealed record FileEntry(string Name, PermsBlock Perms, string? PasswordHash = null)
+{
+    /// <summary>An uploaded archive that is to be unzipped into a folder next to it (see <see cref="Components.Upload.UploadedArchiveUnzipper"/>).</summary>
+    public bool UnzipPending { get; init; }
+
+    /// <summary>Why unzipping it failed, or null. It stays a file then.</summary>
+    public string? UnzipError { get; init; }
+}
 
 /// <summary>
 /// Whether a folder is kept in an archive (<c>_.7z</c> or <c>_.zip</c> in it), which is unzipped while it is used (see

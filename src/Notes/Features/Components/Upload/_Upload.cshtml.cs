@@ -11,6 +11,9 @@ public class _Upload : PageModel
     /// <summary>Sending a file in chunks, which uploading shares with the media of the editor (InsertMedia).</summary>
     public const string ChunksScript = "Features/Components/Upload/upload-chunks.js";
 
+    /// <summary>The upload that is under way, kept in the browser's storage to be continued (on every page, see _UploadResume.cshtml).</summary>
+    public const string OperationScript = "Features/Components/Upload/upload-operation.js";
+
     /// <summary>
     /// Size of the pieces large files are uploaded in. Must stay below the server's request body limit (30 MB in Kestrel by default).
     /// </summary>

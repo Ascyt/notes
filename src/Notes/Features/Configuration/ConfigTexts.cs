@@ -205,6 +205,12 @@ public class ConfigTexts
 
     public virtual string SchemaPasswordHash
         => "Hash of the password, made when saving. Changing or removing it needs the entry unlocked; \"password\": null in its place removes it.";
+
+    public virtual string SchemaUnzipPending
+        => "Set by the app: this uploaded archive is being unzipped into a folder next to it, which then takes its place. Removing it stops that.";
+
+    public virtual string SchemaUnzipError => "Set by the app: why this uploaded archive couldn't be unzipped. It stays a file.";
+
     public virtual string SchemaPrincipals => "u:<user name>, g:<group>, r:<role>, a for all users or l for all users who are logged in.";
 
     public virtual string SchemaChangingPrincipals

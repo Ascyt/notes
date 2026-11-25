@@ -32,6 +32,7 @@ public static class ComponentServices
         _ = services.AddSingleton<ITransferService, TransferService>();
         _ = services.AddSingleton<IZipService, ZipService>();
         _ = services.AddSingleton<IUploadService, UploadService>();
+        _ = services.AddSingleton<UploadedArchiveUnzipper>();
         _ = services.AddScoped<ClearStaleUploadsJob>();
         _ = services.AddSingleton<PreparedArchives>();
         _ = services.AddScoped<ClearStaleArchivesJob>();
@@ -57,6 +58,8 @@ public static class ComponentServices
             .AddEntryAction<DownloadHandler>()
             .AddEntryAction<ArchiveHandler>()
             .AddEntryAction<UploadHandler>()
+            .AddEntryAction<UnzippingUploadHandler>()
+            .AddEntryAction<PieceHashesHandler>()
             .AddEntryAction<CreateHandler>()
             .AddEntryAction<RenameHandler>()
             .AddEntryAction<DeleteHandler>();

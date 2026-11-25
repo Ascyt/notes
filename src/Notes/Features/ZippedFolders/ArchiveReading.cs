@@ -13,7 +13,8 @@ public sealed class ArchiveUnreadableException(string message, Exception? inner 
 /// <summary>An entry of an archive, as it is read one after the other.</summary>
 /// <param name="Path">Its path in the archive, with "/" between its parts and none at the end.</param>
 /// <param name="LastWriteTimeUtc">When the file was last changed, where the archive says so.</param>
-internal sealed record ArchiveEntry(string Path, bool IsDirectory, DateTime? LastWriteTimeUtc);
+/// <param name="Size">How large the file says it is unpacked (which needn't be true: only for telling how far reading it got).</param>
+internal sealed record ArchiveEntry(string Path, bool IsDirectory, DateTime? LastWriteTimeUtc, long Size = 0);
 
 /// <summary>Reads 7z and zip archives (with SharpCompress) from the first entry to the last, as a 7z can only be read quickly that way.</summary>
 internal static class ArchiveReading
@@ -34,9 +35,29 @@ internal static class ArchiveReading
         }
     }
 
+    /// <summary>
+    /// As <see cref="IsEncrypted"/>, but null where it can't be read at all without a password. For a zip, whose index is never encrypted, that
+    /// means it is damaged; a 7z may have its index encrypted too.
+    /// </summary>
+    public static bool? IsEncryptedIfReadable(string archivePath, ArchiveFormat format)
+    {
+        try
+        {
+            return Read(archivePath, format, password: null, archive => archive.Entries.Any(entry => entry.IsEncrypted));
+        }
+        catch (ArchiveUnreadableException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>How many entries the archive has (from its index, without unpacking anything).</summary>
     public static int CountEntries(string archivePath, ArchiveFormat format, string? password)
         => Read(archivePath, format, password, archive => archive.Entries.Count());
+
+    /// <summary>How large its files say they are unpacked, together (from its index; only for telling how far unzipping it got).</summary>
+    public static long DeclaredSize(string archivePath, ArchiveFormat format, string? password)
+        => Read(archivePath, format, password, archive => archive.Entries.Where(entry => !entry.IsDirectory).Sum(entry => Math.Max(0, entry.Size)));
 
     /// <summary>
     /// Calls <paramref name="each"/> with every entry, and the stream of its contents for a file (null for a directory), which is only good
@@ -76,7 +97,7 @@ internal static class ArchiveReading
                         ? DateTime.SpecifyKind(modified, format == ArchiveFormat.SevenZip ? DateTimeKind.Utc : DateTimeKind.Local).ToUniversalTime()
                         : modified.ToUniversalTime()
                     : null;
-                ArchiveEntry read = new(path, entry.IsDirectory, time);
+                ArchiveEntry read = new(path, entry.IsDirectory, time, Math.Max(0, entry.Size));
                 if (entry.IsDirectory)
                 {
                     each(read, null);

@@ -18,6 +18,8 @@ Above the listing is the path of the directory (the *breadcrumb*): each part of 
 |---|---|
 | ![A directory on a desktop](../screenshots/directory-desktop.png) | ![A directory on a phone](../screenshots/directory-phone.png) |
 
+An uploaded archive that is being unzipped has a bar after its name; the page is loaded again once it became a folder. One that couldn't be unzipped has a red mark, whose tooltip says why (see [Organizing](organizing.md#uploading)).
+
 A directory with a zipper after its name is kept in an archive (see [Archived directories](../administration/archived-directories.md)): it is used like any other. A solid blue zipper means it is zipped now, and going into it takes a moment, which the page shows with a bar; a gray outline means it is unzipped. A bar after the outline means it is being zipped; going into it then stops that, and takes no longer than usual. An encrypted one has a shield instead: whole and yellow while it is zipped, halved and gray while it is unzipped, with a yellow bar while it is being zipped (also while its password is locked again, as the lock button zips it); its lock, if it has a password of its own, comes before it, as for any entry with a password. The zipper (or shield) is also in the breadcrumb. While one is unzipped, a gray zipper next to the account (Alt+L, when there is nothing to lock) zips them at once.
 
 An entry with a lock can be seen but not opened: its name is visible, but what is in it isn't, for lack of permission. Hovering it says so.

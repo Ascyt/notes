@@ -1,9 +1,17 @@
-// Uploading to the current directory (_Upload.cshtml): the file picker, the drop target, the progress and the Upload button of the
-// toolbar. The size of the chunks, and why nothing may be uploaded here (if so), come from the server as data- attributes of the picker.
+// Uploading to the current directory (_Upload.cshtml): the file picker, the drop target, the dialog with the list and the progress, and the
+// Upload button of the toolbar. The size of the chunks, and why nothing may be uploaded here (if so), come from the server as data-
+// attributes of the picker.
+//
+// Each file is first compared with the file of its name that is there (GET ?hashes, the SHA-256 of each piece): the same one is left out.
+// Archives that are ticked are unzipped by the server once they are uploaded (in the background: the listing shows a bar for each).
+// While it runs, the upload is kept in the browser's storage (upload-operation.js), so that it can be continued after the tab was closed:
+// the files are picked again then, and what was there already, or half sent, is not sent again.
 (function () {
     const input = document.getElementById('upload-input');
     const CHUNK_SIZE = Number(input.dataset.chunkSize);
     const texts = textsOf('upload-texts');
+    const operations = window.uploadOperation || null; // (only for those logged in, who are the only ones who can upload)
+    const directory = window.location.pathname;
 
     const modalElement = document.getElementById('upload-modal');
     const list = document.getElementById('upload-list');
@@ -15,10 +23,37 @@
     const addMoreButton = document.getElementById('upload-add-more');
     const cancelButton = document.getElementById('upload-cancel');
     const confirmButton = document.getElementById('upload-confirm');
+    const unzipField = document.getElementById('upload-unzip-field');
+    const unzipAll = document.getElementById('upload-unzip-all');
+    const resumeNote = document.getElementById('upload-resume-note');
 
-    let pending = [];
+    // What can be unzipped (UploadedArchives.FormatOf)
+    const isArchive = name => /\.(zip|7z)$/i.test(name);
+
+    // The files of the dialog, in order: { file (null while it has to be picked again), name, size, lastModified, unzip,
+    // state ('todo', 'done' or 'skipped': there already), id and offset (what the server has of it) }
+    let items = [];
     let isUploading = false;
+    let controller = null; // stops the upload (Cancel)
+    let release = () => { }; // lets go of the upload in the storage (upload-operation.js)
     const disabledReason = input.dataset.uploadDenied || null; // nothing may be uploaded here
+
+    const archivesToDo = () => items.filter(item => item.state === 'todo' && isArchive(item.name));
+
+    function itemOf(file) {
+        const archives = archivesToDo();
+        // A new archive is ticked as the others are (as the box above them is, at first)
+        const unzip = archives.length === 0 ? true : archives.every(item => item.unzip) || (unzipAll.indeterminate ? true : unzipAll.checked);
+        return { file, name: file.name, size: file.size, lastModified: file.lastModified, unzip: isArchive(file.name) && unzip, state: 'todo', id: null, offset: 0 };
+    }
+
+    // What is kept of it in the storage: all but the files themselves
+    const stored = () => ({ directory, files: items.map(({ file, ...rest }) => rest) });
+
+    function persist() {
+        if (operations)
+            operations.save(stored());
+    }
 
     function formatSize(bytes) {
         const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
@@ -30,52 +65,125 @@
         return (i === 0 ? bytes : bytes.toFixed(1)) + ' ' + units[i];
     }
 
+    function tagOf(item) {
+        const [text, kind] = item.state === 'done' ? [texts.done, 'success']
+            : item.state === 'skipped' ? [texts.alreadyThere, 'secondary']
+            : !item.file ? [texts.pickAgain, 'warning']
+            : [null];
+        if (!text)
+            return null;
+        const tag = document.createElement('span');
+        tag.className = 'badge text-bg-' + kind + ' ms-2';
+        tag.textContent = text;
+        return tag;
+    }
+
     function render() {
         list.replaceChildren();
-        for (const file of pending) {
-            const item = document.createElement('li');
-            item.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
+        items.forEach(function (item, index) {
+            const row = document.createElement('li');
+            row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
 
             const name = document.createElement('span');
             name.className = 'text-break';
-            name.textContent = file.name;
+            name.textContent = item.name;
+            const tag = tagOf(item);
+            if (tag)
+                name.appendChild(tag);
+
+            const right = document.createElement('span');
+            right.className = 'd-flex align-items-center gap-2';
+            // An archive that is still to be uploaded has its own box: unzipped once uploaded, or not
+            if (isArchive(item.name) && item.state === 'todo') {
+                const check = document.createElement('span');
+                check.className = 'form-check m-0 small text-nowrap';
+                const box = document.createElement('input');
+                box.type = 'checkbox';
+                box.className = 'form-check-input upload-unzip-one';
+                box.id = 'upload-unzip-' + index;
+                box.checked = item.unzip;
+                box.disabled = isUploading;
+                box.setAttribute('aria-label', fillIn(texts.unzipOneLabel, { name: item.name }));
+                box.addEventListener('change', function () {
+                    item.unzip = box.checked;
+                    updateUnzipAll();
+                });
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = box.id;
+                label.textContent = texts.unzipOne;
+                check.append(box, label);
+                right.appendChild(check);
+            }
             const size = document.createElement('span');
             size.className = 'text-secondary small text-nowrap';
-            size.textContent = formatSize(file.size);
+            size.textContent = formatSize(item.size);
 
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'btn btn-sm p-0 text-secondary';
             remove.title = texts.remove;
+            remove.setAttribute('aria-label', texts.remove);
             remove.disabled = isUploading;
             remove.innerHTML = '<i class="fa-solid fa-xmark"></i>';
             remove.addEventListener('click', function () {
-                pending = pending.filter(f => f !== file);
-                if (pending.length === 0)
+                items = items.filter(other => other !== item);
+                // (What the server has of it is of no use now)
+                if (item.id && item.state === 'todo')
+                    uploadChunks.abort(directory, item.id);
+                if (items.length === 0) {
+                    discardStored();
                     closeModal();
-                else
-                    render();
+                    return;
+                }
+                if (operations && operations.load())
+                    persist();
+                render();
             });
 
-            const right = document.createElement('span');
-            right.className = 'd-flex align-items-center gap-2';
             right.append(size, remove);
-            item.append(name, right);
-            list.appendChild(item);
-        }
+            row.append(name, right);
+            list.appendChild(row);
+        });
+        unzipField.hidden = archivesToDo().length === 0;
+        unzipAll.disabled = isUploading;
+        updateUnzipAll();
+        confirmButton.disabled = isUploading || !items.some(item => item.state === 'todo' && item.file);
+        resumeNote.hidden = !items.some(item => item.state === 'todo' && !item.file);
     }
 
+    // The box above the archives: ticked if all are, a dash if some are
+    function updateUnzipAll() {
+        const archives = archivesToDo();
+        const ticked = archives.filter(item => item.unzip).length;
+        unzipAll.checked = archives.length > 0 && ticked === archives.length;
+        unzipAll.indeterminate = ticked > 0 && ticked < archives.length;
+    }
+    unzipAll.addEventListener('change', function () {
+        for (const item of archivesToDo())
+            item.unzip = unzipAll.checked;
+        render();
+    });
+
+    // While it uploads, only Cancel can be used (and not by Escape, which is too easily pressed): the dialog can't be closed otherwise
     function setBusy(busy) {
         isUploading = busy;
         progress.hidden = !busy;
-        for (const button of [addMoreButton, cancelButton, confirmButton])
-            button.disabled = busy;
+        addMoreButton.disabled = busy;
+        if (busy)
+            cancelButton.removeAttribute('key');
+        else
+            cancelButton.setAttribute('key', 'Escape');
         render();
     }
 
     function showError(message) {
         errorBox.textContent = message;
         errorBox.hidden = false;
+    }
+
+    function setBar(done, total) {
+        bar.style.width = (total === 0 ? 100 : Math.min(100, done / total * 100)) + '%';
     }
 
     function openModal() {
@@ -86,6 +194,11 @@
         bootstrap.Modal.getOrCreateInstance(modalElement).hide();
     }
 
+    function discardStored() {
+        if (operations && operations.load())
+            operations.discard(stored());
+    }
+
     function addFiles(files) {
         if (isUploading || files.length === 0)
             return;
@@ -93,51 +206,163 @@
             notify(disabledReason, 'warning');
             return;
         }
-        pending.push(...files);
+        for (const file of files) {
+            // One of an upload that is continued, picked again: the same name and size (the time it was changed only decides between
+            // two of those)
+            const candidates = items.filter(item => !item.file && item.name === file.name && item.size === file.size);
+            const again = candidates.find(item => item.lastModified === file.lastModified) || candidates[0];
+            if (again)
+                again.file = file;
+            else
+                items.push(itemOf(file));
+        }
         errorBox.hidden = true;
         render();
         openModal();
     }
 
+    const hex = buffer => [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Whether the file of its name that is there is the same, piece by piece (the browser can't hash a large file in one go). Without the
+    // browser's hashing (a page that isn't https), or if the server can't tell, it is uploaded (and gets a number if the name is taken).
+    async function isThereAlready(item, signal) {
+        if (!(window.crypto && crypto.subtle))
+            return false;
+        let answer;
+        try {
+            const response = await fetch(directory + '?hashes=' + encodeURIComponent(item.name) + '&size=' + item.size + '&piece=' + CHUNK_SIZE,
+                { headers: { 'Accept': 'application/json' }, signal });
+            if (!response.ok)
+                return false;
+            answer = await response.json();
+        } catch (e) {
+            if (signal.aborted)
+                throw e;
+            return false;
+        }
+        const pieces = Math.max(1, Math.ceil(item.size / CHUNK_SIZE));
+        if (!Array.isArray(answer.hashes) || answer.hashes.length !== pieces)
+            return false;
+        for (let i = 0; i < pieces; i++) {
+            const piece = item.file.slice(i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, item.size));
+            const digest = hex(await crypto.subtle.digest('SHA-256', await piece.arrayBuffer()));
+            if (signal.aborted)
+                throw new DOMException('Aborted', 'AbortError');
+            if (digest !== answer.hashes[i])
+                return false;
+        }
+        return true;
+    }
+
     async function upload() {
-        if (isUploading || pending.length === 0)
+        if (isUploading)
+            return;
+        const queue = items.filter(item => item.state === 'todo' && item.file);
+        if (queue.length === 0)
             return;
 
-        const total = pending.reduce((sum, f) => sum + f.size, 0);
-        let done = 0;
+        // What was sent before (of an upload that is continued) counts as done
+        const total = queue.reduce((sum, item) => sum + item.size, 0);
+        let done = queue.reduce((sum, item) => sum + (item.id ? item.offset : 0), 0);
+        let uploaded = items.filter(item => item.state === 'done').length;
+        let skipped = items.filter(item => item.state === 'skipped').length;
         errorBox.hidden = true;
+        controller = new AbortController();
+        const signal = controller.signal;
         setBusy(true);
+        setBar(done, total);
+        persist();
+        release = operations ? operations.hold(stored) : () => { };
 
-        const queue = [...pending];
-        for (let i = 0; i < queue.length; i++) {
-            const file = queue[i];
-            statusText.textContent = fillIn(texts.uploading, { name: file.name, number: i + 1, count: queue.length });
+        for (let n = 0; n < queue.length; n++) {
+            const item = queue[n];
             try {
-                await uploadChunks.uploadFile(file, {
-                    directory: window.location.pathname,
+                if (!item.id) {
+                    statusText.textContent = fillIn(texts.comparing, { name: item.name, number: n + 1, count: queue.length });
+                    if (await isThereAlready(item, signal)) {
+                        item.state = 'skipped';
+                        skipped++;
+                        done += item.size;
+                        setBar(done, total);
+                        persist();
+                        render();
+                        continue;
+                    }
+                }
+                statusText.textContent = fillIn(texts.uploading, { name: item.name, number: n + 1, count: queue.length });
+                await uploadChunks.uploadFile(item.file, {
+                    directory,
                     chunkSize: CHUNK_SIZE,
                     texts,
-                    onBytes: bytes => {
+                    unzip: isArchive(item.name) && item.unzip,
+                    signal,
+                    resume: item.id ? { id: item.id, offset: item.offset } : null,
+                    onStarted: id => {
+                        item.id = id;
+                        item.offset = 0;
+                        persist();
+                    },
+                    onBytes: (bytes, offset) => {
                         done += bytes;
-                        bar.style.width = (total === 0 ? 100 : done / total * 100) + '%';
+                        item.offset = offset;
+                        setBar(done, total);
+                        persist();
                     }
                 });
+                item.state = 'done';
+                uploaded++;
+                persist();
+                render();
             } catch (e) {
-                // Keep the files that did not make it, so that Upload retries just those
-                pending = queue.slice(i);
+                if (signal.aborted) {
+                    cancelled(uploaded);
+                    return;
+                }
+                // Refused: what the server had of it is gone. Otherwise it is kept, and Upload (or continuing later) goes on from there.
+                if (e.status >= 400 && e.status < 500) {
+                    item.id = null;
+                    item.offset = 0;
+                }
+                persist();
+                release();
                 setBusy(false);
+                const there = uploaded + skipped;
                 showError(fillIn(texts.failed, {
-                    name: file.name,
+                    name: item.name,
                     reason: e.message,
-                    uploaded: i === 0 ? '' : i === 1 ? texts.alreadyUploadedOne : fillIn(texts.alreadyUploadedMany, { count: i })
+                    uploaded: there === 0 ? '' : there === 1 ? texts.alreadyUploadedOne : fillIn(texts.alreadyUploadedMany, { count: there })
                 }));
                 return;
             }
-            pending = pending.filter(f => f !== file);
         }
 
+        release();
+        if (operations)
+            operations.clear();
         window.removeEventListener('beforeunload', warnBeforeUnload);
-        notifyAfterNavigation(queue.length === 1 ? texts.uploadedOne : fillIn(texts.uploadedMany, { count: queue.length }));
+        const count = uploaded + skipped;
+        notifyAfterNavigation(skipped === 0 ? (count === 1 ? texts.uploadedOne : fillIn(texts.uploadedMany, { count }))
+            : uploaded === 0 ? fillIn(texts.nothingNew, { count })
+            : fillIn(texts.uploadedWithSkipped, { count, skipped }));
+        window.location.reload();
+    }
+
+    // Stopped by Cancel: what was uploaded stays, the rest (and what the server had of the file that was being sent) is discarded
+    function cancelled(uploaded) {
+        release();
+        setBusy(false);
+        discardStored();
+        items = [];
+        closeModal();
+        const message = fillIn(texts.cancelled, {
+            uploaded: uploaded === 0 ? '' : uploaded === 1 ? texts.alreadyUploadedOne : fillIn(texts.alreadyUploadedMany, { count: uploaded })
+        });
+        if (uploaded === 0) {
+            notify(message, 'info');
+            return;
+        }
+        window.removeEventListener('beforeunload', warnBeforeUnload);
+        notifyAfterNavigation(message, 'info');
         window.location.reload();
     }
 
@@ -149,17 +374,48 @@
 
     document.getElementById('upload-button').addEventListener('click', () => input.click());
     addMoreButton.addEventListener('click', () => input.click());
+    document.getElementById('upload-pick-again').addEventListener('click', () => input.click());
     input.addEventListener('change', function () {
         addFiles([...input.files]);
         input.value = ''; // so that picking the same file again fires another change event
     });
     cancelButton.addEventListener('click', function () {
-        pending = [];
+        if (isUploading) {
+            controller.abort();
+            return;
+        }
+        discardStored();
+        items = [];
         closeModal();
     });
     confirmButton.addEventListener('click', upload);
 
-    // Drag and drop anywhere on the page
+    // ---- Continuing an upload that didn't finish (upload-operation.js asked, and opened this directory for it)
+
+    function resume() {
+        const operation = operations && operations.load();
+        if (!operation || operation.directory !== directory)
+            return;
+        if (disabledReason) {
+            notify(disabledReason, 'warning');
+            return;
+        }
+        items = operation.files.map(file => ({ ...file, file: null }));
+        errorBox.hidden = true;
+        render();
+        openModal();
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        if (operations && operations.takeResume() === directory)
+            resume();
+    });
+    window.addEventListener('notes-upload-resume', function () {
+        operations.takeResume();
+        resume();
+    });
+
+    // ---- Drag and drop anywhere on the page
+
     const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
     let dragDepth = 0;
 

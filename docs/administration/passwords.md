@@ -8,7 +8,7 @@ A password is set in the [configuration](configuration.md) of the entry, as `pas
 
 ```jsonc
 {
-    "version": "1.5.0",
+    "version": "1.6.0",
     "perms": { "inherit": true },
     "gitignore": false,
     "password": "correct horse battery staple",   // protects this directory and everything in it
@@ -42,4 +42,5 @@ While it is locked, the entry is as if the user may not read it, whatever the pe
 - **The password travels.** A copy or a move takes the password along, unlike the permissions: a copy would otherwise be a way around it. A directory copied by someone who doesn't manage the configuration gets a configuration that says nothing but its password. Renaming keeps it too, and so does the unlock.
 - **What the user may not read stays hidden.** A password inside a directory someone may not read is not asked for: for them, it isn't there.
 - **Earlier states** are protected by the password the entry had then. One that a password locked then, other than the one it has now (or that was deleted with its password), can't be seen by anyone, as there is nowhere to type that password.
+- **Admins can get around it with a download as it is kept.** An archived directory downloaded as it is kept (see [Archived directories](archived-directories.md)) goes as its archive, with everything in it, whatever passwords protect it or what is inside it, and whether or not the admin has them unlocked. Unless the archive is [encrypted](archived-directories.md#encrypted), it opens without any of them. This is accepted: it is only open to admins, who can read the folder on the server anyway.
 - **On disk, nothing is encrypted**, unless the directory is an [encrypted archived directory](archived-directories.md#encrypted). Otherwise the password is a lock of the app: whoever can read the folder of the notes on the server (or a backup, or the history in `_/history`) reads what it protects.

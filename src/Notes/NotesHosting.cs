@@ -237,6 +237,8 @@ public static class NotesHosting
 
         // What zipping or unzipping an archived folder left when the app stopped is put right (nothing of it is lost), before it is used
         app.Services.GetRequiredService<ArchivedFolders>().RecoverAsync().GetAwaiter().GetResult();
+        // What unzipping an uploaded archive left is deleted: the listing starts it over (the archive's entry still says it is to be unzipped)
+        app.Services.GetRequiredService<Features.Components.Upload.UploadedArchiveUnzipper>().ClearLeftovers();
     }
 
     /// <summary>

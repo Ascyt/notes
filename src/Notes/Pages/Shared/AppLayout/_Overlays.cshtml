@@ -13,6 +13,11 @@
 @* Waits for an archived folder that a request needs to be unzipped (after the password dialog's script, which asks for passwords first) *@
 <script-texts id="unzip-texts" texts="@UnzipTexts"/>
 <script component-asset="@Notes.Features.ZippedFolders._Unzipping.Script"></script>
+@* An upload that didn't finish is offered to be continued, on whatever page opens next *@
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <partial name="/Features/Components/Upload/_UploadResume.cshtml"/>
+}
 @if (User.IsInRole(AppAccess.AdminRole))
 {
     <partial name="/Features/KillSwitch/_KillSwitchModal.cshtml" model="new Notes.Features.KillSwitch._KillSwitchModal()"/>

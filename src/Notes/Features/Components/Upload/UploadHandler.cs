@@ -13,9 +13,15 @@ namespace Notes.Features.Components.Upload;
 /// (<c>?upload=&lt;id&gt;&amp;name=..&amp;offset=..&amp;last=..</c>) so that neither memory nor the request size limits of the server
 /// or proxies cap the file size. <c>&amp;folder=a/b</c> puts the file into those folders inside the directory, which are made if they aren't
 /// there. <c>?upload=&lt;id&gt;&amp;abort</c> discards an upload.
+/// <para>
+/// A .zip or .7z can be unzipped once it is uploaded: <c>&amp;unzip</c> (with every chunk, so that it is checked early whether the folder
+/// may be made) puts it in place as a file that is to be unzipped into a new folder named after it, in the background
+/// (<see cref="UploadedArchiveUnzipper"/>), which the listing shows.
+/// </para>
 /// </summary>
 public sealed class UploadHandler(IPathService path, IUploadService uploadService, AccessTree tree, LimitsConfig limits, HistoryService history,
-    AppAddresses appAddresses, UploadTexts texts, EntryTexts entryTexts, NameTexts nameTexts, Configuration.FolderConfigStore configs)
+    AppAddresses appAddresses, UploadTexts texts, EntryTexts entryTexts, NameTexts nameTexts, Configuration.FolderConfigStore configs,
+    UploadedArchiveUnzipper unzipper)
     : IEntryPostAction
 {
     public const string UploadParameter = "upload";
@@ -62,6 +68,8 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
 
         if (NewNames.Check(request.Query["name"].ToString(), out string name) is { } invalid)
             return new BadRequestObjectResult(nameTexts.Problem(invalid));
+        // (Only an archive is unzipped: for any other file it means nothing)
+        bool unzip = request.Query.ContainsKey(UnzipParameter) && UploadedArchives.FormatOf(name) is not null;
         if (!long.TryParse(request.Query["offset"], out long offset) || offset < 0)
             return new BadRequestObjectResult(entryTexts.InvalidRequest);
 
@@ -89,12 +97,17 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
         string firstNewVirtualPath = path.ToVirtualPath(Path.Combine(physicalPath, folders.FirstOrDefault() ?? name));
         if (appAddresses.TakesNewEntry(firstNewVirtualPath))
             return new BadRequestObjectResult(nameTexts.TakenByTheApp(folders.FirstOrDefault() ?? name));
+        // The folder it is unzipped into, by the name it gets if that is free (the number it may get instead is not asked about)
+        string unzippedFolder = UploadedArchiveUnzipper.FolderNameOf(name);
+        if (unzip && !MayCreate(Path.Combine(targetDirectory, unzippedFolder)))
+            return Forbidden(texts.CantCreateFolder(name, unzippedFolder));
 
+        bool isLast = request.Query["last"].Count > 0;
         string? result;
         try
         {
-            result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, folders, name, offset, request.Query["last"].Count > 0,
-                request.Body, MayCreate, MayEnter);
+            result = await uploadService.UploadChunkAsync(userId, uploadId, physicalPath, folders, name, offset, isLast,
+                request.Body, MayCreate, MayEnter, unzipAfterwards: unzip);
         }
         catch (AccessDeniedException e)
         {
@@ -110,12 +123,18 @@ public sealed class UploadHandler(IPathService path, IUploadService uploadServic
 
         // The last chunk gave the file its place (the path of it), and an entry in the configuration of its directory
         if (result != "" && path.ToPhysicalPath(result) is { } finished)
+        {
             history.AfterChange(user, [finished, configs.ConfigPathOf(Path.GetDirectoryName(finished)!)],
                 HistoryChangeKind.Change);
+            if (unzip && configs.Get(Path.GetDirectoryName(finished)!).Config?.FindFile(Path.GetFileName(finished))?.UnzipPending == true)
+                unzipper.Start(finished, user);
+        }
 
         return new ContentResult { Content = result };
     }
 
     private static ObjectResult Forbidden(string message)
         => new(message) { StatusCode = StatusCodes.Status403Forbidden };
+
+    public const string UnzipParameter = "unzip";
 }

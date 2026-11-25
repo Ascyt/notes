@@ -29,8 +29,8 @@ public class ArchiveTexts
     public virtual string ArchivedFolders => "Archived folders in this download";
 
     public virtual string ArchivedFoldersHint
-        => "Not ticked, a folder goes in as it is kept on the server: its configuration and its archive (encrypted, if it is), with the " +
-           "configurations and the history inside it, without unzipping it. Ticked, it is unzipped, and what is in it goes in like any other " +
+        => "Not ticked: A folder goes in as it is kept on the server: its configuration and its archive (encrypted, if it is), with the " +
+           "configurations and the history inside it, without unzipping it. Ticked: It is unzipped, and what is in it goes in like any other " +
            "folder. A folder inside one that is kept as it is is part of that archive. Folders inside one that is zipped now are only listed " +
            "once it is unzipped.";
 

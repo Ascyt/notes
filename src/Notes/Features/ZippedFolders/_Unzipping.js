@@ -143,22 +143,27 @@
     // ---- The archive button (ZipHandler): zips what is unzipped now; the page goes out of it, or is loaded again (for the marks)
 
     // The navbar's zips everything unzipped (POST ?zip); the toolbar's only the folder of the page (POST ?zip=entry)
-    onClickOf('zip-button', () => zipAndLeave('?zip'));
-    onClickOf('zip-entry-button', () => zipAndLeave('?zip=entry'));
+    onClickOf('zip-button', () => zipAndLeave('?zip', document.getElementById('zip-button')));
+    onClickOf('zip-entry-button', () => zipAndLeave('?zip=entry', document.getElementById('zip-entry-button')));
 
-    async function zipAndLeave(query) {
+    // The button spins until the server answered (it answers once the zipping started), then the page goes on, where the folder shows as
+    // being zipped
+    async function zipAndLeave(query, button) {
         let location = null;
+        setButtonBusy(button, true);
         try {
             const response = await fetchBefore(window.location.pathname + query, {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
             });
             if (!response.ok) {
+                setButtonBusy(button, false);
                 notify((await response.text()) || fillIn(texts.failedWithStatus, { status: response.status }), 'danger');
                 return;
             }
             location = (await response.json()).location;
         } catch {
+            setButtonBusy(button, false);
             notify(texts.connectionLost, 'danger');
             return;
         }

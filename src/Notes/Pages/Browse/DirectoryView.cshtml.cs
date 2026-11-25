@@ -68,6 +68,15 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     /// <summary>How far its zipping got (0 to 1), while <see cref="Archived"/> is <c>Zipping</c>.</summary>
     public double ZipProgress { get; init; }
 
+    /// <summary>
+    /// An uploaded archive being unzipped, with how far that got (0 to 1), which a bar after its name shows; otherwise null. Only for a file
+    /// that can be opened.
+    /// </summary>
+    public double? UnzipProgress { get; init; }
+
+    /// <summary>Why unzipping the uploaded archive failed, which a red mark after its name shows; otherwise null.</summary>
+    public string? UnzipError { get; init; }
+
     public bool CanOpen => Kind == ListedKind.Open;
 }
 
@@ -106,6 +115,11 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
 
     /// <summary>What tells archived folders, for the directory as it is now (none for an earlier state).</summary>
     public Features.ZippedFolders.ArchivedFolders? Archives { get; init; }
+
+    /// <summary>What unzips uploaded archives, and the configurations that say which are to be: for the directory as it is now.</summary>
+    public Features.Components.Upload.UploadedArchiveUnzipper? Unzipper { get; init; }
+
+    public Features.Configuration.FolderConfigStore? Configs { get; init; }
 
     /// <summary>How an entry of the directory as it is now is shown, by what the user may do with it.</summary>
     private ListedKind KindOf(string physicalPath, bool isDirectory)
@@ -209,6 +223,20 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     public bool IsSelected(string virtualPath)
         => (_selectedPaths ??= new HashSet<string>(Selection.Paths, StringComparer.OrdinalIgnoreCase)).Contains(virtualPath);
 
+    /// <summary>The file with how its unzipping goes, if it is an uploaded archive that is to be unzipped (or couldn't be).</summary>
+    private ListedEntry WithUnzipping(ListedEntry file)
+    {
+        if (Unzipper is null || Configs?.Get(PhysicalPath).Config?.FindFile(System.IO.Path.GetFileName(file.Path)) is not { } entry)
+            return file;
+        if (entry.UnzipPending)
+        {
+            // (After a restart nothing unzips it yet: it starts now)
+            Unzipper.EnsureRunning(file.Path);
+            return file with { UnzipProgress = Unzipper.ProgressOf(file.Path) ?? 0 };
+        }
+        return entry.UnzipError is { } error ? file with { UnzipError = error } : file;
+    }
+
     public void Init()
     {
         if (!CanBrowse)
@@ -227,13 +255,14 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
                 : null;
             // The lock only says whether its own password is unlocked; whether it is encrypted is the archive's mark (a folder can be
             // encrypted with the password of an onLowestLevel folder above, and locked for one browser while it is unzipped for another)
-            return new(entry, kind)
+            ListedEntry listed = new(entry, kind)
             {
                 IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true,
                 Archived = archived,
                 ArchiveEncrypted = archived is not null && Archives?.IsEncrypted(entry) == true,
                 ZipProgress = archived == Features.ZippedFolders.ArchiveState.Zipping ? Archives?.ZipProgressOf(entry) ?? 0 : 0
             };
+            return !isDirectory && kind == ListedKind.Open ? WithUnzipping(listed) : listed;
         };
         // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames), but are asked for the
         // password of what they could read with it

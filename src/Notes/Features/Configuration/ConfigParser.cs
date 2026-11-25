@@ -42,6 +42,16 @@ public static class ConfigParser
     public const string PasswordKey = "password";
     public const string PasswordHashKey = "passwordHash";
 
+    /// <summary>
+    /// A file's: an uploaded archive that is to be unzipped into a folder (true), and why that failed (see
+    /// <see cref="Components.Upload.UploadedArchiveUnzipper"/>). The app writes both; neither is carried along when the file is renamed.
+    /// </summary>
+    public const string UnzipPendingKey = "unzipPending";
+    public const string UnzipErrorKey = "unzipError";
+
+    /// <summary>The keys of a file's entry that only say how its unzipping goes, which a rename leaves behind.</summary>
+    public static readonly string[] UnzipKeys = [UnzipPendingKey, UnzipErrorKey];
+
     public const string ArchiveKey = "archive";
     public const string ArchiveEnabledKey = "enabled";
     public const string ArchiveFiletypeKey = "filetype";
@@ -128,16 +138,17 @@ public static class ConfigParser
             foreach (JsonElement element in root[FilesKey].EnumerateArray())
             {
                 string path = $"{FilesKey}[{index++}]";
-                Dictionary<string, JsonElement>? entry = ReadObject(element, path, [NameKey, PermsKey, PasswordKey, PasswordHashKey],
-                    required: [NameKey, PermsKey], errors);
+                Dictionary<string, JsonElement>? entry = ReadObject(element, path,
+                    [NameKey, PermsKey, PasswordKey, PasswordHashKey, UnzipPendingKey, UnzipErrorKey], required: [NameKey, PermsKey], errors);
                 if (entry is null)
                     continue;
 
                 string? name = ParseName(entry[NameKey], path, names, existingFiles, errors);
                 PermsBlock? entryPerms = ParsePerms(entry[PermsKey], path + "." + PermsKey, errors);
                 string? entryPasswordHash = ParsePassword(entry, path, allowsPlainPasswords, errors);
+                (bool unzipPending, string? unzipError) = ParseUnzip(entry, path, errors);
                 if (name is not null && entryPerms is not null)
-                    files.Add(new FileEntry(name, entryPerms, entryPasswordHash));
+                    files.Add(new FileEntry(name, entryPerms, entryPasswordHash) { UnzipPending = unzipPending, UnzipError = unzipError });
             }
         }
 
@@ -200,6 +211,29 @@ public static class ConfigParser
         return new ArchiveSettings(enabled!.Value, format, compression, encrypted!.Value, onLowestLevel!.Value);
     }
 
+    /// <summary>The <c>unzipPending</c> and <c>unzipError</c> of a file's entry (false and null where they aren't there).</summary>
+    private static (bool Pending, string? Error) ParseUnzip(Dictionary<string, JsonElement> properties, string path, Problems errors)
+    {
+        string Where(string key) => path == "" ? key : path + "." + key;
+        bool pending = false;
+        string? error = null;
+        if (properties.TryGetValue(UnzipPendingKey, out JsonElement pendingValue))
+        {
+            if (pendingValue.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                pending = pendingValue.GetBoolean();
+            else
+                errors.Add(errors.Texts.NotABoolean(Where(UnzipPendingKey)));
+        }
+        if (properties.TryGetValue(UnzipErrorKey, out JsonElement errorValue) && errorValue.ValueKind != JsonValueKind.Null)
+        {
+            if (errorValue.ValueKind == JsonValueKind.String)
+                error = errorValue.GetString();
+            else
+                errors.Add(errors.Texts.NotAString(Where(UnzipErrorKey)));
+        }
+        return (pending, error);
+    }
+
     /// <summary>
     /// Checks the <c>password</c> or <c>passwordHash</c> of an object (the root, a file's entry) and returns the hash, or null if there is none
     /// (also for a password, whose hash is only made when it is saved). A password of null is none, as if it weren't there.
@@ -250,11 +284,14 @@ public static class ConfigParser
         if (document is null)
             return ParseResult<PermsBlock>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [PermsKey, PasswordKey, PasswordHashKey], required: [PermsKey],
-            errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "",
+            [PermsKey, PasswordKey, PasswordHashKey, UnzipPendingKey, UnzipErrorKey], required: [PermsKey], errors);
         PermsBlock? perms = root is null ? null : ParsePerms(root[PermsKey], PermsKey, errors);
         if (root is not null)
+        {
             _ = ParsePassword(root, "", allowsPlainPasswords, errors);
+            _ = ParseUnzip(root, "", errors);
+        }
 
         return errors.Count > 0 || perms is null
             ? ParseResult<PermsBlock>.Failed(errors)

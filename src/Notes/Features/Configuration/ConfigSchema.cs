@@ -32,6 +32,8 @@ public sealed class ConfigSchema(ConfigTexts texts)
             ["password"] = Password(isFile: forFile),
             ["passwordHash"] = PasswordHash()
         };
+        if (forFile)
+            AddUnzip(properties);
 
         if (!forFile)
         {
@@ -40,7 +42,7 @@ public sealed class ConfigSchema(ConfigTexts texts)
                 ["type"] = "string",
                 ["pattern"] = @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
                 ["description"] = texts.SchemaVersion,
-                ["examples"] = new[] { "1.5.0" }
+                ["examples"] = new[] { "1.6.0" }
             };
             properties["gitignore"] = new Dictionary<string, object>
             {
@@ -84,7 +86,9 @@ public sealed class ConfigSchema(ConfigTexts texts)
                         ["perms"] = new Dictionary<string, object> { ["$ref"] = "#/definitions/perms",
                             ["description"] = texts.SchemaPerms(isFile: true) },
                         ["password"] = Password(isFile: true),
-                        ["passwordHash"] = PasswordHash()
+                        ["passwordHash"] = PasswordHash(),
+                        [ConfigParser.UnzipPendingKey] = UnzipPending(),
+                        [ConfigParser.UnzipErrorKey] = UnzipError()
                     }
                 }
             };
@@ -115,6 +119,18 @@ public sealed class ConfigSchema(ConfigTexts texts)
 
     private Dictionary<string, object> PasswordHash()
         => new() { ["type"] = "string", ["description"] = texts.SchemaPasswordHash };
+
+    private void AddUnzip(Dictionary<string, object> properties)
+    {
+        properties[ConfigParser.UnzipPendingKey] = UnzipPending();
+        properties[ConfigParser.UnzipErrorKey] = UnzipError();
+    }
+
+    private Dictionary<string, object> UnzipPending()
+        => new() { ["type"] = "boolean", ["description"] = texts.SchemaUnzipPending };
+
+    private Dictionary<string, object> UnzipError()
+        => new() { ["type"] = new[] { "string", "null" }, ["description"] = texts.SchemaUnzipError };
 
     private static Dictionary<string, object> PrincipalList(string pattern, string description, string[] examples)
         => new()

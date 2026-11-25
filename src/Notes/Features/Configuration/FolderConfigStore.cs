@@ -228,13 +228,41 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
             return;
 
         // Without an entry of its own the file has the folder's permissions, under either name: an entry the new name has (left over) goes
+        // (How its unzipping goes stays behind: the unzipping is of the file at its old name, and ends there)
         Update(physicalDirectory, "prepare the renaming of", text => ConfigText.GetFileBody(text, oldName) is { } body
-            ? ConfigText.SetFileBody(text, newName, body)
+            ? ConfigText.SetFileBody(text, newName, ConfigText.RemoveProperties(body, ConfigParser.UnzipKeys) ?? body)
             : ConfigText.RemoveFile(text, newName));
     }
 
+    // ---- Unzipping an uploaded archive (Components.Upload.UploadedArchiveUnzipper): the file's entry says how it goes, so that it goes on
+    // ---- after a restart and the listing can show it
+
+    /// <summary>The file is an uploaded archive that is to be unzipped. Whether its entry says so now.</summary>
+    public bool UnzipPending(string physicalDirectory, string name)
+    {
+        if (!EnsureExists(physicalDirectory))
+            return false;
+        Update(physicalDirectory, "mark the unzipping of", text => ConfigText.RemoveFileProperties(text, name, [ConfigParser.UnzipErrorKey]) is { } cleared
+            ? ConfigText.SetFileProperty(cleared, name, ConfigParser.UnzipPendingKey, "true")
+            : null);
+        return Get(physicalDirectory).Config?.FindFile(name)?.UnzipPending == true;
+    }
+
+    /// <summary>Unzipping the file failed, for that reason: it stays a file, and its entry says why.</summary>
+    public void UnzipFailed(string physicalDirectory, string name, string reason)
+        => Update(physicalDirectory, "mark the failed unzipping of", text =>
+            ConfigText.RemoveFileProperties(text, name, [ConfigParser.UnzipPendingKey]) is { } cleared
+                ? ConfigText.SetFileProperty(cleared, name, ConfigParser.UnzipErrorKey, JsonQuote(reason))
+                : null);
+
+    private static string JsonQuote(string value)
+        => System.Text.Json.JsonSerializer.Serialize(value, new System.Text.Json.JsonSerializerOptions
+            { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+
     public void FileRenamed(string physicalDirectory, string oldName, string newName)
-        => Update(physicalDirectory, "rename", text => ConfigText.RenameFile(text, oldName, newName));
+        => Update(physicalDirectory, "rename", text => ConfigText.RenameFile(text, oldName, newName) is { } renamed
+            ? ConfigText.RemoveFileProperties(renamed, newName, ConfigParser.UnzipKeys)
+            : null);
 
     /// <summary>A file was deleted from the folder (or moved out of it).</summary>
     public void FileRemoved(string physicalDirectory, string name)
