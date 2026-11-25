@@ -247,6 +247,22 @@ public sealed class PasswordChangeTests(NotesAppFactory app) : PasswordTest(app)
         await AssertPasswordRequired("/safe", await GetWithCookieAsync(Users.Alice, "/safe/inside.md", cookie!));
     }
 
+    [Fact]
+    public async Task The_toolbar_locks_only_the_entry_that_has_the_password()
+    {
+        (_, string? cookie) = await UnlockAsync(Users.Alice, "/safe", SafePassword);
+        Assert.Contains("id=\"lock-entry-button\"", await BodyOf(await GetWithCookieAsync(Users.Alice, "/safe", cookie!)));
+        // (Inside it, the password is that of the folder above: not the entry's own)
+        Assert.DoesNotContain("id=\"lock-entry-button\"", await BodyOf(await GetWithCookieAsync(Users.Alice, "/safe/inside.md", cookie!)));
+        await AssertStatus(HttpStatusCode.BadRequest, await PostWithCookieAsync(Users.Alice, "/safe/inside.md?lock=entry", cookie!));
+
+        HttpResponseMessage response = await PostWithCookieAsync(Users.Alice, "/safe?lock=entry", cookie!);
+
+        await AssertStatus(HttpStatusCode.OK, response);
+        Assert.Equal("/", (string)JsonNode.Parse(await BodyOf(response))!["location"]!);
+        await AssertPasswordRequired("/safe", await GetWithCookieAsync(Users.Alice, "/safe/inside.md", cookie!));
+    }
+
     [Theory]
     [InlineData("/safe/deeper", "/safe", "/")]
     [InlineData("/safe/inside.md", "/safe", "/")]

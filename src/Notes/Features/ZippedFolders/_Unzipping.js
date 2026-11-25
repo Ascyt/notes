@@ -142,10 +142,14 @@
 
     // ---- The archive button (ZipHandler): zips what is unzipped now; the page goes out of it, or is loaded again (for the marks)
 
-    onClickOf('zip-button', async function () {
+    // The navbar's zips everything unzipped (POST ?zip); the toolbar's only the folder of the page (POST ?zip=entry)
+    onClickOf('zip-button', () => zipAndLeave('?zip'));
+    onClickOf('zip-entry-button', () => zipAndLeave('?zip=entry'));
+
+    async function zipAndLeave(query) {
         let location = null;
         try {
-            const response = await fetchBefore(window.location.pathname + '?zip', {
+            const response = await fetchBefore(window.location.pathname + query, {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
             });
@@ -163,5 +167,5 @@
             window.location.assign(location);
         else
             window.location.reload();
-    });
+    }
 })();

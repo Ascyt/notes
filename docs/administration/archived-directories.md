@@ -22,7 +22,14 @@ The directory's own configuration stays next to the archive, so it can be edited
 
 **Copying, moving, renaming, deleting** work as for any directory: what is in it is unzipped to be checked first (which may take a moment for a big one). A moved or renamed archived directory stays archived; a copy is a normal directory (archive it again if it should be).
 
-**Downloading:** a download gives what is in it, as for any directory (an archive of it, made as the dialog says). Admins also get a switch in the download dialog of an archived directory, on at first, to download the directory as it is kept instead: its own archive (zipped first if it is unzipped), named after the directory (`foo.7z`), with the configurations and the history inside it. Only for the directory itself, not for a selection.
+**Downloading:** the download dialog (of a directory, or of the selection) lists the archived directories in what is downloaded.
+
+- **Admins** get a box for each, "Also unzip …", not ticked at first, and one above them all that ticks or unticks every one (a dash while only some are). Not ticked, a directory goes in as it is kept: its `.config.json` and its archive (`foo/.config.json`, `foo/_.7z`, encrypted if it is), zipped first if it is unzipped, with the configurations and the history inside it, as on disk, so that putting it back makes it the archived directory it was. A directory inside one that goes in as it is kept is part of that archive, so its box is greyed out. Ticked, it is unzipped, and what is in it goes in like any other directory. Directories inside one that is zipped now are only listed once it is unzipped. If the directory of the page is itself one and isn't ticked, the download is its own archive, named after it (`foo.7z`), and format, compression and password are greyed out.
+- **Everyone else** is told that they are unzipped for the download (which may take a while) and zipped again once they aren't used.
+
+The dialog scrolls when the list is longer than the screen. An encrypted directory that goes in as it is kept and whose password the app doesn't know asks for it first.
+
+**The toolbar** of an archived directory that is unzipped has a zip button (the shield, yellow, for an encrypted one), which zips just that directory (and those unzipped inside it) at once and goes to the directory above it.
 
 The root, a bridge, and a directory that holds a bridge can't be archived (with `onLowestLevel` they can: they aren't archived themselves).
 

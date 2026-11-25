@@ -52,19 +52,35 @@ public sealed class HistoryService : IDisposable
     }
 
     /// <summary>
+    /// The histories of archived folders being opened in the background (<see cref="ArchiveUnzipped"/>), by the physical path of their copy:
+    /// zipping one waits for it first.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _opening = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool _disposed;
+
+    /// <summary>
     /// An archived folder was unzipped (and mounted, <see cref="EntryLocations.MountArchive"/>): its history (in its <c>_/history</c>, which
-    /// the archive held) is kept from now on, and what changed in it since it was last committed (nothing, normally) is committed.
+    /// the archive held) is kept from now on, and what changed in it since it was last committed is committed. In the background: the first
+    /// commit of a folder that was just made an archived one holds everything in it, which would keep the save of its configuration waiting
+    /// (and the history's lock may be held by a commit of the others meanwhile). What is changed in it before that is committed with it.
     /// </summary>
     public void ArchiveUnzipped(EntryLocation archive)
     {
         if (!archive.KeepsHistory)
             return;
-        Run(() =>
+        Task opening = Task.Run(() => Run(() =>
         {
+            // (Shut down, or zipped again meanwhile: nothing to keep)
+            if (_disposed || !_locations.UnzippedArchives.Contains(archive))
+                return;
             RepositoryHistory history = new(archive, _locations, _settings, _configs, _time, _logger);
             _histories = [.. _histories, history];
             history.Commit(CommitReason.Startup);
-        });
+        }));
+        _opening[archive.PhysicalPath] = opening;
+        _ = opening.ContinueWith(_ => ((ICollection<KeyValuePair<string, Task>>)_opening).Remove(new(archive.PhysicalPath, opening)),
+            TaskScheduler.Default);
     }
 
     /// <summary>
@@ -72,6 +88,19 @@ public sealed class HistoryService : IDisposable
     /// it is and nothing in it is open. Its history (and those of the folders unzipped inside it) is no longer kept until it is unzipped again.
     /// </summary>
     public void ArchiveZipping(EntryLocation archive)
+    {
+        // Opened in the background and not done yet: first that, so that its repository isn't opened after the archive was written
+        foreach ((string path, Task opening) in _opening)
+            if (IsSameOrInside(path, archive.PhysicalPath))
+                opening.Wait();
+        Close(archive);
+    }
+
+    private static bool IsSameOrInside(string path, string folder)
+        => string.Equals(path, folder, StringComparison.OrdinalIgnoreCase)
+           || path.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    private void Close(EntryLocation archive)
         => Run(() =>
         {
             // (One unzipped inside it is in its unzipped copy, in its own _/temp/unzipped)
@@ -92,6 +121,13 @@ public sealed class HistoryService : IDisposable
                 }
             }
         });
+
+    /// <summary>Waits until the histories of the archived folders unzipped so far are opened (<see cref="ArchiveUnzipped"/>): for tests.</summary>
+    public void WaitForOpening()
+    {
+        foreach (Task opening in _opening.Values)
+            opening.Wait();
+    }
 
     /// <summary>Where the repository of the root is (physical). Its work tree is the root.</summary>
     public string GitDirectory => Path.Combine(_locations.Root.DataDirectory, "history");
@@ -137,8 +173,11 @@ public sealed class HistoryService : IDisposable
     public void Dispose()
     {
         lock (_lock)
+        {
+            _disposed = true;
             foreach (RepositoryHistory history in _histories)
                 history.Dispose();
+        }
     }
 
     /// <summary>The history of the location the path is in, or null if that has none.</summary>

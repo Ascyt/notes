@@ -97,7 +97,10 @@ public sealed partial class ArchivedFolders
         {
             foreach (string inner in Directory.EnumerateDirectories(directory, "*", options))
             {
-                if ((IsSame(directory, root) && Path.GetFileName(inner) == PathService.ReservedName) || locations.IsHiddenByBridge(inner))
+                // (An archived folder that is unzipped is hidden by its copy too: it is found all the same, its copy is looked into by
+                // the callers that need it)
+                if ((IsSame(directory, root) && Path.GetFileName(inner) == PathService.ReservedName)
+                    || (locations.IsHiddenByBridge(inner) && MountedAt(inner) is null))
                     continue;
                 if (IsArchived(inner))
                     found.Add(inner);

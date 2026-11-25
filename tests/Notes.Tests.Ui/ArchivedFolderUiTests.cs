@@ -83,7 +83,7 @@ public sealed class ArchivedFolderUiTests(NoWaitForUnzippingFixture fixture) : U
     }
 
     [Fact]
-    public async Task An_admin_downloads_it_as_it_is_kept_and_the_switch_greys_out_the_options()
+    public async Task An_admin_downloads_it_as_it_is_kept_unless_ticked_and_the_options_are_greyed_out_meanwhile()
     {
         string folder = await ZippedFolderAsync("vault-as-is");
         _ = await Archives.Unzip(folder).Finished;
@@ -91,12 +91,17 @@ public sealed class ArchivedFolderUiTests(NoWaitForUnzippingFixture fixture) : U
         IPage admin = await adminContext.NewPageAsync();
         await admin.GotoAsync("/docs/vault-as-is");
 
+        // The folder itself, not ticked at first: the download is its archive, so the options don't apply
         await admin.Locator("#download-button").ClickAsync();
-        await Expect(admin.Locator("#archive-as-is")).ToBeCheckedAsync();
+        ILocator box = admin.Locator(".archive-folder-unzip[data-path='docs/vault-as-is']");
+        await Expect(box).Not.ToBeCheckedAsync();
         await Expect(admin.Locator("#archive-compression")).ToBeDisabledAsync();
-        await admin.Locator("#archive-as-is").UncheckAsync();
+        await Expect(admin.Locator("#archive-whole-as-is")).ToBeVisibleAsync();
+        // Ticked (here through the box above them all), it is unzipped for the download like any other folder
+        await admin.Locator("#archive-unzip-all").CheckAsync();
+        await Expect(box).ToBeCheckedAsync();
         await Expect(admin.Locator("#archive-compression")).ToBeEnabledAsync();
-        await admin.Locator("#archive-as-is").CheckAsync();
+        await admin.Locator("#archive-unzip-all").UncheckAsync();
 
         // (The test's sign-in header doesn't go with a download a link starts, see ArchiveUiTests: the request that makes it is enough here)
         IResponse made = await admin.RunAndWaitForResponseAsync(() => admin.Locator("#archive-confirm").ClickAsync(),
@@ -105,11 +110,25 @@ public sealed class ArchivedFolderUiTests(NoWaitForUnzippingFixture fixture) : U
         await Eventually(() => Archives.IsZipped(folder) && Archives.ZipProgressOf(folder) is null, "it is zipped for it");
         await adminContext.DisposeAsync();
 
-        // Not for others: the dialog has no switch
+        // Not for others: no boxes, but they are told it is unzipped for it
         await OpenAsync("/docs/vault-as-is");
         await Page.Locator("#download-button").ClickAsync();
         await Expect(Page.Locator("#archive-compression")).ToBeEnabledAsync();
-        await Expect(Page.Locator("#archive-as-is")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".archive-folder-unzip")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#archive-folders-user")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task The_toolbar_zips_the_folder_of_the_page()
+    {
+        string folder = await ZippedFolderAsync("vault-toolbar");
+        _ = await Archives.Unzip(folder).Finished;
+
+        await OpenAsync("/docs/vault-toolbar");
+        await Page.Locator("#zip-entry-button").ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/docs$"));
+        await Eventually(() => Archives.IsZipped(folder) && Archives.ZipProgressOf(folder) is null, "it is zipped");
     }
 
     [Fact]

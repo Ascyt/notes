@@ -8,7 +8,9 @@ public enum ToolbarTone
     /// <summary>The usual dark icon.</summary>
     Normal,
     /// <summary>Blue: the one thing that is worth doing now (while it can be done).</summary>
-    Primary
+    Primary,
+    /// <summary>Yellow: what has to do with a password (locking it again).</summary>
+    Warning
 }
 
 /// <summary>

@@ -422,6 +422,100 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
             await download.Content.ReadAsByteArrayAsync(Cancellation));
     }
 
+    /// <summary>The names in a zip download of /docs, made with the dialog's options (and the folders kept as they are).</summary>
+    private async Task<List<string>> NamesInDownloadOfDocsAsync(TestUser user, string[] asIs)
+    {
+        HttpResponseMessage prepared = await Client.PostJsonAsync(user, "/docs?archive=directory",
+            new { format = "zip", compression = "store", password = "", asIs });
+        await AssertStatus(HttpStatusCode.OK, prepared);
+        Guid id = (await prepared.Content.ReadFromJsonAsync<PreparedDto>(Cancellation))!.Id;
+        HttpResponseMessage download = await Client.GetAsync(user, "/docs?archive=" + id);
+        await AssertStatus(HttpStatusCode.OK, download);
+        using System.IO.Compression.ZipArchive zip = new(await download.Content.ReadAsStreamAsync(Cancellation));
+        return [.. zip.Entries.Select(entry => entry.FullName)];
+    }
+
+    [Fact]
+    public async Task In_a_download_of_what_holds_it_an_admin_gets_it_as_it_is_kept()
+    {
+        await ArchiveVaultAsync();
+        Assert.NotNull(Archives.MountedAt(Outer));
+
+        List<string> names = await NamesInDownloadOfDocsAsync(Users.Admin, ["docs/vault"]);
+
+        // Zipped for it, and in it as its configuration and archive, as on disk
+        Assert.True(Archives.IsZipped(Outer));
+        Assert.Contains("vault/_.7z", names);
+        Assert.Contains("vault/.config.json", names);
+        Assert.DoesNotContain("vault/note.md", names);
+    }
+
+    [Fact]
+    public async Task A_zipped_one_in_a_download_of_what_holds_it_is_unzipped_for_it()
+    {
+        await ArchiveVaultAsync();
+        Assert.True(await Archives.ZipAsync(Outer));
+
+        List<string> names = await NamesInDownloadOfDocsAsync(Users.Alice, []);
+
+        Assert.Contains("vault/note.md", names);
+        Assert.Contains("vault/deeper/more.md", names);
+        Assert.DoesNotContain(names, name => name.EndsWith("_.7z", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Only_admins_keep_folders_as_they_are_and_only_archived_ones_in_it()
+    {
+        await ArchiveVaultAsync();
+        Tree.File("docs/plain/a.md", "a");
+
+        await AssertStatus(HttpStatusCode.Forbidden, await Client.PostJsonAsync(Users.Alice, "/docs?archive=directory",
+            new { format = "zip", compression = "store", password = "", asIs = new[] { "docs/vault" } }));
+        await AssertStatus(HttpStatusCode.BadRequest, await Client.PostJsonAsync(Users.Admin, "/docs?archive=directory",
+            new { format = "zip", compression = "store", password = "", asIs = new[] { "docs/plain" } }));
+    }
+
+    private sealed record FolderInDownloadDto(string Path, string Label, bool Zipped, bool Encrypted, string? Inside);
+
+    private sealed record FoldersDto(bool KeepsAsIs, List<FolderInDownloadDto> Folders);
+
+    [Fact]
+    public async Task The_dialog_is_told_which_archived_folders_are_in_the_download()
+    {
+        await ArchiveVaultAsync();
+        Assert.True(await Archives.ZipAsync(Outer));
+
+        FoldersDto admin = (await (await Client.GetAsync(Users.Admin, "/docs?archive=folders")).Content.ReadFromJsonAsync<FoldersDto>(Cancellation))!;
+        FoldersDto alice = (await (await Client.GetAsync(Users.Alice, "/docs?archive=folders")).Content.ReadFromJsonAsync<FoldersDto>(Cancellation))!;
+
+        Assert.True(admin.KeepsAsIs);
+        Assert.False(alice.KeepsAsIs);
+        FolderInDownloadDto vault = Assert.Single(admin.Folders);
+        Assert.Equal(("docs/vault", "vault", true, null), (vault.Path, vault.Label, vault.Zipped, vault.Inside));
+        Assert.Single(alice.Folders);
+    }
+
+    [Fact]
+    public async Task The_toolbar_zips_only_the_folder_it_is_in_and_sends_the_page_out_of_it()
+    {
+        await ArchiveVaultAsync();
+        Tree.File("docs/other/x.md", "x");
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Admin, "/docs/other?config",
+            ArchivedWith(Cfg.Perms())));
+        string other = Tree.Physical("docs/other");
+        Assert.NotNull(Archives.MountedAt(other));
+
+        string page = await BodyOf(await Client.GetAsync(Users.Alice, "/docs/vault"));
+        Assert.Contains("id=\"zip-entry-button\"", page);
+        HttpResponseMessage zipped = await Client.PostAsync(Users.Alice, "/docs/vault?zip=entry", "");
+
+        await AssertStatus(HttpStatusCode.OK, zipped);
+        Assert.Contains("\"/docs\"", await BodyOf(zipped));
+        await Eventually(() => Archives.IsZipped(Outer) && Archives.ZipProgressOf(Outer) is null, "it is zipped");
+        Assert.NotNull(Archives.MountedAt(other));
+        Assert.DoesNotContain("id=\"zip-entry-button\"", await BodyOf(await Client.GetAsync(Users.Alice, "/docs")));
+    }
+
     [Fact]
     public async Task Only_admins_download_it_as_it_is_kept_and_only_an_archived_one()
     {

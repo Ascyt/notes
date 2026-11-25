@@ -206,22 +206,26 @@
     // An edit counts as using the entry, saved or not
     document.addEventListener('input', renew, true);
 
-    onClickOf('lock-button', async function () {
+    // The lock button of the navbar locks everything (POST ?lock); that of the toolbar only the entry's own password (POST ?lock=entry)
+    async function lockAndLeave(query, message) {
         // Where the page goes: the folder above what was unlocked here, if the server names one (instead of the password prompt)
         let location = null;
         try {
-            const response = await originalFetch(window.location.pathname + '?lock', {
+            const response = await originalFetch(window.location.pathname + query, {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': token() }
             });
             if (response.status === 200)
                 location = (await response.json()).location;
         } catch { /* the unlocks run out by themselves */ }
-        notifyAfterNavigation(texts.lockedAll, 'info');
+        notifyAfterNavigation(message, 'info');
         // (Leaving an editor with unsaved changes asks first)
         if (location)
             window.location.assign(location);
         else
             window.location.reload();
-    });
+    }
+
+    onClickOf('lock-button', () => lockAndLeave('?lock', texts.lockedAll));
+    onClickOf('lock-entry-button', () => lockAndLeave('?lock=entry', texts.lockedEntry));
 })();

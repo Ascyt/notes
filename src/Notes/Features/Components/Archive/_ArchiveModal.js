@@ -6,8 +6,11 @@
 // The archive is made by the server first (POST ?archive=…, with the password in the body, never in an address) while the page is covered,
 // and then downloaded (GET ?archive=<id>). The format and compression chosen last are kept in the browser; the password never is.
 //
-// For an admin in an archived folder, the dialog has a switch (#archive-as-is, on whenever it opens) to download the folder's own archive as
-// it is kept instead (POST ?archive=as-is): the other options are greyed out while it is on. Only for the directory, not the selection.
+// The archived folders in what is downloaded are asked for when it opens (GET ?archive=folders or ?archive=selection-folders). For an admin,
+// each has a box, not ticked at first: not ticked, it goes in as it is kept (its configuration and its archive, sent as "asIs"); ticked, it is
+// unzipped and what is in it goes in. One inside a folder that goes in as it is kept is part of that archive: its box is disabled. If the
+// directory itself goes in as it is kept, the download is its archive (POST ?archive=as-is), and the options are greyed out. Everyone else
+// is told that the folders are unzipped for it.
 (function () {
     const modal = document.getElementById('archive-modal');
     const form = document.getElementById('archive-form');
@@ -16,16 +19,26 @@
     const minOption = document.getElementById('archive-compression-min');
     const password = document.getElementById('archive-password');
     const passwordToggle = document.getElementById('archive-password-toggle');
-    const asIs = document.getElementById('archive-as-is');            // (only there where the page offers it)
-    const asIsField = document.getElementById('archive-as-is-field');
     const options = document.getElementById('archive-options');
+    const foldersSection = document.getElementById('archive-folders');
+    const foldersAdmin = document.getElementById('archive-folders-admin');
+    const foldersUser = document.getElementById('archive-folders-user');
+    const foldersWarning = document.getElementById('archive-folders-warning');
+    const folderList = document.getElementById('archive-folder-list');
+    const unzipAll = document.getElementById('archive-unzip-all');
+    const wholeAsIs = document.getElementById('archive-whole-as-is');
     const texts = textsOf('archive-texts');
     const CHOICE_KEY = 'notes.archive-options';
 
     let request = null; // what the dialog is open for
+    let folders = [];   // the archived folders in it, each { path, label, zipped, encrypted, inside, box, note } (admins only)
 
     const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
     const chosenFormat = () => form.querySelector('input[name="archive-format"]:checked').value;
+    const samePath = (a, b) => a.toLowerCase() === b.toLowerCase();
+
+    // The directory of the page, as the server names paths: without slashes at either end, "" for the root
+    const pagePath = () => decodeURIComponent(window.location.pathname).replace(/^\/+|\/+$/g, '');
 
     // The lowest level is the format's: a zip can be stored without compression ("store"), a 7z only compressed as little as can be
     // ("min", as the 7z writer always compresses). Only that one is offered, and a choice of the other becomes it.
@@ -57,22 +70,105 @@
         } catch { /* storage not allowed: chosen again next time */ }
     }
 
-    const downloadsAsIs = () => asIs !== null && !asIsField.hidden && asIs.checked;
+    // ---- The archived folders
 
-    function updateAsIs() {
-        options.disabled = downloadsAsIs();
+    const folderOf = path => folders.find(folder => samePath(folder.path, path));
+
+    // The folder kept as it is that holds it (the outermost, as that one's archive is what goes in), or null
+    function keptAround(folder) {
+        let kept = null;
+        for (let outer = folder.inside && folderOf(folder.inside); outer; outer = outer.inside && folderOf(outer.inside))
+            if (!outer.box.checked)
+                kept = outer;
+        return kept;
     }
 
-    function open(what) {
+    // The folders that go in as they are kept: not ticked, and not inside another that is
+    const keptAsIs = () => folders.filter(folder => !folder.box.checked && keptAround(folder) === null);
+
+    // Whether the download is the directory's own archive: it is one of them, and goes in as it is kept
+    const downloadsWholeAsIs = () => request !== null && request.kind === 'directory'
+        && keptAsIs().some(folder => samePath(folder.path, pagePath()));
+
+    function updateFolders() {
+        for (const folder of folders) {
+            const kept = keptAround(folder);
+            folder.box.disabled = kept !== null;
+            const notes = [];
+            if (folder.zipped)
+                notes.push(texts.zippedNow);
+            if (folder.encrypted)
+                notes.push(texts.encrypted);
+            if (kept !== null)
+                notes.push(fillIn(texts.insideKept, { folder: kept.label }));
+            folder.note.textContent = notes.length > 0 ? ' (' + notes.join(', ') + ')' : '';
+        }
+        // The box above them all: ticked if all are, a dash if some are
+        const ticked = folders.filter(folder => folder.box.checked).length;
+        unzipAll.checked = folders.length > 0 && ticked === folders.length;
+        unzipAll.indeterminate = ticked > 0 && ticked < folders.length;
+
+        const whole = downloadsWholeAsIs();
+        options.disabled = whole;
+        wholeAsIs.hidden = !whole;
+    }
+
+    function showFolders(answer) {
+        folderList.replaceChildren();
+        folders = [];
+        const found = answer && Array.isArray(answer.folders) ? answer.folders : [];
+        foldersSection.hidden = found.length === 0;
+        foldersAdmin.hidden = !(answer && answer.keepsAsIs);
+        foldersUser.hidden = found.length === 0 || (answer && answer.keepsAsIs);
+        if (found.length === 0)
+            return;
+
+        if (!answer.keepsAsIs) {
+            foldersWarning.textContent = fillIn(texts.unzippedForIt, { count: found.length });
+            return;
+        }
+        found.forEach(function (found, i) {
+            const row = document.createElement('div');
+            row.className = 'form-check';
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.className = 'form-check-input archive-folder-unzip';
+            box.id = 'archive-folder-' + i;
+            box.dataset.path = found.path;
+            const label = document.createElement('label');
+            label.className = 'form-check-label text-break';
+            label.htmlFor = box.id;
+            const icon = document.createElement('i');
+            icon.className = (found.encrypted ? 'fa-solid fa-shield' : 'fa-solid fa-file-zipper') + ' fa-xs me-1 text-secondary';
+            const name = document.createElement('span');
+            name.textContent = fillIn(texts.unzipFolder, { folder: found.label });
+            const note = document.createElement('span');
+            note.className = 'text-secondary small';
+            label.append(icon, name, note);
+            row.append(box, label);
+            folderList.append(row);
+            folders.push({ ...found, box, note });
+        });
+    }
+
+    async function loadFolders(what) {
+        const value = what.kind === 'selection' ? 'selection-folders' : 'folders';
+        try {
+            const response = await fetch(window.location.pathname + '?archive=' + value, { headers: { 'Accept': 'application/json' } });
+            return response.ok ? await response.json() : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async function open(what) {
         request = what;
         password.value = '';
         setPasswordShown(false);
         restoreChoice();
-        if (asIs !== null) {
-            asIsField.hidden = what.kind !== 'directory';
-            asIs.checked = true;
-        }
-        updateAsIs();
+        // (Without the answer, the dialog works as for a download without archived folders: the server unzips them)
+        showFolders(await loadFolders(what));
+        updateFolders();
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }
 
@@ -94,9 +190,10 @@
     async function confirm() {
         if (request === null)
             return;
-        const kind = downloadsAsIs() ? 'as-is' : request.kind;
+        const kind = downloadsWholeAsIs() ? 'as-is' : request.kind;
+        const asIs = keptAsIs().map(folder => folder.path);
         const body = kind === 'as-is' ? {} : { ...(request.kind === 'selection' ? { version: request.version } : {}),
-            format: chosenFormat(), compression: compression.value, password: password.value };
+            format: chosenFormat(), compression: compression.value, password: password.value, asIs };
         request = null;
         if (kind !== 'as-is')
             keepChoice();
@@ -162,9 +259,11 @@
         }
     }
 
-    form.addEventListener('change', function () {
+    form.addEventListener('change', function (e) {
+        if (e.target === unzipAll)
+            folders.forEach(folder => folder.box.checked = unzipAll.checked);
         updateCompressionChoices();
-        updateAsIs();
+        updateFolders();
     });
     // Enter in the password field submits the form
     form.addEventListener('submit', function (e) {
@@ -173,7 +272,7 @@
     });
     document.getElementById('archive-confirm').addEventListener('click', confirm);
     passwordToggle.addEventListener('click', () => setPasswordShown(password.type === 'password'));
-    modal.addEventListener('shown.bs.modal', () => (downloadsAsIs() ? asIs : compression).focus());
+    modal.addEventListener('shown.bs.modal', () => (folders.length > 0 ? unzipAll : compression).focus());
     // A dialog that was closed without downloading forgets the password typed into it
     modal.addEventListener('hidden.bs.modal', function () {
         request = null;

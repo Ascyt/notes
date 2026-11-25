@@ -110,16 +110,41 @@ public sealed class LockHandler(PasswordUnlocks unlocks, PasswordLocks locks, En
     public AccessNeeded Needs => AccessNeeded.Known;
     public bool PassesPasswordLocks => true;
 
+    /// <summary>
+    /// <c>POST /entry?lock=entry</c> (the lock button of the toolbar): only the entry's own password, and those unlocked inside it. The page
+    /// then goes to the folder the entry is in.
+    /// </summary>
+    public const string EntryValue = "entry";
+
     public Task<IActionResult> PostAsync(EntryRequest request)
     {
-        if (request.Value != "")
+        if (request.Value is not ("" or EntryValue))
             return Task.FromResult<IActionResult>(new BadRequestResult());
 
-        // Asked before locking: afterwards nothing along the path is unlocked any more
-        string? outermostUnlocked = locks.UnlockedAlong(request.PhysicalPath, Directory.Exists(request.PhysicalPath)).FirstOrDefault();
-        List<string> unlockedFolders = [.. unlocks.UnlockedBy(request.Context).Select(protection => protection.PhysicalPath)];
-        unlocks.LockAll(request.Context);
-        archives.ZipEncryptedInBackground(unlockedFolders);
+        bool isDirectory = Directory.Exists(request.PhysicalPath);
+        List<Protection> unlocked = [.. unlocks.UnlockedBy(request.Context)];
+        string? outermostUnlocked;
+        if (request.Value == EntryValue)
+        {
+            // Its own (the entry has it, not a folder above), and what is inside it. (An archived folder's password is that of the folder,
+            // while the request has its unzipped copy: compared as the folders they stand for)
+            string entry = Path.TrimEndingDirectorySeparator(Path.GetFullPath(request.PhysicalPath));
+            bool IsOwn(Protection protection) => string.Equals(archives.OuterOf(protection.PhysicalPath), archives.OuterOf(entry),
+                StringComparison.OrdinalIgnoreCase);
+            if (!unlocked.Any(IsOwn))
+                return Task.FromResult<IActionResult>(new BadRequestResult());
+            unlocked = [.. unlocked.Where(protection => IsOwn(protection) || locations.IsSameOrInside(protection.PhysicalPath, entry))];
+            outermostUnlocked = archives.OuterOf(entry);
+            foreach (Protection protection in unlocked)
+                unlocks.Lock(request.Context, protection);
+        }
+        else
+        {
+            // Asked before locking: afterwards nothing along the path is unlocked any more
+            outermostUnlocked = locks.UnlockedAlong(request.PhysicalPath, isDirectory).FirstOrDefault();
+            unlocks.LockAll(request.Context);
+        }
+        archives.ZipEncryptedInBackground([.. unlocked.Select(protection => protection.PhysicalPath)]);
 
         if (outermostUnlocked is null || locations.ParentOf(outermostUnlocked) is not { } folder)
             return Task.FromResult<IActionResult>(new NoContentResult());

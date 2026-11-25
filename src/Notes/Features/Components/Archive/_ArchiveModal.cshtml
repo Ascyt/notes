@@ -1,32 +1,38 @@
 @model _ArchiveModal
 @inject ArchiveTexts Texts
 
-@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password (or, for an admin in an
-   archived folder, its own archive as it is kept). Opened by the toolbar's download
-   button of a directory (where OpensFromToolbar), and by the selection card (archiveDownload.open in _ArchiveModal.js). *@
+@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password, and what to do with the
+   archived folders in it. Opened by the toolbar's download button of a directory (where OpensFromToolbar), and by the selection card
+   (archiveDownload.open in _ArchiveModal.js). Scrolls within the screen (modal-dialog-scrollable), as the list of folders may be long. *@
 
 @Html.AntiForgeryToken()
 <div class="modal" id="archive-modal" tabindex="-1" aria-labelledby="archive-title" aria-hidden="true"
     data-opens-from-toolbar="@(Model.OpensFromToolbar ? "true" : "false")">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="archive-title">@Texts.Title</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
             </div>
             <form id="archive-form" class="modal-body d-flex flex-column gap-3" autocomplete="off">
-                @if (Model.OffersAsIs)
-                {
-                    @* While it is on, the options below are greyed out: the archive is the one the folder is kept in (_ArchiveModal.js) *@
-                    <div id="archive-as-is-field">
-                        <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" role="switch" id="archive-as-is" checked
-                                aria-describedby="archive-as-is-hint"/>
-                            <label class="form-check-label" for="archive-as-is">@Texts.AsIs</label>
+                @* The archived folders in what is downloaded (GET ?archive=folders), filled in by _ArchiveModal.js; hidden while there are
+                   none. For admins, a box for each: ticked, it is unzipped and what is in it goes in; not ticked (at first), it goes in as it
+                   is kept. Everyone else is told that they are unzipped for it. *@
+                <div id="archive-folders" hidden>
+                    <div id="archive-folders-admin" hidden>
+                        <div class="fw-semibold mb-1">@Texts.ArchivedFolders</div>
+                        <div class="form-text mt-0 mb-2" id="archive-folders-hint">@Texts.ArchivedFoldersHint</div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="archive-unzip-all" aria-describedby="archive-folders-hint"/>
+                            <label class="form-check-label fw-semibold" for="archive-unzip-all">@Texts.UnzipAll</label>
                         </div>
-                        <div id="archive-as-is-hint" class="form-text">@Texts.AsIsHint</div>
+                        <div id="archive-folder-list" class="d-flex flex-column ms-3"></div>
                     </div>
-                }
+                    <div id="archive-folders-user" class="alert alert-warning mb-0" role="status" hidden>
+                        <i class="fa-solid fa-triangle-exclamation"></i> <span id="archive-folders-warning"></span>
+                    </div>
+                </div>
+                <div id="archive-whole-as-is" class="alert alert-info mb-0" role="status" hidden>@Texts.WholeAsIs</div>
                 <fieldset id="archive-options" class="d-flex flex-column gap-3">
                     <fieldset>
                         <legend class="form-label fs-6">@Texts.Format</legend>

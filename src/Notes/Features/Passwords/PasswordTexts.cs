@@ -35,6 +35,9 @@ public class PasswordTexts
     public virtual string LockAll => "Lock all unlocked entries (passwords needed again)";
     public virtual string LockedAll => "All entries locked.";
 
+    /// <summary>After the toolbar's lock button: the entry's own password (and those inside it).</summary>
+    public virtual string LockedEntry => "Locked again.";
+
     /// <summary>When keeping the entry unlocked while it is edited finds that it locked meanwhile.</summary>
     public virtual string Expired => "Unlock expired. Saving asks for the password again; unsaved changes are kept.";
 

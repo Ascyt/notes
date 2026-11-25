@@ -42,6 +42,9 @@ public class FileView : PageModel
 
     public bool ShowsEarlierState => Earlier is not null;
 
+    /// <summary>Whether the file has a password of its own that is unlocked now: the toolbar has the button that locks it again.</summary>
+    public bool OwnPasswordUnlocked { get; init; }
+
     /// <summary>Why the contents can't be changed, which the editor says when typed into.</summary>
 
     /// <summary>The query of the raw bytes of the file (of the state that is shown).</summary>

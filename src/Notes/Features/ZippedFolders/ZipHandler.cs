@@ -33,12 +33,23 @@ public sealed class ZipHandler(ArchivedFolders archives, AccessTree tree, Passwo
         => [.. archives.UnzippedFolders().Where(folder => archives.MountedAt(folder) is { } copy
             && tree.CanOpen(user, copy.PhysicalPath) && passwordLocks.FirstLocked(copy.PhysicalPath) is null)];
 
+    /// <summary><c>POST /folder?zip=entry</c> (the zip button of the toolbar): only that archived folder, and those unzipped inside it.</summary>
+    public const string EntryValue = "entry";
+
     public Task<IActionResult> PostAsync(EntryRequest request)
     {
-        if (request.Value != "")
+        if (request.Value is not ("" or EntryValue))
             return Task.FromResult<IActionResult>(new BadRequestResult());
 
         List<string> folders = ZippableFor(request.User, archives, tree, passwordLocks);
+        if (request.Value == EntryValue)
+        {
+            string folder = archives.OuterOf(request.PhysicalPath);
+            if (archives.MountedAt(folder) is null)
+                return Task.FromResult<IActionResult>(new BadRequestResult());
+            folders = [.. folders.Where(unzipped => locations.IsSameOrInside(unzipped, folder)
+                                                    || locations.IsSameOrInside(unzipped, archives.MountedAt(folder)!.PhysicalPath))];
+        }
 
         // Where the page goes, found before zipping: the outermost of them that the entry is in (they are by virtual path the same, zipped or not)
         string? outermost = folders.Where(folder => locations.IsSameOrInside(request.PhysicalPath, folder))

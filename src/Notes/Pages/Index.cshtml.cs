@@ -160,6 +160,14 @@ public sealed class IndexModel(Config config,
         EarlierStateMessage = EarlierStateNotice.Take(HttpContext) is { } notice ? historyTexts.Notice(notice) : null;
         bool isDirectory = System.IO.Directory.Exists(PhysicalPath);
         HistoryButtonState historyButton = historyButtons.For(User, PhysicalPath, access, isDirectory);
+        // The toolbar's lock (its own password is unlocked) and zip (it is an archived folder, unzipped now): an archived folder's password
+        // is that of the folder, while the request has its unzipped copy, so they are compared as the folders they stand for
+        string ownFolder = archivedFolders.OuterOf(PhysicalPath);
+        bool ownPasswordUnlocked = passwordLocks.UnlockedAlong(PhysicalPath, isDirectory)
+            .Any(unlocked => string.Equals(archivedFolders.OuterOf(unlocked), ownFolder, StringComparison.OrdinalIgnoreCase));
+        bool isUnzippedArchive = isDirectory && archivedFolders.MountedAt(ownFolder) is { } mounted
+            && string.Equals(Path.TrimEndingDirectorySeparator(mounted.PhysicalPath), Path.TrimEndingDirectorySeparator(Path.GetFullPath(PhysicalPath)),
+                StringComparison.OrdinalIgnoreCase);
 
         if (isDirectory)
         {
@@ -174,7 +182,10 @@ public sealed class IndexModel(Config config,
                 Archives = archivedFolders,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
-                Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId)
+                Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId),
+                OwnPasswordUnlocked = ownPasswordUnlocked,
+                IsUnzippedArchive = isUnzippedArchive,
+                IsEncryptedArchive = isUnzippedArchive && archivedFolders.IsEncrypted(ownFolder)
             };
             Directory.Init();
         }
@@ -195,7 +206,8 @@ public sealed class IndexModel(Config config,
                 SiteHost = Request.Host.Host,
                 DeleteDeniedReason = deleteDeniedReason,
                 InsertMediaDeniedReason = tree.CreateDeniedReason(User, locations.ParentOf(PhysicalPath)!),
-                RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, deleteDeniedReason)
+                RenameDeniedReason = tree.RenameDeniedReason(User, PhysicalPath, deleteDeniedReason),
+                OwnPasswordUnlocked = ownPasswordUnlocked
             };
             await File.InitAsync();
         }

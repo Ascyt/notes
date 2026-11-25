@@ -14,7 +14,17 @@ namespace Notes.Features.Components.Archive;
 /// Body of a request for an archive: the options of the dialog (see <see cref="ArchiveOptions.Parse"/>) and, for the selection, the version of
 /// it that the page showed.
 /// </summary>
-public sealed record ArchiveRequest(string? Format, string? Compression, string? Password, long? Version);
+/// <param name="AsIs">
+/// For admins: the archived folders in it (virtual paths) that go in as they are kept, their configuration and their archive, instead of what is
+/// in them. The other archived folders in it are unzipped for it.
+/// </param>
+public sealed record ArchiveRequest(string? Format, string? Compression, string? Password, long? Version, IReadOnlyList<string>? AsIs = null);
+
+/// <summary>An archived folder in what is downloaded, as the dialog lists it (<c>GET ?archive=folders</c>).</summary>
+/// <param name="Path">Its virtual path, as <see cref="ArchiveRequest.AsIs"/> names it.</param>
+/// <param name="Label">Where it is in the download: its path from the directory, or from where the selection is.</param>
+/// <param name="Inside">The path of the listed archived folder it is in, if any: kept as it is, that one holds this one.</param>
+public sealed record ArchivedFolderInDownload(string Path, string Label, bool Zipped, bool Encrypted, string? Inside);
 
 /// <summary>
 /// Answers <c>?archive</c>, the download as an archive with the options of the dialog (<see cref="_ArchiveModal"/>), in two steps, so that the
@@ -29,11 +39,14 @@ public sealed record ArchiveRequest(string? Format, string? Compression, string?
 /// <item><c>GET ?archive=&lt;id&gt;</c> then downloads it, for the user who made it only, until it is deleted an hour later.</item>
 /// <item><c>POST /dir?archive=as-is</c>, for admins, of an archived folder: its own archive as it is kept (zipped first, if it is unzipped),
 /// copied to be downloaded like the others, named after the folder. The body needs no options.</item>
+/// <item><c>GET ?archive=folders</c> (of the directory) and <c>GET ?archive=selection-folders</c> (of the selection) list the archived folders
+/// in it, for the dialog: <c>{ "keepsAsIs": bool, "folders": [<see cref="ArchivedFolderInDownload"/>] }</c>. Admins may have them go in as
+/// they are kept (<see cref="ArchiveRequest.AsIs"/>); for everyone else they are unzipped for it and zipped again later.</item>
 /// </list>
 /// </summary>
 public sealed class ArchiveHandler(EntryLocations locations, IPathService path, AccessTree tree, ISelectionService selection,
     PreparedArchives archives, DownloadHandler downloads, ArchiveTexts texts, EntryTexts entryTexts, ZippedFolders.ArchivedFolders archivedFolders,
-    ZippedFolders.ArchivePasswordPrompt passwordPrompt, ILogger<ArchiveHandler> logger)
+    ZippedFolders.ArchivePasswordPrompt passwordPrompt, Passwords.PasswordLocks passwordLocks, ILogger<ArchiveHandler> logger)
     : IEntryGetAction, IEntryPostAction
 {
     public const string ArchiveParameter = "archive";
@@ -52,8 +65,14 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
 
     public const string ProgressParameter = "progress";
 
+    public const string FoldersValue = "folders";
+    public const string SelectionFoldersValue = "selection-folders";
+
     public Task<IActionResult> GetAsync(EntryRequest request)
     {
+        if (request.Value is FoldersValue or SelectionFoldersValue && SelectionHandler.UserIdOf(request.User) is { } asker)
+            return Task.FromResult(FoldersIn(request, asker));
+
         if (SelectionHandler.UserIdOf(request.User) is not { } userId || !Guid.TryParse(request.Value, out Guid id))
             return Task.FromResult<IActionResult>(new BadRequestObjectResult(entryTexts.InvalidRequest));
 
@@ -103,9 +122,95 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
             return refusal;
         }
 
+        // The archived folders that go in as they are kept (admins only), and are zipped for it
+        IReadOnlyList<string> requested = body.AsIs ?? [];
+        List<string> keptAsIs = [];
+        if (requested.Count > 0)
+        {
+            if (!request.User.IsInRole(AppAccess.AdminRole))
+            {
+                claim.Dispose();
+                return new ObjectResult(texts.AsIsAdminsOnly) { StatusCode = StatusCodes.Status403Forbidden };
+            }
+            HashSet<string> inIt = new(archivedFolders.ArchivedAtOrBelow(topLevel!), StringComparer.OrdinalIgnoreCase);
+            foreach (string virtualPath in requested)
+            {
+                if (path.ToPhysicalPath(virtualPath) is not { } physical || !inIt.Contains(archivedFolders.OuterOf(physical)))
+                {
+                    claim.Dispose();
+                    return new BadRequestObjectResult(texts.NotArchivedInIt);
+                }
+                keptAsIs.Add(archivedFolders.OuterOf(physical));
+            }
+            if (archivedFolders.UnknownPasswordToZipAtOrBelow(keptAsIs.Select(folder => archivedFolders.MountedAt(folder)?.PhysicalPath ?? folder))
+                is { } passwordNeeded)
+            {
+                claim.Dispose();
+                return passwordPrompt.Ask(request.Context, passwordNeeded, request.PhysicalPath);
+            }
+        }
+        contents!.KeepAsIs(keptAsIs, archivedFolders.OuterOf);
+
+        // The others in it are unzipped for it (those the user may open, with their password unlocked), now, as whether a password is
+        // unlocked is a matter of this request. A folder kept as it is, and what is in it, stays as it is.
+        bool IsKeptAsIs(string folder) => keptAsIs.Any(kept => locations.IsSameOrInside(folder, kept)
+                                                             || locations.IsSameOrInside(folder, archivedFolders.MountedAt(kept)?.PhysicalPath ?? kept));
+        try
+        {
+            await archivedFolders.UnzipAllAtOrBelowAsync(topLevel!, folder => !IsKeptAsIs(folder) && tree.CanOpen(request.User, folder)
+                                                                              && passwordLocks.FirstLocked(folder) is null);
+        }
+        catch (IOException e)
+        {
+            claim.Dispose();
+            logger.LogError(e, "An archived folder in a download of {path} could not be unzipped", request.PhysicalPath);
+            return new ObjectResult(texts.ArchivedFolderUnzipFailed) { StatusCode = StatusCodes.Status500InternalServerError };
+        }
+
         string fileName = name! + options.Extension;
         return await StartAsync(request, userId, claim,
-            (job, cancellationToken) => MakeAsync(job, userId, contents!, topLevel!, fileName, options, cancellationToken));
+            (job, cancellationToken) => MakeAsync(job, userId, contents!, topLevel!, keptAsIs, fileName, options, cancellationToken));
+    }
+
+    /// <summary>
+    /// The archived folders in the directory or the selection, for the dialog (see <see cref="ArchivedFolderInDownload"/>). Only those the
+    /// user may open; those inside one that is zipped are only known once it is unzipped (they are in its archive).
+    /// </summary>
+    private IActionResult FoldersIn(EntryRequest request, string userId)
+    {
+        IReadOnlyList<string> topLevel;
+        string from;
+        if (request.Value == FoldersValue)
+        {
+            if (!Directory.Exists(request.PhysicalPath))
+                return new BadRequestObjectResult(texts.NotADirectory);
+            topLevel = [request.PhysicalPath];
+            from = request.VirtualPath.Trim('/');
+        }
+        else
+        {
+            SelectionSnapshot snapshot = selection.Get(userId);
+            topLevel = [.. snapshot.Paths.Select(path.ToPhysicalPath).OfType<string>()];
+            string[] parents = [.. snapshot.Paths.Select(selected => selected.Contains('/') ? selected[..selected.LastIndexOf('/')] : "")
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
+            from = parents.Length == 1 ? parents[0] : "";
+        }
+
+        List<ArchivedFolderInDownload> folders = [];
+        List<string> listed = [];
+        foreach (string folder in archivedFolders.ArchivedAtOrBelow(topLevel).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            string where = archivedFolders.MountedAt(folder)?.PhysicalPath ?? folder;
+            if (!tree.CanOpen(request.User, where))
+                continue;
+            string virtualPath = path.ToVirtualPath(where) is var found && found == "." ? "" : found.Replace('\\', '/');
+            string label = from == "" ? virtualPath : virtualPath.Length > from.Length ? virtualPath[(from.Length + 1)..] : locations.NameOf(where);
+            string? inside = listed.LastOrDefault(outer => virtualPath.StartsWith(outer + "/", StringComparison.OrdinalIgnoreCase));
+            folders.Add(new ArchivedFolderInDownload(virtualPath, label == "" ? locations.NameOf(where) : label,
+                archivedFolders.IsZipped(folder), archivedFolders.IsEncrypted(folder), inside));
+            listed.Add(virtualPath);
+        }
+        return new JsonResult(new { keepsAsIs = request.User.IsInRole(AppAccess.AdminRole), folders });
     }
 
     /// <summary>
@@ -258,9 +363,15 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
     }
 
     private Task<ArchiveJobResult> MakeAsync(ArchiveJob job, string userId, ArchiveContents contents, IReadOnlyList<string> topLevel,
-        string fileName, ArchiveOptions options, CancellationToken cancellationToken)
+        IReadOnlyList<string> keptAsIs, string fileName, ArchiveOptions options, CancellationToken cancellationToken)
         => GuardedAsync(job, async keepTarget =>
         {
+            // What goes in as it is kept is its archive: zipped first, where it is unzipped (opening it meanwhile stops that, as for the
+            // as-is download of the folder itself)
+            foreach (string folder in keptAsIs)
+                if (!await archivedFolders.ZipAsync(folder, stopsWhenOpened: true))
+                    return new ArchiveJobResult(null, false, StatusCodes.Status409Conflict, texts.ArchivedFolderInUse);
+
             string target = keepTarget(archives.NewPath(job.Id, options.Extension));
             // The archived folders it reads stay unzipped until it is done (the request that asked for it may be answered long before)
             using IDisposable uses = await archivedFolders.UseAllAroundAsync(topLevel);

@@ -20,6 +20,14 @@
     // The configuration leftmost (only there for those who manage it), then the history (its changes, then the choice of a time), then
     // what moves files in and out.
     List<ToolbarButton> toolbarButtons = [];
+    // What puts the directory away again comes first: locking its password, zipping it (as it is now only)
+    if (!Model.ShowsEarlierState)
+    {
+        if (Model.OwnPasswordUnlocked)
+            toolbarButtons.Add(Buttons.LockEntry(isFile: false));
+        if (Model.IsUnzippedArchive)
+            toolbarButtons.Add(Buttons.ZipEntry(Model.IsEncryptedArchive));
+    }
     if (Model.CanConfigure)
         toolbarButtons.Add(Buttons.Config(isFile: false));
     if (Model.HistoryButton.IsShown)
@@ -91,7 +99,7 @@
 
 @if (Model.OffersArchiveOptions)
 {
-    <partial name="/Features/Components/Archive/_ArchiveModal.cshtml" model="new _ArchiveModal { OpensFromToolbar = true, OffersAsIs = Model.OffersArchiveAsIs }"/>
+    <partial name="/Features/Components/Archive/_ArchiveModal.cshtml" model="new _ArchiveModal { OpensFromToolbar = true }"/>
 }
 
 @* Selecting is for copying, moving, deleting and downloading, which need an account: without one there is nothing to select for *@

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Notes.Features.Auth;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Download;
+using Notes.Features.Helpers;
 
 namespace Notes.Features.Components.Archive;
 
@@ -25,11 +26,47 @@ public sealed class ArchiveContents
 
     private int _leftOutUnreadable;
 
+    /// <summary>The archived folders that go in as they are kept (<see cref="KeepAsIs"/>), by the physical path of each folder.</summary>
+    private HashSet<string> _keptAsIs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The archived folder whose unzipped copy a path is, or the path itself (<see cref="ZippedFolders.ArchivedFolders.OuterOf"/>).</summary>
+    private Func<string, string> _outerOf = path => path;
+
     private ArchiveContents(ClaimsPrincipal user, AccessTree tree, Func<ArchiveContents, ZipFolderEntry> makeFolder)
     {
         _user = user;
         _tree = tree;
         Folder = makeFolder(this);
+    }
+
+    /// <summary>
+    /// The archived folders (physical paths of the folders) that go in as they are kept: their configuration and their archive, instead of
+    /// what is in them (for admins, see <see cref="ArchiveHandler"/>). They are to be zipped before the archive is written. Set before it is
+    /// written: what goes in is only listed then.
+    /// </summary>
+    public void KeepAsIs(IEnumerable<string> folders, Func<string, string> outerOf)
+    {
+        _keptAsIs = new HashSet<string>(folders, StringComparer.OrdinalIgnoreCase);
+        _outerOf = outerOf;
+    }
+
+    /// <summary>
+    /// What an archived folder kept as it is goes in as (under its name): its <c>.config.json</c> and its archive, as they are on disk, so that
+    /// putting it back makes it the archived folder it was. Null for any other directory.
+    /// </summary>
+    private ZipFolderEntry? AsKept(DirectoryInfo directory, string name)
+    {
+        string folder = _outerOf(directory.FullName);
+        if (!_keptAsIs.Contains(folder))
+            return null;
+        return new ZipFolderEntry(name, () =>
+        {
+            List<ZipEntry> kept = [];
+            foreach (string file in new[] { Path.Combine(folder, PathService.ConfigFileName), ZippedFolders.ArchivedFolders.ArchiveFileOf(folder) })
+                if (file is not null && File.Exists(file))
+                    kept.Add(new ZipFileEntry(Path.GetFileName(file), File.GetLastWriteTime(file), () => OpenForReading(file)));
+            return kept;
+        });
     }
 
     /// <summary>What is written into the archive, listed as the writer gets to it.</summary>
@@ -43,7 +80,7 @@ public sealed class ArchiveContents
         => new(user, tree, contents =>
         {
             contents._topLevel.Add(physicalDirectory);
-            return ZipService.FolderOnDisk(locations, physicalDirectory, contents.Include);
+            return ZipService.FolderOnDisk(locations, physicalDirectory, contents.Include, contents.AsKept);
         });
 
     /// <summary>
@@ -59,9 +96,14 @@ public sealed class ArchiveContents
             foreach (FileSystemInfo entry in entries)
             {
                 string name = FreeName(locations.NameOf(entry.FullName), entry is DirectoryInfo, taken);
-                topLevel.Add(entry is DirectoryInfo directory
-                    ? ZipService.FolderOnDisk(locations, directory.FullName, contents.Include) with { Name = name }
-                    : new ZipFileEntry(name, entry.LastWriteTime, () => OpenForReading(entry.FullName)));
+                if (entry is DirectoryInfo directory)
+                {
+                    // (Whether it goes in as it is kept is only known once KeepAsIs was told, before the archive is written)
+                    ZipFolderEntry onDisk = ZipService.FolderOnDisk(locations, directory.FullName, contents.Include, contents.AsKept) with { Name = name };
+                    topLevel.Add(new ZipFolderEntry(name, () => (contents.AsKept(directory, name) ?? onDisk).ListContents()));
+                }
+                else
+                    topLevel.Add(new ZipFileEntry(name, entry.LastWriteTime, () => OpenForReading(entry.FullName)));
             }
 
             return new ZipFolderEntry("", () => topLevel);

@@ -48,18 +48,21 @@ public sealed class ZipService : IZipService
     /// A directory of the entries on disk, for <see cref="WriteZipAsync"/>, with the bridges mounted in it (<see
     /// cref="EntryLocations.ListDirectory"/>).
     /// Only entries that <paramref name="include"/> agrees to go into the zip (and only directories it agrees to are looked into), each asked for
-    /// when the zip gets to it. Links and the folder of the app's own data never do.
+    /// when the zip gets to it. Links and the folder of the app's own data never do. <paramref name="replace"/> may give a directory (and its
+    /// name in the zip) something else to go in as, in place of what is in it: an archived folder downloaded as it is kept.
     /// </summary>
-    public static ZipFolderEntry FolderOnDisk(EntryLocations locations, string physicalDirectory, Func<FileSystemInfo, bool> include)
-        => FolderOnDisk(locations, physicalDirectory, locations.NameOf(physicalDirectory), include);
+    public static ZipFolderEntry FolderOnDisk(EntryLocations locations, string physicalDirectory, Func<FileSystemInfo, bool> include,
+        Func<DirectoryInfo, string, ZipFolderEntry?>? replace = null)
+        => FolderOnDisk(locations, physicalDirectory, locations.NameOf(physicalDirectory), include, replace);
 
-    private static ZipFolderEntry FolderOnDisk(EntryLocations locations, string physicalDirectory, string name, Func<FileSystemInfo, bool> include)
+    private static ZipFolderEntry FolderOnDisk(EntryLocations locations, string physicalDirectory, string name, Func<FileSystemInfo, bool> include,
+        Func<DirectoryInfo, string, ZipFolderEntry?>? replace)
         => new(name, () => locations.ListDirectory(new DirectoryInfo(physicalDirectory), ListOptions)
             // Same rules as the listing and the path service: nothing that is a link (it could point out of the root), no reserved folder
             .Where(child => !PathService.IsLink(child.Entry) && !(child.Entry is DirectoryInfo && child.Name == PathService.ReservedName)
                 && include(child.Entry))
             .Select(child => child.Entry is DirectoryInfo directory
-                ? FolderOnDisk(locations, directory.FullName, child.Name, include)
+                ? replace?.Invoke(directory, child.Name) ?? FolderOnDisk(locations, directory.FullName, child.Name, include, replace)
                 : (ZipEntry)new ZipFileEntry(child.Name, child.Entry.LastWriteTime,
                     // A file being edited at the moment is still read
                     () => new FileStream(child.Entry.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 81920,

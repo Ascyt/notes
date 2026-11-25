@@ -145,11 +145,14 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// </summary>
     public bool OffersArchiveOptions => CanSelect;
 
-    /// <summary>
-    /// Whether the dialog offers downloading the directory as it is kept (its own archive), for an admin in an archived folder (see
-    /// <see cref="Features.Components.Archive.ArchiveHandler"/>).
-    /// </summary>
-    public bool OffersArchiveAsIs => OffersArchiveOptions && Viewer.IsInRole(AppAccess.AdminRole) && Archives?.ArchiveStateOf(PhysicalPath) is not null;
+    /// <summary>Whether the directory has a password of its own that is unlocked now: the toolbar has the button that locks it again.</summary>
+    public bool OwnPasswordUnlocked { get; init; }
+
+    /// <summary>Whether the directory is an archived folder that is unzipped now: the toolbar has the button that zips it.</summary>
+    public bool IsUnzippedArchive { get; init; }
+
+    /// <summary>Whether it is archived encrypted (the zip button is the shield then).</summary>
+    public bool IsEncryptedArchive { get; init; }
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
     public bool CanConfigure { get; init; }
