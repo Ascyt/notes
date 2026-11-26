@@ -71,7 +71,13 @@ else
                     @caption(null)
                 </span>
             }
-            @if (Model.ShowsCheckbox)
+            @if (Model.ShowsCheckbox && isPasswordLocked)
+            {
+                @* One a password locks can be selected (the card offers to unlock it) *@
+                <input type="checkbox" class="form-check-input entry-select media-select" key="@Model.SelectKey" aria-label="@Texts.Select(Model.Name)"
+                    checked="@Model.IsSelected"/>
+            }
+            else if (Model.ShowsCheckbox)
             {
                 <input type="checkbox" class="form-check-input media-select" disabled aria-label="@Texts.CantBeSelected(Model.Name)"/>
             }
@@ -79,6 +85,11 @@ else
     if (isLocked)
     {
         <div class="media-tile" data-locked-entry="@Model.Name" title="@reason">@contents(null)</div>
+    }
+    else if (isPasswordLocked && Model.ShowsCheckbox)
+    {
+        <div class="media-tile entry-row @(Model.IsSelected ? "table-active" : "")" data-group="media" data-path="@Model.VirtualPath"
+            data-password-locked-entry="@Model.Name" title="@reason">@contents(null)</div>
     }
     else if (isPasswordLocked)
     {

@@ -14,11 +14,12 @@ public sealed record SelectionRequest(string[]? Paths);
 
 /// <summary>
 /// Answers <c>?selection</c>. A GET returns the user's selection; a POST changes it: <c>?selection=add</c> and <c>?selection=remove</c>
-/// take the virtual paths in the body, <c>?selection=clear</c> unselects everything. Every answer is the selection as it is afterwards.
+/// take the virtual paths in the body, <c>?selection=clear</c> unselects everything. Every answer is the selection as it is afterwards, with
+/// what it is like for this browser (<see cref="SelectionView"/>).
 /// </summary>
 /// <remarks>The selection is of all of the entries, so it doesn't matter which entry it is asked of.</remarks>
 public sealed class SelectionHandler(EntryLocations locations, IPathService path, AccessTree tree, ISelectionService selection,
-    SelectionTexts texts, EntryTexts entryTexts)
+    SelectionTexts texts, EntryTexts entryTexts, Passwords.PasswordLocks passwordLocks, SelectionStatusReader status)
     : IEntryGetAction, IEntryPostAction
 {
     /// <summary>More entries than this in one request is not something a page does.</summary>
@@ -46,7 +47,7 @@ public sealed class SelectionHandler(EntryLocations locations, IPathService path
         if (userId is null || !MayReadTheRoot(request.User))
             return Task.FromResult<IActionResult>(new NotFoundResult());
 
-        return Task.FromResult<IActionResult>(new JsonResult(selection.Get(userId)));
+        return Task.FromResult<IActionResult>(Answer(selection.Get(userId)));
     }
 
     public async Task<IActionResult> PostAsync(EntryRequest entryRequest)
@@ -95,11 +96,15 @@ public sealed class SelectionHandler(EntryLocations locations, IPathService path
 
         return result is null
             ? new ConflictObjectResult(texts.TransferInProgress)
-            : new JsonResult(result);
+            : Answer(result);
     }
 
+    private JsonResult Answer(SelectionSnapshot snapshot)
+        => new(SelectionView.Of(snapshot, status.Of(snapshot.Paths)));
+
     /// <summary>
-    /// The entries that can be selected among the paths. What the card shows about them (may they be deleted and moved) is only what is known
+    /// The entries that can be selected among the paths: those the user may open, also where a password locks them (the card then offers to
+    /// unlock them, and nothing else can be done with them until then). What the card shows about them (may they be deleted and moved) is only what is known
     /// about the entry itself, which takes no time: looking at everything inside a directory would make selecting one wait for that. The
     /// copy, move or delete checks everything inside again, and says what is wrong.
     /// </summary>
@@ -108,6 +113,7 @@ public sealed class SelectionHandler(EntryLocations locations, IPathService path
         // The paths are mostly in the same directory: find them all together (each directory is listed once, not once per path), and read
         // the configuration of the folders above them once for all of them
         using IDisposable scope = ConfigReadScope.Begin();
+        using IDisposable ignoringLocks = passwordLocks.IgnoringLocks();
         IReadOnlyList<FileSystemInfo?> found = path.FindEntries(virtualPaths);
         List<SelectionEntry> entries = [];
         for (int i = 0; i < virtualPaths.Length; i++)

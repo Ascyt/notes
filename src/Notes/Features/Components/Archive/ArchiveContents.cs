@@ -121,7 +121,9 @@ public sealed class ArchiveContents
     {
         if (!_tree.GetAccess(_user, entry.FullName).CanRead)
         {
-            _ = Interlocked.Exchange(ref _leftOutUnreadable, 1);
+            // A configuration is no entry (only admins read it, and get it in their archives): leaving it out leaves out nothing
+            if (entry is not FileInfo || !string.Equals(entry.Name, PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+                _ = Interlocked.Exchange(ref _leftOutUnreadable, 1);
             return false;
         }
 

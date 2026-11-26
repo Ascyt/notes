@@ -11,7 +11,8 @@ namespace Notes.Features.Passwords;
 /// read or change, admins included: <see cref="Auth.EntryAccess"/> asks here before anything else.
 /// </summary>
 /// <remarks>
-/// Outside of a request (a background job) nothing is unlocked. The page of an entry asks whether the user may know of it as if nothing
+/// Outside of a request (a background job) nothing is unlocked, unless the job carries the unlocks of the request that started it
+/// (<see cref="UnlocksForLater"/>, <see cref="WithUnlocks"/>). The page of an entry asks whether the user may know of it as if nothing
 /// were locked (<see cref="IgnoringLocks"/>), so that it can ask for the password instead of answering as if the entry weren't there.
 /// </remarks>
 /// <param name="witnesses">Told the passwords from the header that are right (encrypted archives need them).</param>
@@ -25,6 +26,9 @@ public sealed class PasswordLocks(PasswordUnlocks unlocks, PasswordAttempts atte
     private const int MaxHeaderChecks = 16;
 
     private static readonly AsyncLocal<int> IgnoringDepth = new();
+
+    /// <summary>The unlocks of the request that started the work on this flow, once that request may have ended (<see cref="WithUnlocks"/>).</summary>
+    private static readonly AsyncLocal<Func<Protection, bool>?> CarriedUnlocks = new();
 
     private sealed class HeaderChecks
     {
@@ -109,9 +113,49 @@ public sealed class PasswordLocks(PasswordUnlocks unlocks, PasswordAttempts atte
     public List<string> UnlockedAlong(string physicalPath, bool isDirectory)
         => [.. ProtectionsOf(physicalPath, store.Get, isDirectory).Where(IsUnlocked).Select(protection => protection.PhysicalPath)];
 
-    /// <summary>Whether the request that is being answered has the protection unlocked (also by bringing the password along).</summary>
+    /// <summary>
+    /// Whether the request that is being answered has the protection unlocked (also by bringing the password along); in work that carries the
+    /// unlocks of the request that started it, whether those have.
+    /// </summary>
     public bool IsUnlocked(Protection protection)
-        => accessor.HttpContext is { } context && IsUnlocked(context, protection);
+        => CarriedUnlocks.Value is { } carried ? carried(protection) : accessor.HttpContext is { } context && IsUnlocked(context, protection);
+
+    /// <summary>
+    /// The unlocks of the request that is being answered, for work it starts that goes on after it (<see cref="WithUnlocks"/>): what its browser
+    /// has unlocked (as it is when asked), and the passwords its header brought that were right. Asked inside the request.
+    /// </summary>
+    public Func<Protection, bool> UnlocksForLater()
+    {
+        if (accessor.HttpContext is not { } context)
+            return _ => false;
+        Func<Protection, bool> browser = unlocks.ForLater(context);
+        // The passwords of the header: those the request checked as they were, the others checked as they come up, each protection once and
+        // no more of them than a request checks (each check takes a while, on purpose)
+        HeaderChecks checks = context.Items[typeof(HeaderChecks)] as HeaderChecks ?? new HeaderChecks();
+        System.Collections.Concurrent.ConcurrentDictionary<Protection, bool> fromHeader = new(checks.Results);
+        List<string> headerPasswords = HeaderPasswordsOf(context);
+        int checkedLater = checks.Count;
+        return protection =>
+        {
+            if (browser(protection))
+                return true;
+            if (headerPasswords.Count == 0)
+                return false;
+            if (fromHeader.TryGetValue(protection, out bool known))
+                return known;
+            if (Interlocked.Increment(ref checkedLater) > MaxHeaderChecks)
+                return false;
+            return fromHeader.GetOrAdd(protection, _ => headerPasswords.Any(password => PasswordHashing.Verify(password, protection.Hash)));
+        };
+    }
+
+    /// <summary>Until the result is disposed, what is unlocked on this flow is what <paramref name="unlocked"/> says (from <see cref="UnlocksForLater"/>).</summary>
+    public IDisposable WithUnlocks(Func<Protection, bool> unlocked)
+    {
+        Func<Protection, bool>? before = CarriedUnlocks.Value;
+        CarriedUnlocks.Value = unlocked;
+        return new Ending(() => CarriedUnlocks.Value = before);
+    }
 
     public bool IsUnlocked(HttpContext context, Protection protection)
         => unlocks.IsUnlocked(context, protection) || BringsPasswordOf(context, protection);

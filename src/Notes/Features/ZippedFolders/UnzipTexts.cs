@@ -33,4 +33,7 @@ public class UnzipTexts
 
     /// <summary>Where the server says nothing about why.</summary>
     public virtual string FailedWithStatus => "Unzipping failed ({status}).";
+
+    /// <summary>The server's, where an entry that isn't an archived folder is to be zipped.</summary>
+    public virtual string NotArchived => "This is not an archived directory.";
 }

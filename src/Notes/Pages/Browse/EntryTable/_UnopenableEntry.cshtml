@@ -20,7 +20,10 @@
     // The cell is the same for all kinds, only the row around it says which kind it is. Its parts follow each other without space between
     // them, so their tags break between attributes (as in _EntryGroup).
     Func<object?, object> cell =
-        @<td class="@emphasis">@if (Model.ShowsCheckbox)
+        @<td class="@emphasis">@if (Model.IsSelectable)
+            {<input type="checkbox" class="form-check-input entry-select" key="@Model.SelectKey" aria-label="@Texts.Select(Model.Name)"
+                checked="@Model.IsSelected"/>}
+            else if (Model.ShowsCheckbox)
             {<input type="checkbox" class="form-check-input entry-select" disabled
                 aria-label="@Texts.CantBeSelected(Model.Name)"/>}<span class="entry-index">@Model.Number</span><i
                 class="@Model.Icon"></i>
@@ -37,12 +40,17 @@
                 { State = archived, Encrypted = Model.ArchiveEncrypted, Progress = Model.ZipProgress, Address = Model.Address }"/>}</td>;
 }
 
-@* Not an .entry-row: the selection script leaves it alone. The box (where the others have one) is only there to keep the names in line with them,
-   and says why it can't be ticked. The data attribute says why it can't be opened; each kind has its own <tr>, as Razor writes a data-
+@* Not an .entry-row (the selection script leaves it alone), but for one a password locks, which can be selected like the others. Otherwise the
+   box (where the others have one) is only there to keep the names in line with them, and says why it can't be ticked. The data attribute says why it can't be opened; each kind has its own <tr>, as Razor writes a data-
    attribute even when its value is null. *@
 @if (Model.Kind == ListedKind.Locked)
 {
     <tr data-locked-entry="@Model.Name" title="@reason">@cell(null)</tr>
+}
+else if (Model.Kind == ListedKind.PasswordLocked && Model.IsSelectable)
+{
+    <tr class="entry-row @(Model.IsSelected ? "table-active" : "")" data-group="@Model.Group" data-path="@Model.VirtualPath"
+        data-password-locked-entry="@Model.Name" title="@reason">@cell(null)</tr>
 }
 else if (Model.Kind == ListedKind.PasswordLocked)
 {

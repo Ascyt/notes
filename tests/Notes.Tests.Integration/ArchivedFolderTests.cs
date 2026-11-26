@@ -78,6 +78,22 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
     }
 
     [Fact]
+    public async Task The_selection_says_whether_a_selected_archived_folder_is_zipped_or_unzipped_without_unzipping_it()
+    {
+        await ArchiveVaultAsync();
+        HttpResponseMessage added = await Client.PostJsonAsync(Users.Alice, "/?selection=add", new { paths = new[] { "docs/vault", "docs/a.md" } });
+        System.Text.Json.Nodes.JsonNode selection = System.Text.Json.Nodes.JsonNode.Parse(await BodyOf(added))!;
+        Assert.Equal(["/docs/vault"], selection["status"]!["unzipped"]!.AsArray().Select(item => (string)item!));
+        Assert.Empty(selection["status"]!["zipped"]!.AsArray());
+
+        Assert.True(await Archives.ZipAsync(Outer));
+        selection = System.Text.Json.Nodes.JsonNode.Parse(await BodyOf(await Client.GetAsync(Users.Alice, "/?selection")))!;
+
+        Assert.Equal(["/docs/vault"], selection["status"]!["zipped"]!.AsArray().Select(item => (string)item!));
+        Assert.True(Archives.IsZipped(Outer));
+    }
+
+    [Fact]
     public async Task Zipped_it_holds_only_its_configuration_and_archive_and_is_unzipped_by_the_next_request()
     {
         await ArchiveVaultAsync();
@@ -514,6 +530,22 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
         await Eventually(() => Archives.IsZipped(Outer) && Archives.ZipProgressOf(Outer) is null, "it is zipped");
         Assert.NotNull(Archives.MountedAt(other));
         Assert.DoesNotContain("id=\"zip-entry-button\"", await BodyOf(await Client.GetAsync(Users.Alice, "/docs")));
+    }
+
+    [Fact]
+    public async Task Zipping_one_that_is_zipped_already_is_done_at_once_and_one_that_isnt_archived_is_refused()
+    {
+        await ArchiveVaultAsync();
+        Assert.True(await Archives.ZipAsync(Outer));
+        Tree.File("docs/plain/a.md", "a");
+
+        // (A page that still showed it unzipped)
+        await AssertStatus(HttpStatusCode.OK, await Client.PostAsync(Users.Alice, "/docs/vault?zip=entry", ""));
+        Assert.True(Archives.IsZipped(Outer));
+
+        HttpResponseMessage refused = await Client.PostAsync(Users.Alice, "/docs/plain?zip=entry", "");
+        await AssertStatus(HttpStatusCode.BadRequest, refused);
+        Assert.Contains("not an archived directory", await BodyOf(refused));
     }
 
     [Fact]

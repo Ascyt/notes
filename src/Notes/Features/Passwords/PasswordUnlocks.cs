@@ -56,6 +56,34 @@ public sealed class PasswordUnlocks(PasswordsConfig settings, TimeProvider time)
         }
     }
 
+    /// <summary>
+    /// What the browser of the request has unlocked, to be asked after the request ended (work it started that runs on, an archive that is
+    /// made): as it is then, with the same lifetime (and using an unlock keeps it, as for a request). Nothing if the request has no unlocks.
+    /// </summary>
+    public Func<Protection, bool> ForLater(HttpContext context)
+    {
+        if (context.Request.Cookies[CookieName] is not { } id)
+            return _ => false;
+        string? userId = SelectionHandler.UserIdOf(context.User);
+        return protection =>
+        {
+            lock (_lock)
+            {
+                if (!_byBrowser.TryGetValue(id, out Unlocked? unlocked) || unlocked.UserId != userId
+                    || !unlocked.LastUsed.TryGetValue(protection, out DateTimeOffset lastUsed))
+                    return false;
+                DateTimeOffset now = time.GetUtcNow();
+                if (now - lastUsed >= Lifetime)
+                {
+                    _ = unlocked.LastUsed.Remove(protection);
+                    return false;
+                }
+                unlocked.LastUsed[protection] = now;
+                return true;
+            }
+        };
+    }
+
     /// <summary>Whether the browser of the request has anything unlocked (so that the page offers to lock it again).</summary>
     public bool HasAnyUnlocked(HttpContext context)
     {

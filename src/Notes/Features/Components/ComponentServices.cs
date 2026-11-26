@@ -33,6 +33,7 @@ public static class ComponentServices
         _ = services.AddSingleton<IZipService, ZipService>();
         _ = services.AddSingleton<IUploadService, UploadService>();
         _ = services.AddSingleton<UploadedArchiveUnzipper>();
+        _ = services.AddSingleton<SelectionStatusReader>();
         _ = services.AddScoped<ClearStaleUploadsJob>();
         _ = services.AddSingleton<PreparedArchives>();
         _ = services.AddScoped<ClearStaleArchivesJob>();

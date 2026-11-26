@@ -208,6 +208,9 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// <summary>What the user has selected (anywhere) when the page is made.</summary>
     public SelectionSnapshot Selection { get; init; } = SelectionSnapshot.Empty;
 
+    /// <summary>What the selected entries are like for this browser now, for the card.</summary>
+    public SelectionStatus SelectionStatus { get; init; } = SelectionStatus.None;
+
     public bool IsRoot => VirtualPath == "";
 
     /// <summary>

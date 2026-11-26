@@ -58,4 +58,35 @@ public class SelectionTexts
     public virtual string DirectoriesAndFiles => "{directories} and {files}";
     public virtual string InsideOneDirectory => ", including everything inside the selected directory,";
     public virtual string InsideManyDirectories => ", including everything inside the selected directories,";
+
+    // What the selected entries are like for this browser (SelectionStatus): locked, zipped, unzipped, unlocked
+
+    public virtual string OneLockedSelected => "1 password-protected element selected";
+    public virtual string ManyLockedSelected => "{count} password-protected elements selected";
+    public virtual string AndOneOther => " (+1 other)";
+    public virtual string AndManyOthers => " (+{count} others)";
+
+    /// <summary>Why nothing else can be done while something a password locks is selected.</summary>
+    public virtual string UnlockFirst => "Unlock the password-protected elements first (or unselect them).";
+
+    /// <summary>The button that asks for the password (one password), or for each of them, one after the other.</summary>
+    public virtual string UnlockOne => "Unlock...";
+    public virtual string UnlockAll => "Unlock all...";
+
+    public virtual string UnzipOne => "Unzip";
+    public virtual string UnzipAll => "Unzip all";
+    public virtual string ZipOne => "Zip";
+    public virtual string ZipAll => "Zip all";
+    public virtual string LockOne => "Lock";
+    public virtual string LockAll => "Lock all";
+
+    public virtual string UnzipHint => "Unzips the selected archived directories now, so that using them takes no time.";
+    public virtual string ZipHint => "Zips the selected archived directories that are unzipped now.";
+    public virtual string LockHint => "Locks the selected entries whose password is unlocked again.";
+
+    public virtual string UnzippingOf => "Unzipping {entry} ({number} of {count})…";
+    public virtual string Unzipped => "Unzipped.";
+    public virtual string Zipping => "Being zipped.";
+    public virtual string Locked => "Locked again.";
+    public virtual string Unlocked => "Unlocked.";
 }

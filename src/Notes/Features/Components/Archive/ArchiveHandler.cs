@@ -115,7 +115,7 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
         // What goes in, checked now; what is inside the directories is checked as the archive gets to it, and all of it again at the end
         (ArchiveContents? contents, string? name, IReadOnlyList<string>? topLevel, IActionResult? refusal) = request.Value == "directory"
             ? OfDirectory(request)
-            : OfSelection(request.User, userId, body.Version);
+            : OfSelection(request.Context, request.User, userId, body.Version);
         if (refusal is not null)
         {
             claim.Dispose();
@@ -220,7 +220,14 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
     private async Task<IActionResult> StartAsync(EntryRequest request, string userId, IDisposable claim,
         Func<ArchiveJob, CancellationToken, Task<ArchiveJobResult>> work)
     {
-        ArchiveJob job = archives.Start(Guid.NewGuid(), userId, claim, work);
+        // What goes in is only read as the archive gets to it, which may be after this request was answered (respond-async): it reads with the
+        // unlocks of this request's browser, as they are then (outside a request, nothing would be unlocked)
+        Func<Passwords.Protection, bool> unlocks = passwordLocks.UnlocksForLater();
+        ArchiveJob job = archives.Start(Guid.NewGuid(), userId, claim, async (job, cancellationToken) =>
+        {
+            using IDisposable carried = passwordLocks.WithUnlocks(unlocks);
+            return await work(job, cancellationToken);
+        });
 
         if (RespondsAtOnce(request.Request))
             return new ObjectResult(new { id = job.Id }) { StatusCode = StatusCodes.Status202Accepted };
@@ -330,7 +337,8 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
             downloads.DownloadNameOf(request.VirtualPath, locations.NameOf(request.PhysicalPath)), [request.PhysicalPath], null);
     }
 
-    private (ArchiveContents?, string?, IReadOnlyList<string>?, IActionResult?) OfSelection(ClaimsPrincipal user, string userId, long? version)
+    private (ArchiveContents?, string?, IReadOnlyList<string>?, IActionResult?) OfSelection(HttpContext context, ClaimsPrincipal user,
+        string userId, long? version)
     {
         SelectionSnapshot snapshot = selection.Get(userId);
         if (snapshot.Busy)
@@ -347,6 +355,9 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
         {
             if (entry is null || !tree.IsKnown(user, entry))
                 return (null, null, null, new ConflictObjectResult(texts.SelectedEntryGone));
+            // One a password locks for this browser (it can be selected): its password is asked for, and the request sent again
+            if (passwordLocks.FirstLocked(entry.FullName) is { } locked)
+                return (null, null, null, passwordPrompt.Ask(context, locked, entry.FullName));
             if (!tree.CanOpen(user, entry))
                 return (null, null, null, new ObjectResult(texts.NoReadAccess(tree.Display(entry.FullName)))
                     { StatusCode = StatusCodes.Status403Forbidden });

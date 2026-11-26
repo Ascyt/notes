@@ -77,7 +77,11 @@ public class _EntryGroup : PageModel
             Number = Number(index),
             Href = href,
             Key = href is null ? null : OpenKey(index),
-            ShowsCheckbox = Listing.CanSelect
+            ShowsCheckbox = Listing.CanSelect,
+            VirtualPath = Listing.ToVirtualPath(entry.Path),
+            Group = Group,
+            IsSelected = Listing.IsSelected(Listing.ToVirtualPath(entry.Path)),
+            SelectKey = SelectKey(index)
         };
     }
 }

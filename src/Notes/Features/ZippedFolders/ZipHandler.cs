@@ -15,7 +15,7 @@ namespace Notes.Features.ZippedFolders;
 /// into it would unzip it again), or null to stay. The <see cref="ArchiveGate"/> holds no use of anything for it.
 /// </summary>
 public sealed class ZipHandler(ArchivedFolders archives, AccessTree tree, PasswordLocks passwordLocks, EntryLocations locations,
-    ILogger<ZipHandler> logger) : IEntryPostAction
+    ILogger<ZipHandler> logger, UnzipTexts texts) : IEntryPostAction
 {
     public const string ZipParameter = "zip";
 
@@ -45,10 +45,12 @@ public sealed class ZipHandler(ArchivedFolders archives, AccessTree tree, Passwo
         if (request.Value == EntryValue)
         {
             string folder = archives.OuterOf(request.PhysicalPath);
-            if (archives.MountedAt(folder) is null)
-                return Task.FromResult<IActionResult>(new BadRequestResult());
-            folders = [.. folders.Where(unzipped => locations.IsSameOrInside(unzipped, folder)
-                                                    || locations.IsSameOrInside(unzipped, archives.MountedAt(folder)!.PhysicalPath))];
+            if (archives.ArchiveStateOf(folder) is null)
+                return Task.FromResult<IActionResult>(new BadRequestObjectResult(texts.NotArchived));
+            // Zipped already, or being zipped (a page that showed it unzipped a moment ago, the button pressed twice): nothing left to do
+            folders = archives.MountedAt(folder) is { } mounted
+                ? [.. folders.Where(unzipped => locations.IsSameOrInside(unzipped, folder) || locations.IsSameOrInside(unzipped, mounted.PhysicalPath))]
+                : [];
         }
 
         // Where the page goes, found before zipping: the outermost of them that the entry is in (they are by virtual path the same, zipped or not)

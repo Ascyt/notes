@@ -211,6 +211,66 @@ public sealed class ArchiveUiTests(UiFixture fixture) : UiTest(fixture), IClassF
         await Expect(Overlay).ToBeHiddenAsync();
     }
 
+    /// <summary>docs/outer-ui with open.md, and locked/ inside it with a password.</summary>
+    private void OuterWithLockedFolder()
+    {
+        Tree.File("docs/outer-ui/open.md", "open");
+        Tree.File("docs/outer-ui/locked/x.md", "x");
+        System.Text.Json.Nodes.JsonObject config = System.Text.Json.Nodes.JsonNode.Parse(Cfg.Folder(Cfg.Perms()))!.AsObject();
+        config["passwordHash"] = Notes.Features.Passwords.PasswordHashing.Hash("pw", 4);
+        Tree.Config("docs/outer-ui/locked", config.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_folder_with_a_locked_folder_inside_downloads_without_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+
+        await Page.Locator("#download-button").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["open.md"], SevenZipNames(bytes));
+        await Expect(ToastOf("danger")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task A_folder_with_an_unlocked_folder_inside_downloads_with_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+        // Unlocked in this browser, as the dialog does it
+        _ = await Page.EvaluateAsync("""
+            () => fetch('/docs/outer-ui/locked?unlock', { method: 'POST', body: JSON.stringify({ password: 'pw' }),
+                headers: { 'Content-Type': 'application/json',
+                           'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value } })
+            """);
+
+        await Page.Locator("#download-button").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["locked/x.md", "open.md"], SevenZipNames(bytes).Order(StringComparer.Ordinal));
+        await Expect(ToastOf("danger")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task A_selected_unlocked_folder_downloads_with_what_is_in_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+        _ = await Page.EvaluateAsync("""
+            () => fetch('/docs/outer-ui/locked?unlock', { method: 'POST', body: JSON.stringify({ password: 'pw' }),
+                headers: { 'Content-Type': 'application/json',
+                           'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value } })
+            """);
+        await SelectAsync("docs/outer-ui", "docs/outer-ui/locked", "docs/outer-ui/open.md");
+
+        await Page.Locator("#selection-download").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["locked/x.md", "open.md"], SevenZipNames(bytes).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public async Task A_refusal_of_the_server_is_shown_and_the_page_is_usable_again()
     {

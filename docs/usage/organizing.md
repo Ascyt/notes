@@ -38,6 +38,14 @@ A card at the bottom says how many entries are selected. The selection is kept w
 |---|---|
 | ![Two selected entries](../screenshots/selection-desktop.png) | ![Two selected entries on a phone](../screenshots/selection-phone.png) |
 
+**What the selected entries need first** comes first on the card, in color:
+
+- What a password locks can be selected too (its own box, like the others). The card then says how many of them there are first ("2 password-protected elements selected (+3 others)"), and offers only **Unlock...** (one password) or **Unlock all...**, which asks for each password in turn (closing the dialog stops there); nothing else can be done with the selection until then. A copy, move or delete started some other way asks for the password first, too.
+- Otherwise, archived directories that are zipped now have **Unzip** (or **Unzip all**), which unzips them right away, so that using them takes no time; the other buttons still work.
+- Archived directories that are unzipped have **Zip** (or **Zip all**), and entries whose password is unlocked **Lock** (or **Lock all**).
+
+The page is loaded again afterwards, with the selection as it was.
+
 Before anything is copied, moved or deleted, everything is checked; if something isn't allowed, nothing happens and the message says what is in the way. Copying leaves out what may not be read. While it runs, the card shows how far it is, also in other tabs.
 
 ## Permissions

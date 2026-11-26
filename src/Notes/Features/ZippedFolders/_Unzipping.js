@@ -42,6 +42,9 @@
         }
     }
 
+    // (For the selection's Unzip, which unzips the selected archived folders one after the other)
+    window.archiveUnzipping = { waitUntilUnzipped };
+
     function showOnPage(fraction) {
         const bar = document.getElementById('unzipping-progress');
         const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 100);

@@ -48,7 +48,8 @@ public sealed class IndexModel(Config config,
     ArchiveGate archiveGate,
     ArchivedFolders archivedFolders,
     Features.Components.Upload.UploadedArchiveUnzipper unzipper,
-    Features.Configuration.FolderConfigStore configs) : PageModel
+    Features.Configuration.FolderConfigStore configs,
+    SelectionStatusReader selectionStatus) : PageModel
 {
     /// <summary>What shows how far an archived folder on the way to the entry got with unzipping, instead of the entry.</summary>
     public _Unzipping? Unzipping { get; private set; }
@@ -174,6 +175,7 @@ public sealed class IndexModel(Config config,
         if (isDirectory)
         {
             string? userId = SelectionHandler.UserIdOf(User);
+            SelectionSnapshot selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId);
             Directory = new DirectoryView(locations, path, tree)
             {
                 VirtualPath = VirtualPath,
@@ -186,7 +188,8 @@ public sealed class IndexModel(Config config,
                 Configs = configs,
                 CanConfigure = tree.CanManageConfiguration(User),
                 HistoryButton = historyButton,
-                Selection = userId is null ? SelectionSnapshot.Empty : selectionService.Get(userId),
+                Selection = selection,
+                SelectionStatus = selectionStatus.Of(selection.Paths),
                 OwnPasswordUnlocked = ownPasswordUnlocked,
                 IsUnzippedArchive = isUnzippedArchive,
                 IsEncryptedArchive = isUnzippedArchive && archivedFolders.IsEncrypted(ownFolder)

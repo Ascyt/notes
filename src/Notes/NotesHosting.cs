@@ -68,6 +68,8 @@ public static class NotesHosting
 
         _ = services.AddRazorPages(options =>
         {
+            // (Messages are plain text, whatever the request asks for)
+            options.Conventions.ConfigureFilter(new PlainTextMessages());
             options.Conventions.AddFolderRouteModelConvention("/App", page => MoveToAppPath(page, appAddresses));
             // The app's own pages, told from the site's by where their code is (a site may replace the view of one, but not its model)
             options.Conventions.AddFolderApplicationModelConvention("/", page =>

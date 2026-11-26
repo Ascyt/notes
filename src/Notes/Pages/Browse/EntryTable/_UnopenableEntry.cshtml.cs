@@ -4,7 +4,8 @@ namespace Notes.Pages.Browse.EntryTable;
 
 /// <summary>
 /// A row of the listing for an entry that can't be opened: one the user may not read (with a lock), or, in an earlier state, one whose
-/// history can't be seen (with a crossed-out calendar). Only its name is shown, and it can't be selected.
+/// history can't be seen (with a crossed-out calendar). Only its name is shown. Only one a password locks can be selected (the card then
+/// offers to unlock it).
 /// </summary>
 public class _UnopenableEntry : PageModel
 {
@@ -31,8 +32,21 @@ public class _UnopenableEntry : PageModel
     /// <summary>The shortcut of the link, if it is one.</summary>
     public string? Key { get; init; }
 
-    /// <summary>Whether the other rows have a box to select them, which this one then has too (disabled), to keep the names in line.</summary>
+    /// <summary>Whether the other rows have a box to select them, which this one then has too (disabled, unless it <see cref="IsSelectable"/>).</summary>
     public bool ShowsCheckbox { get; init; }
+
+    /// <summary>Its virtual path, and the group it is in (for the selection script), which a row that can be selected has.</summary>
+    public string VirtualPath { get; init; } = "";
+
+    public string Group { get; init; } = "";
+
+    public bool IsSelected { get; init; }
+
+    /// <summary>The shortcut that selects it, as the other rows have.</summary>
+    public string? SelectKey { get; init; }
+
+    /// <summary>Whether it can be selected: one a password locks, where the others can be.</summary>
+    public bool IsSelectable => ShowsCheckbox && Kind == ListedKind.PasswordLocked;
 
     /// <summary>How it is kept, if it is an archived folder a password locks (its zipper goes after the lock); otherwise null.</summary>
     public Features.ZippedFolders.ArchiveState? Archived { get; init; }
