@@ -22,7 +22,10 @@ public enum OperationKind
 
     Copying,
     Moving,
-    Deleting
+    Deleting,
+
+    /// <summary>What zipping or unzipping left when the app stopped being overwritten and deleted (at the start, in the background).</summary>
+    DeletingLeftovers
 }
 
 /// <summary>
@@ -37,9 +40,10 @@ public sealed class StorageOperation
     private int _cancelled;
 
     internal StorageOperation(OperationKind kind, string physicalPath, string virtualPath, ClaimsPrincipal? user, DateTimeOffset started,
-        Func<double> progress, Func<WorkStatus?> status, Action cancel)
+        Func<double> progress, Func<WorkStatus?> status, Action cancel, bool adminsOnly)
     {
         Kind = kind;
+        AdminsOnly = adminsOnly;
         PhysicalPath = physicalPath;
         VirtualPath = virtualPath;
         IsOfFile = File.Exists(physicalPath);
@@ -53,6 +57,13 @@ public sealed class StorageOperation
 
     public Guid Id { get; } = Guid.NewGuid();
     public OperationKind Kind { get; }
+
+    /// <summary>
+    /// Whether only admins see it, wherever it runs: for work that says something about how the site is run (what a crash left), not about
+    /// the entries.
+    /// </summary>
+    public bool AdminsOnly { get; }
+
     public string PhysicalPath { get; }
 
     /// <summary>
@@ -95,14 +106,15 @@ public sealed class StorageOperations(IHttpContextAccessor accessor, TimeProvide
     /// request this is called in (none outside of one: the app).
     /// </summary>
     /// <param name="cancel">Stops it (as soon as it safely can; past the point where it can't, it finishes).</param>
+    /// <param name="adminsOnly">See <see cref="StorageOperation.AdminsOnly"/>.</param>
     public IDisposable Begin(OperationKind kind, string physicalPath, Func<double> progress, Func<WorkStatus?> status, Action cancel,
-        ClaimsPrincipal? user = null)
+        ClaimsPrincipal? user = null, bool adminsOnly = false)
     {
         user ??= accessor.HttpContext?.User is { Identity.IsAuthenticated: true } requester ? requester : null;
         if (user is { Identity.IsAuthenticated: false })
             user = null;
         string virtualPath = path.ToVirtualPath(physicalPath) is var shown and not "." ? shown : "";
-        StorageOperation operation = new(kind, physicalPath, virtualPath, user, time.GetUtcNow(), progress, status, cancel);
+        StorageOperation operation = new(kind, physicalPath, virtualPath, user, time.GetUtcNow(), progress, status, cancel, adminsOnly);
         _running[operation.Id] = operation;
         return new Ending(() => _running.TryRemove(operation.Id, out _));
     }
@@ -112,12 +124,13 @@ public sealed class StorageOperations(IHttpContextAccessor accessor, TimeProvide
 
     /// <summary>
     /// Those the user may see, the most recent first: admins see all of them, everyone else those in what they may read (a password locks
-    /// counts). Nobody who isn't logged in sees any.
+    /// counts), except those only admins see. Nobody who isn't logged in sees any.
     /// </summary>
     public IReadOnlyList<StorageOperation> VisibleTo(ClaimsPrincipal user, AccessTree tree)
         => user.Identity?.IsAuthenticated != true ? []
             : user.IsInRole(AppAccess.AdminRole) ? Running
-            : [.. Running.Where(operation => tree.GetAccess(user, path.ToPhysicalPath(operation.VirtualPath) ?? operation.PhysicalPath).CanRead)];
+            : [.. Running.Where(operation => !operation.AdminsOnly
+                && tree.GetAccess(user, path.ToPhysicalPath(operation.VirtualPath) ?? operation.PhysicalPath).CanRead)];
 
     public StorageOperation? Find(Guid id) => _running.GetValueOrDefault(id);
 

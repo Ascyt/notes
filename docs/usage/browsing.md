@@ -28,7 +28,7 @@ An entry with a lock can be seen but not opened: its name is visible, but what i
 
 ## Running storage operations
 
-While anything long runs on the storage that a logged-in user may see (in what they may read; admins see everything), a gray hard drive is in the navbar, next to the account (Alt+O). It opens the list of them, the most recent first: what is done (zipping or unzipping an archived directory, preparing a download, unzipping an uploaded archive, copying, moving or deleting selected entries), the directory it runs in, who started it ("the app" for what it does by itself, like zipping idle directories), a bar of how far it got, and what it does now in one line. Whoever started one, and admins, can cancel it (admins only what the app started):
+While anything long runs on the storage that a logged-in user may see (in what they may read; admins see everything), a gray hard drive is in the navbar, next to the account (Alt+O). It opens the list of them, the most recent first: what is done (zipping or unzipping an archived directory, preparing a download, unzipping an uploaded archive, copying, moving or deleting selected entries, and, for admins only, deleting what zipping or unzipping left when the app stopped, which runs behind the start), the directory it runs in, who started it ("the app" for what it does by itself, like zipping idle directories), a bar of how far it got, and what it does now in one line. Whoever started one, and admins, can cancel it (admins only what the app started):
 
 - Zipping stops (the directory stays unzipped, as before); past the point where the new archive took the old one's place, it finishes.
 - Unzipping stops: nothing is unzipped, and what was waiting for it says so.

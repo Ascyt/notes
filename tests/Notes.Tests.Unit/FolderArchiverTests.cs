@@ -470,7 +470,7 @@ public sealed class FolderArchiverTests : IDisposable
             ArchivedFolder folder = FolderUnder(snapshot, options.Format);
             FolderArchiver archiver = new(NullLogger<FolderArchiver>.Instance);
             ArchivedFolderState state = archiver.Recover(folder);
-            _ = archiver.RecoverWorkDirectory(folder.WorkDirectory);
+            archiver.DeleteLeftovers(archiver.FindLeftovers(folder.WorkDirectory), progress: null, status: null, CancellationToken.None);
 
             Assert.False(File.Exists(folder.NewArchivePath));
             Assert.Empty(Directory.EnumerateFiles(folder.WorkDirectory, "*", SearchOption.AllDirectories));

@@ -140,8 +140,11 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
     /// <summary><see cref="MigrateAll"/> for one location (the root, a bridge, an unzipped archived folder).</summary>
     private int MigrateAllIn(EntryLocation location)
     {
+        // (Walks every directory of the location, which takes a while with many)
+        logger.LogInformation("Looking for configuration files in {location}", location.PhysicalPath);
         if (WalkLocation(location) is not { } found)
             return 0;
+        logger.LogInformation("Found {count} configuration file(s) in {location}", found.Count, location.PhysicalPath);
 
         int migratedCount = 0;
         foreach (FileInfo file in found)

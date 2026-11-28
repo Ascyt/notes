@@ -141,7 +141,12 @@ public sealed class HistoryService : IDisposable
 
     /// <summary>Commits whatever is pending, e.g. when the app starts.</summary>
     public void CommitPending(CommitReason reason)
-        => Run(() => ForEach(_histories, history => history.Commit(reason)));
+        => Run(() => ForEach(_histories, history =>
+        {
+            // (Finding what changed looks at every file of the location, which takes long with many)
+            _logger.LogInformation("Looking for changes to commit in {location} ({reason})", history.Location.PhysicalPath, reason);
+            history.Commit(reason);
+        }));
 
     /// <summary>Commits what is pending if nothing was changed in the app for <see cref="HistoryConfig.IdleMinutes"/>.</summary>
     public void CommitIfIdle()

@@ -233,17 +233,25 @@ public static class NotesHosting
         LibGit2Sharp.GlobalSettings.SetOwnerValidation(false);
 
         // What changed while the app didn't run goes into the history on its own, before the migrations change anything
+        // (Each step is logged with how long it took: a big folder can make them slow, and a start that goes quiet says nothing otherwise)
         HistoryService history = app.Services.GetRequiredService<HistoryService>();
-        history.CommitPending(CommitReason.Startup);
+        StartupSteps.Run(app.Logger, "committing what changed while the app didn't run to the history",
+            () => history.CommitPending(CommitReason.Startup));
 
         // Writes what was migrated while reading back to the files, now that nothing else is using them
-        if (app.Services.GetRequiredService<FolderConfigStore>().MigrateAll() > 0)
-            history.CommitPending(CommitReason.Migration);
+        int migrated = 0;
+        StartupSteps.Run(app.Logger, "looking through the configuration files and migrating them",
+            () => migrated = app.Services.GetRequiredService<FolderConfigStore>().MigrateAll());
+        if (migrated > 0)
+            StartupSteps.Run(app.Logger, "committing the migrated configuration files to the history",
+                () => history.CommitPending(CommitReason.Migration));
 
         // What zipping or unzipping an archived folder left when the app stopped is put right (nothing of it is lost), before it is used
-        app.Services.GetRequiredService<ArchivedFolders>().RecoverAsync().GetAwaiter().GetResult();
+        StartupSteps.Run(app.Logger, "putting right what zipping or unzipping archived folders left",
+            () => app.Services.GetRequiredService<ArchivedFolders>().RecoverAsync().GetAwaiter().GetResult());
         // What unzipping an uploaded archive left is deleted: the listing starts it over (the archive's entry still says it is to be unzipped)
-        app.Services.GetRequiredService<Features.Components.Upload.UploadedArchiveUnzipper>().ClearLeftovers();
+        StartupSteps.Run(app.Logger, "deleting what unzipping uploaded archives left",
+            () => app.Services.GetRequiredService<Features.Components.Upload.UploadedArchiveUnzipper>().ClearLeftovers());
     }
 
     /// <summary>

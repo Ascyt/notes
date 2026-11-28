@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
+using Notes.Features.Operations;
 using Notes.Features.ZippedFolders;
 
 namespace Notes.Tests.Integration;
@@ -108,6 +109,24 @@ public sealed class StorageOperationsTests() : IntegrationTest(new NotesAppFacto
 
         Assert.False(await zipping);
         Assert.NotNull(Archives.MountedAt(Tree.Physical("vault")));
+    }
+
+    [Fact]
+    public async Task What_a_crash_left_is_deleted_in_view_of_admins_only_wherever_it_is()
+    {
+        bool cancelled = false;
+        // (As the start does it: where the notes are, which Alice may read, but it says something about how the site is run)
+        using IDisposable operation = App.Services.GetRequiredService<StorageOperations>().Begin(OperationKind.DeletingLeftovers,
+            Tree.Physical("docs"), () => 0.5, () => null, () => cancelled = true, adminsOnly: true);
+
+        Assert.Empty(await OperationsOf(Users.Alice));
+        JsonNode listed = Assert.Single(await OperationsOf(Users.Admin))!;
+        Assert.Equal("the app", (string)listed["user"]!);
+        string id = (string)listed["id"]!;
+        await AssertStatus(HttpStatusCode.NotFound, await CancelAsync(Users.Alice, id));
+        Assert.False(cancelled);
+        await AssertStatus(HttpStatusCode.OK, await CancelAsync(Users.Admin, id));
+        Assert.True(cancelled);
     }
 
     [Fact]

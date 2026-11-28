@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Notes.Features.Components.Archive;
+using Notes.Features.Operations;
 using Notes.Features.ZippedFolders;
 
 namespace Notes.Tests.Integration;
@@ -70,8 +71,34 @@ public sealed class ArchivedFolderRecoveryTests() : IntegrationTest(new NotesApp
 
         Assert.Equal("in the archive", await ContentsOf("/docs/vault/note.md"));
         Assert.False(File.Exists(Path.Combine(Outer, "_.7z.new")));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(Tree.Physical("_/temp/zipping/unzipping")));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(Tree.Physical("_/temp/zipping/deleting")));
+        // Deleted behind the start, which doesn't wait for it
+        await Eventually(() => !Directory.EnumerateFileSystemEntries(Tree.Physical("_/temp/zipping/unzipping")).Any()
+            && !Directory.EnumerateFileSystemEntries(Tree.Physical("_/temp/zipping/deleting")).Any(), "what was left is deleted");
+        Assert.Empty(App.Services.GetRequiredService<StorageOperations>().Running);
+    }
+
+    [Fact]
+    public void What_zipping_makes_after_the_start_is_not_taken_for_a_leftover()
+    {
+        Tree.File("_/temp/zipping/deleting/old/note.md", "left");
+        List<string> found = App.Services.GetRequiredService<FolderArchiver>().FindLeftovers(Tree.Physical("_/temp/zipping"));
+        // (Made after they were found)
+        Tree.File("_/temp/zipping/deleting/new/note.md", "of work that runs");
+        App.Services.GetRequiredService<FolderArchiver>().DeleteLeftovers(found, progress: null, status: null, Cancellation);
+
+        Assert.False(Directory.Exists(Tree.Physical("_/temp/zipping/deleting/old")));
+        Assert.True(File.Exists(Tree.Physical("_/temp/zipping/deleting/new/note.md")));
+    }
+
+    private static async Task Eventually(Func<bool> condition, string what)
+    {
+        DateTime end = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > end)
+                Assert.Fail("Timed out waiting until " + what);
+            await Task.Delay(20, Cancellation);
+        }
     }
 
     [Fact]

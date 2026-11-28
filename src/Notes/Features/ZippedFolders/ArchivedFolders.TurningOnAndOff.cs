@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Archive;
 using Notes.Features.Configuration;
@@ -397,7 +398,13 @@ public sealed partial class ArchivedFolders
     public async Task ReconcileEverywhereAsync()
     {
         foreach (EntryLocation location in locations.All.Where(location => !location.IsArchive).ToList())
+        {
+            // (Walks every directory of the location, which takes a while with many)
+            logger.LogInformation("Checking which folders of {location} are to be archived or not", location.PhysicalPath);
+            Stopwatch stopwatch = Stopwatch.StartNew();
             _ = await ReconcileAsync(location.PhysicalPath);
+            logger.LogInformation("Checked {location} after {seconds:0.0} s", location.PhysicalPath, stopwatch.Elapsed.TotalSeconds);
+        }
     }
 
     /// <summary>

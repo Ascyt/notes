@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Notes.Features.Components.Archive;
 using Notes.Features.Components.Download;
 using Notes.Features.Helpers;
@@ -353,27 +354,62 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
     }
 
     /// <summary>
-    /// Deletes what is left in the work directory: copies that were being unzipped (the archive still counts for them) and unzipped copies that
-    /// were being deleted (their archive holds everything). Whatever is there is never needed. Returns how many were deleted.
+    /// What is left in the work directory: copies that were being unzipped (the archive still counts for them) and unzipped copies that were
+    /// being deleted (their archive holds everything). Whatever is there is never needed, and is deleted by <see cref="DeleteLeftovers"/>.
+    /// Only what is there now is found: what zipping and unzipping make later is theirs, and mustn't be deleted by the one that runs behind
+    /// the start.
     /// </summary>
-    public int RecoverWorkDirectory(string workDirectory)
+    public List<string> FindLeftovers(string workDirectory)
     {
-        int deleted = 0;
+        List<string> found = [];
         foreach (string kind in new[] { StagingName, TrashName })
         {
             string directory = Path.Combine(workDirectory, kind);
-            if (!Directory.Exists(directory))
-                continue;
-            foreach (string left in Directory.EnumerateDirectories(directory))
-            {
-                logger.LogInformation("Deleting {directory}, which was left by zipping or unzipping when the app stopped", left);
-                // (Whether it was of an encrypted folder isn't known any more: overwritten in any case)
-                DeleteTrash(left, afterDeletingSome: null, shred: true);
-                deleted++;
-            }
+            if (Directory.Exists(directory))
+                found.AddRange(Directory.EnumerateDirectories(directory));
         }
-        return deleted;
+        return found;
     }
+
+    /// <summary>
+    /// Deletes what <see cref="FindLeftovers"/> found, logging how far it got: with many files, and each overwritten first, it takes long.
+    /// What isn't deleted when it is cancelled (or fails) is found again at the next start.
+    /// </summary>
+    /// <param name="progress">Told how much is done (0 to 1) as it goes.</param>
+    /// <param name="status">Told what it is doing as it goes (<see cref="WorkStatus"/>), for the text under the bar.</param>
+    /// <exception cref="OperationCanceledException">If it was cancelled.</exception>
+    public void DeleteLeftovers(IReadOnlyList<string> leftovers, Action<double>? progress, Action<WorkStatus>? status,
+        CancellationToken cancellationToken)
+    {
+        status?.Invoke(new WorkStatus(WorkPhases.Measuring));
+        int total = leftovers.Sum(CountFiles);
+        logger.LogInformation("Deleting {count} folder(s) with {files} file(s) which zipping or unzipping left when the app stopped; each file is "
+            + "overwritten {passes} time(s) first", leftovers.Count, total, OverwritePasses);
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TimeSpan lastReport = TimeSpan.Zero;
+        int done = 0;
+        foreach (string left in leftovers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            logger.LogInformation("Deleting {directory}", left);
+            // (Whether it was of an encrypted folder isn't known any more: overwritten in any case. Called after each file.)
+            DeleteTrash(left, afterDeletingSome: null, shred: true, _ =>
+            {
+                done++;
+                progress?.Invoke(Math.Min(1, (double)done / Math.Max(1, total)));
+                status?.Invoke(new WorkStatus(WorkPhases.DeletingLeftovers, Math.Min(done, total), total));
+                if (stopwatch.Elapsed - lastReport < LeftoverReportInterval)
+                    return;
+                lastReport = stopwatch.Elapsed;
+                logger.LogInformation("Deleted {deleted} of {count} file(s) so far ({seconds:0} s)", done, total, stopwatch.Elapsed.TotalSeconds);
+            }, cancellationToken);
+        }
+        logger.LogInformation("Deleted what zipping or unzipping left, after {seconds:0.0} s", stopwatch.Elapsed.TotalSeconds);
+    }
+
+    /// <summary>How often <see cref="DeleteLeftovers"/> says how far it got.</summary>
+    private static readonly TimeSpan LeftoverReportInterval = TimeSpan.FromSeconds(10);
 
     // ---- The work directory
 
@@ -403,7 +439,9 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
     /// <param name="afterDeletingSome">Called once the first file is deleted (for the tests: a copy that is partly deleted).</param>
     /// <param name="shred">Whether each file is overwritten first (<see cref="Shredding"/>).</param>
     /// <param name="deleted">Told how many files were deleted so far, after each.</param>
-    private void DeleteTrash(string directory, Action? afterDeletingSome, bool shred, Action<int>? deleted = null)
+    /// <param name="cancellationToken">Stops it between two files (<see cref="OperationCanceledException"/>); what is left stays.</param>
+    private void DeleteTrash(string directory, Action? afterDeletingSome, bool shred, Action<int>? deleted = null,
+        CancellationToken cancellationToken = default)
     {
         int count = 0;
         try
@@ -413,6 +451,7 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
             bool first = true;
             foreach (string file in Directory.EnumerateFiles(directory, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 File.SetAttributes(file, FileAttributes.Normal);
                 if (shred)
                     Shredding.Overwrite(file, OverwritePasses);

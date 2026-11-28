@@ -9,7 +9,7 @@ namespace Notes.Features.ZippedFolders;
 /// <param name="UnzippedDirectory">Where its contents are while it is unzipped (in <c>_/temp/unzipped</c> of its location).</param>
 /// <param name="WorkDirectory">
 /// The app's working folder for zipping in the same location (<c>_/temp/zipping</c>), so on the same volume as the other two: what is in it
-/// is only ever half done, and can always be deleted (see <see cref="FolderArchiver.RecoverWorkDirectory"/>).
+/// is only ever half done, and can always be deleted (see <see cref="FolderArchiver.DeleteLeftovers"/>).
 /// </param>
 public sealed record ArchivedFolder(string ArchivePath, string UnzippedDirectory, string WorkDirectory)
 {

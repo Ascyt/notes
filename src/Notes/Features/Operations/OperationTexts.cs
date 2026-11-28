@@ -34,6 +34,7 @@ public class OperationTexts
         OperationKind.UnzippingUpload => "Unzipping an uploaded archive",
         OperationKind.Copying => "Copying selected entries here",
         OperationKind.Moving => "Moving selected entries here",
+        OperationKind.DeletingLeftovers => "Deleting what zipping or unzipping left",
         _ => "Deleting selected entries"
     };
 
@@ -46,6 +47,7 @@ public class OperationTexts
         OperationKind.UnzippingUpload => $"Unzipping the upload {where}",
         OperationKind.Copying => $"Copying into {where}",
         OperationKind.Moving => $"Moving into {where}",
+        OperationKind.DeletingLeftovers => "Deleting what zipping or unzipping left",
         _ => $"Deleting in {where}"
     };
 }

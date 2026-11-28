@@ -34,6 +34,9 @@ public static class WorkPhases
     /// <summary>Overwriting what was unzipped before it is deleted (encrypted ones).</summary>
     public const string Overwriting = "overwriting";
 
+    /// <summary>Overwriting and deleting what zipping or unzipping left when the app stopped.</summary>
+    public const string DeletingLeftovers = "deletingLeftovers";
+
     public const string Unzipping = "unzipping";
 
     /// <summary>Putting what was unzipped in its place.</summary>

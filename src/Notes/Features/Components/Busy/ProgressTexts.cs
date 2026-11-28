@@ -15,6 +15,7 @@ public class ProgressTexts
     public virtual string Replacing => "Putting the new archive in place";
     public virtual string Deleting => "Deleting the unzipped copy";
     public virtual string Overwriting => "Overwriting and deleting the unzipped copy";
+    public virtual string DeletingLeftovers => "Overwriting and deleting what zipping or unzipping left";
     public virtual string Unzipping => "Unzipping";
     public virtual string Placing => "Putting what was unzipped in place";
     public virtual string ZippingKept => "Zipping the archived directories that go in as they are kept";

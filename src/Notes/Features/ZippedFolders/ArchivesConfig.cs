@@ -4,19 +4,19 @@ namespace Notes.Features.ZippedFolders;
 public sealed class ArchivesConfig
 {
     /// <summary>For how many minutes an unzipped folder stays unzipped after it was last used, before it is zipped again.</summary>
-    public double ZipAfterMinutes { get; init; } = 10;
+    public double ZipAfterMinutes { get; init; } = 30;
 
     /// <summary>
     /// How long a request waits for an archived folder to be unzipped, in seconds, before the page shows how far it got instead: a small one
     /// is unzipped before the user notices.
     /// </summary>
-    public double WaitSeconds { get; init; } = 1.5;
+    public double WaitSeconds { get; init; } = 1;
 
     /// <summary>
     /// How many times what was in an encrypted folder while it was unzipped is overwritten with random data before it is deleted (also what
     /// a crash left in the work of zipping, which may have been). 0 only deletes it.
     /// </summary>
-    public int OverwritePasses { get; init; } = 3;
+    public int OverwritePasses { get; init; } = 1;
 
     /// <summary>Throws if a setting makes no sense, so that the app doesn't start with it.</summary>
     public void Check()
