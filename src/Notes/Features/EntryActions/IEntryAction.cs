@@ -32,6 +32,12 @@ public interface IEntryAction
     string? Parameter { get; }
 
     AccessNeeded Needs { get; }
+
+    /// <summary>
+    /// Whether it is asked for also where a password locks the entry (unlocking it, say). Every other action is answered with the request for
+    /// the password there (<see cref="Passwords.PasswordGate"/>).
+    /// </summary>
+    bool PassesPasswordLocks => false;
 }
 
 /// <summary>An action asked for with GET. The entry exists.</summary>

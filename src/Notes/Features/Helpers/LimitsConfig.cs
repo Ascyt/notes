@@ -35,6 +35,15 @@ public sealed class LimitsConfig
     /// </summary>
     public ulong MaxConvertedImagePixels { get; init; } = 200_000_000;
 
+    /// <summary>
+    /// How much an uploaded archive that is unzipped may hold, unzipped (what is written counts, not what the archive claims): an archive of a
+    /// few kilobytes can unzip to more than the disk has.
+    /// </summary>
+    public long MaxUnzippedBytes { get; init; } = 64L * 1024 * 1024 * 1024;
+
+    /// <summary>How many entries an uploaded archive that is unzipped may have.</summary>
+    public int MaxUnzippedEntries { get; init; } = 100_000;
+
     /// <summary>Whether a new entry at the virtual path would break <see cref="MaxPathBytes"/>.</summary>
     public bool IsTooLong(string virtualPath)
         => Encoding.UTF8.GetByteCount(virtualPath) > MaxPathBytes;
@@ -44,7 +53,7 @@ public sealed class LimitsConfig
     public void Check()
     {
         if (MaxUploadBytes <= 0 || MaxUploadsInProgressPerUser <= 0 || MaxTextBytes <= 0 || MaxPathBytes <= 0 || MaxConvertedImageBytes <= 0
-            || MaxConvertedImagePixels == 0)
+            || MaxConvertedImagePixels == 0 || MaxUnzippedBytes <= 0 || MaxUnzippedEntries <= 0)
             throw new InvalidOperationException("Every value of Config:Limits must be greater than zero.");
         if (MaxPathBytes < NewNames.MaxNameBytes)
             throw new InvalidOperationException($"Config:Limits:MaxPathBytes must be at least {NewNames.MaxNameBytes}, the longest name.");

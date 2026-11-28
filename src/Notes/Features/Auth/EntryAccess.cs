@@ -1,7 +1,9 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Notes.Features.Bridges;
+using Notes.Features.ZippedFolders;
 using Notes.Features.Configuration;
 using Notes.Features.Helpers;
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Auth;
@@ -120,7 +122,12 @@ public interface IEntryAccess
 /// nothing says anything about is denied, and so is everything under a folder whose
 /// configuration is invalid. The folders above are those of the entries: above a bridge comes the directory it is mounted in.
 /// </summary>
-public sealed class EntryAccess(EntryLocations locations, FolderConfigStore store) : IEntryAccess
+/// <remarks>
+/// Before all of that, a path that a password locks (<see cref="PasswordLocks"/>) gets nothing, admins included: a password is there so that
+/// only those who know it see what it protects.
+/// </remarks>
+public sealed class EntryAccess(EntryLocations locations, FolderConfigStore store, PasswordLocks passwordLocks, RequestLookups? lookups = null)
+    : IEntryAccess
 {
     private static readonly EntryAccessInfo Everything = new(ReadAccess.ReadAndWrite, CreateAccess.CreateAndDelete, HistoryAccess.ExistingAndDeleted);
 
@@ -128,7 +135,7 @@ public sealed class EntryAccess(EntryLocations locations, FolderConfigStore stor
         => user.IsInRole(AppAccess.AdminRole);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath)
-        => Resolve(user, physicalPath, store.Get, isDirectory: Directory.Exists);
+        => Resolve(user, physicalPath, store.Get, isDirectory: lookups is null ? Directory.Exists : lookups.IsDirectory);
 
     public EntryAccessInfo GetAccess(ClaimsPrincipal user, string physicalPath, bool isDirectory)
         => Resolve(user, physicalPath, store.Get, isDirectory: _ => isDirectory);
@@ -141,17 +148,28 @@ public sealed class EntryAccess(EntryLocations locations, FolderConfigStore stor
     private EntryAccessInfo Resolve(ClaimsPrincipal user, string physicalPath, Func<string, FolderConfigState> configOf, Func<string,
         bool> isDirectory)
     {
+        string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
+        // (Looked at once: it may be the disk)
+        bool directory = isDirectory(path);
+        if (passwordLocks.IsLocked(path, configOf, directory))
+            return EntryAccessInfo.None;
+
+        // The archive of an archived folder is no entry, for admins neither: what is in it is (once it is unzipped), with the permissions and
+        // passwords of its own. Otherwise a download of the directory around it would hand it out whole. Its name is reserved (no user's file
+        // has it), so this doesn't depend on the folder's configuration, which may be about to change (archiving turned off).
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(path)) && !directory)
+            return EntryAccessInfo.None;
+
         if (CanManageConfiguration(user))
             return Everything;
 
-        string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
         // The configuration files themselves are for admins only, and what isn't part of the entries (also what a bridge hides) is for nobody else
         if (string.Equals(Path.GetFileName(path), PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)
             || !locations.Contains(path))
             return EntryAccessInfo.None;
 
         PrincipalSet principals = PrincipalSet.Of(user);
-        if (FindLayers(path, configOf, isDirectory(path)) is not { } layers)
+        if (FindLayers(path, configOf, directory) is not { } layers)
             return EntryAccessInfo.None;
 
         // Each level is decided by the first layer that says anything about the user

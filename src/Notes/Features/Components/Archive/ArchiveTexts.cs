@@ -25,6 +25,35 @@ public class ArchiveTexts
     public virtual string Cancel => "Cancel";
     public virtual string Download => "Download";
 
+    /// <summary>The archived folders in what is downloaded, for admins: a box for each that unzips it for the download.</summary>
+    public virtual string ArchivedFolders => "Archived folders in this download";
+
+    public virtual string ArchivedFoldersHint
+        => "Not ticked: A folder goes in as it is kept on the server: its configuration and its archive (encrypted, if it is), with the " +
+           "configurations and the history inside it, without unzipping it. Ticked: It is unzipped, and what is in it goes in like any other " +
+           "folder. A folder inside one that is kept as it is is part of that archive. Folders inside one that is zipped now are only listed " +
+           "once it is unzipped.";
+
+    public virtual string UnzipAll => "Also unzip all of them";
+
+    /// <summary>One folder's box: {folder} is its path in the download.</summary>
+    public virtual string UnzipFolder => "Also unzip {folder}";
+
+    /// <summary>After a folder's box: it is zipped now, or encrypted, or part of the archive of the folder it is in.</summary>
+    public virtual string ZippedNow => "zipped now";
+    public virtual string Encrypted => "encrypted";
+    public virtual string InsideKept => "in the archive of {folder}";
+
+    /// <summary>
+    /// For everyone but admins: {count} archived folders are in the download, which are unzipped for it.
+    /// </summary>
+    public virtual string UnzippedForIt
+        => "{count} archived folder(s) in this download are unzipped for it, which may take a while, and zipped again once they aren't used.";
+
+    /// <summary>When the directory itself goes in as it is kept: the download is its archive, so the options don't apply.</summary>
+    public virtual string WholeAsIs
+        => "The directory is downloaded as it is kept: its own archive, as it is on the server. Format, compression and password don't apply.";
+
     // The script's
     public virtual string Preparing => "Preparing the archive…";
     public virtual string LeftOutUnreadable => "Entries without read access were left out of the archive.";
@@ -48,4 +77,10 @@ public class ArchiveTexts
 
     public virtual string ServerCantRead => "Part of what was to go into the archive can't be read by the server.";
     public virtual string ArchiveGone => "The archive is no longer there. Downloading again prepares a new one.";
+    public virtual string StillPreparing => "The archive is still being prepared.";
+    public virtual string AsIsAdminsOnly => "Only admins may download an archived folder as it is kept.";
+    public virtual string NotArchived => "This directory isn't kept as an archive.";
+    public virtual string ArchivedFolderInUse => "The folder is in use right now, so it couldn't be zipped first. Try again in a moment.";
+    public virtual string NotArchivedInIt => "Only archived folders in what is downloaded can go in as they are kept.";
+    public virtual string ArchivedFolderUnzipFailed => "An archived folder in it could not be unzipped, so nothing was downloaded.";
 }

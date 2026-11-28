@@ -1,5 +1,6 @@
 // The card at the bottom of a directory listing, and all of the selecting (_SelectionBar.cshtml, which says what it is made of).
-// What the selection is when the page is made comes from the server, in #selection-state.
+// What the selection is when the page is made comes from the server, in #selection-state, with what the selected entries are like for this
+// browser (status: locked by a password, zipped, unzipped, unlocked; SelectionStatus), which every answer about the selection has too.
 (function () {
     const bar = document.getElementById('selection-bar');
     document.getElementById('floating-cards').append(bar); // last, so the messages that come in are above it
@@ -9,6 +10,11 @@
     const moveButton = document.getElementById('selection-move');
     const deleteButton = document.getElementById('selection-delete');
     const downloadButton = document.getElementById('selection-download');
+    const unlockButton = document.getElementById('selection-unlock');
+    const unzipButton = document.getElementById('selection-unzip');
+    const zipButton = document.getElementById('selection-zip');
+    const lockButton = document.getElementById('selection-lock');
+    const KEEP_KEY = 'notes.selection-kept'; // the page is loaded again by the card itself: the selection stays
     const deleteModal = document.getElementById('selection-delete-modal');
     const spinner = document.getElementById('selection-spinner');
     const progress = document.getElementById('selection-progress');
@@ -82,14 +88,39 @@
         setAvailable(deleteButton, allHere);
         setAvailable(downloadButton, count > 0); // everything selected may be read, which is all a download needs
 
+        // What the selected entries need first, as they are for this browser: what a password locks can only be unlocked (nothing else can be
+        // done with it, the server refuses it); otherwise what is zipped can be unzipped, and what is unzipped or unlocked zipped or locked
+        const status = statusOf();
+        const locked = status.locked.length > 0;
+        setAvailable(unlockButton, locked);
+        setLabel(unlockButton, status.unlock.length === 1 ? texts.unlockOne : texts.unlockAll);
+        setAvailable(unzipButton, !locked && status.zipped.length > 0);
+        setLabel(unzipButton, status.zipped.length === 1 ? texts.unzipOne : texts.unzipAll);
+        setAvailable(zipButton, status.unzipped.length > 0);
+        setLabel(zipButton, status.unzipped.length === 1 ? texts.zipOne : texts.zipAll);
+        setAvailable(lockButton, status.unlocked.length > 0);
+        setLabel(lockButton, status.unlocked.length === 1 ? texts.lockOne : texts.lockAll);
+
         // What the permissions allow for the selected entries themselves, as far as the server knew when they were selected. What is inside
         // a directory is checked only when it is copied, moved or deleted (and the answer says what is wrong). Moving takes the entries
         // away from where they are, so it needs what deleting needs.
+        const lockedReason = locked ? texts.unlockFirst : null;
         const removeDeniedReason = state.canDelete ? null : texts.cantDeleteOrMove;
-        setButtonDisabled(copyButton, createDeniedReason);
-        setButtonDisabled(moveButton, createDeniedReason || removeDeniedReason);
-        setButtonDisabled(deleteButton, removeDeniedReason);
+        setButtonDisabled(copyButton, lockedReason || createDeniedReason);
+        setButtonDisabled(moveButton, lockedReason || createDeniedReason || removeDeniedReason);
+        setButtonDisabled(deleteButton, lockedReason || removeDeniedReason);
+        setButtonDisabled(downloadButton, lockedReason);
     }
+
+    // (A page made before there was a status, or an answer without one, has nothing special selected)
+    const statusOf = () => state.status || { locked: [], unlock: [], zipped: [], unzipped: [], unlocked: [] };
+
+    function setLabel(button, label) {
+        button.dataset.label = label;
+        button.querySelector('.selection-label').textContent = label;
+        refreshLabel(button);
+    }
+    const refreshLabel = button => setButtonDisabled(button, button.dataset.disabledReason || null);
 
     // The top of the card: how many are selected. The boxes show a change at once, but the card shows what the server knows, so
     // until its answer is there the card is only a spinner (and is there even if nothing was selected yet).
@@ -100,8 +131,14 @@
         bar.hidden = count === 0 && !isWaiting && !isBusy();
         countText.classList.toggle('d-none', isWaiting); // only the spinner until the answer is there
         if (!isWaiting) {
-            countText.textContent = count === 1 ? texts.oneSelected : fillIn(texts.manySelected, { count });
+            // Those a password locks are said first, as they are all that can be done anything with now
+            const locked = statusOf().locked.length;
+            const others = count - locked;
+            countText.textContent = locked === 0 ? (count === 1 ? texts.oneSelected : fillIn(texts.manySelected, { count }))
+                : (locked === 1 ? texts.oneLockedSelected : fillIn(texts.manyLockedSelected, { count: locked }))
+                  + (others === 0 ? '' : others === 1 ? texts.andOneOther : fillIn(texts.andManyOthers, { count: others }));
             countText.dataset.count = count;
+            countText.dataset.locked = locked;
         }
         // What the buttons would act on is not known until the answer is there
         actions.classList.toggle('d-none', isBusy() || isWaiting);
@@ -123,7 +160,7 @@
     // Shows or hides one of the card's buttons. Its shortcut only exists while it is shown (a hidden button's would still work).
     function setAvailable(button, available) {
         button.classList.toggle('d-none', !available);
-        if (available)
+        if (available && button.dataset.key)
             button.setAttribute('key', button.dataset.key);
         else
             button.removeAttribute('key');
@@ -412,6 +449,74 @@
         transfer('delete');
     });
 
+    // ---- What the selected entries need first (SelectionStatus) ----
+
+    // The page is loaded again to show how they are now (their marks, which can be opened), with the selection as it is
+    function reloadKeepingSelection(message, kind) {
+        if (message)
+            notifyAfterNavigation(message, kind || 'info');
+        try {
+            sessionStorage.setItem(KEEP_KEY, '1');
+        } catch { }
+        window.location.reload();
+    }
+
+    // Asks for each password in turn (the dialog of _PasswordModal.js), the outermost first; closing the dialog stops there
+    unlockButton.addEventListener('click', async function () {
+        await queue;
+        // (Asked of the server again after each: a folder above may have unlocked more than its own entry)
+        let unlocked = 0;
+        for (let round = 0; round < 50 && statusOf().unlock.length > 0; round++) {
+            if (!await passwordPrompt.ask(statusOf().unlock[0]))
+                break;
+            unlocked++;
+            await sync();
+        }
+        if (unlocked > 0)
+            reloadKeepingSelection(texts.unlocked, 'success');
+    });
+
+    // Unzips them one after the other, covering the page with how far each got
+    unzipButton.addEventListener('click', async function () {
+        await queue;
+        const addresses = [...statusOf().zipped];
+        for (let i = 0; i < addresses.length; i++) {
+            const entry = decodeURIComponent(addresses[i]).replace(/^\//, '');
+            const failure = await whileBusy(setProgress => {
+                setProgress(0);
+                return archiveUnzipping.waitUntilUnzipped(addresses[i], setProgress);
+            }, { blockPage: true, message: fillIn(texts.unzippingOf, { entry, number: i + 1, count: addresses.length }) });
+            if (failure !== null) {
+                notify(failure, 'danger');
+                return;
+            }
+        }
+        reloadKeepingSelection(texts.unzipped, 'success');
+    });
+
+    // Zipping (?zip=entry) and locking (?lock=entry) are asked of each; the server answers at once (zipping goes on, with its bar)
+    async function postToEach(button, addresses, query, message) {
+        await queue;
+        setButtonBusy(button, true);
+        for (const address of addresses) {
+            try {
+                const response = await fetch(address + query, { method: 'POST', headers: { 'RequestVerificationToken': token() } });
+                if (!response.ok) {
+                    setButtonBusy(button, false);
+                    notify((await response.text()) || fillIn(texts.failed, { status: response.status }), 'danger');
+                    return;
+                }
+            } catch {
+                setButtonBusy(button, false);
+                notify(fillIn(texts.failed, { status: 0 }), 'danger');
+                return;
+            }
+        }
+        reloadKeepingSelection(message);
+    }
+    zipButton.addEventListener('click', () => postToEach(zipButton, [...statusOf().unzipped], '?zip=entry', texts.zipping));
+    lockButton.addEventListener('click', () => postToEach(lockButton, [...statusOf().unlocked], '?lock=entry', texts.locked));
+
     // ---- Keeping up ----
 
     // Another tab of this user may have changed the selection (or started a transfer) meanwhile
@@ -426,8 +531,14 @@
     });
 
     // A manual reload starts afresh. (A transfer finishing reloads as well, but then there is nothing left to clear.)
+    // (Not when the card itself loaded it again, to show what it did to the selected entries)
+    let keptByCard = false;
+    try {
+        keptByCard = sessionStorage.getItem(KEEP_KEY) === '1';
+        sessionStorage.removeItem(KEEP_KEY);
+    } catch { }
     const navigation = performance.getEntriesByType('navigation')[0];
-    if (navigation && navigation.type === 'reload' && selected.size > 0 && !state.busy) {
+    if (navigation && navigation.type === 'reload' && selected.size > 0 && !state.busy && !keptByCard) {
         selected = new Set();
         send('clear', []);
     }

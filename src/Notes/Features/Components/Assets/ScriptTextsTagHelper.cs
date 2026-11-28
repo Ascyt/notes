@@ -7,7 +7,8 @@ namespace Notes.Features.Components.Assets;
 /// <summary>
 /// <c>&lt;script-texts id="upload-texts" texts="@Texts"/&gt;</c>: the texts a script of a component shows, as a
 /// <c>&lt;script type="application/json"&gt;</c> block that the script reads with <c>textsOf</c> (site.js). Every public text property of
-/// the object is in it, by its name in camelCase, so that what a site overrides in a texts class reaches the script as well. A text whose
+/// the object is in it (but those marked <see cref="NotForScriptsAttribute"/>), by its name in camelCase, so that what a site overrides in a
+/// texts class reaches the script as well. A text whose
 /// parts change has them in braces (<c>"Uploaded {count} files."</c>), which the script fills in with <c>fillIn</c>.
 /// </summary>
 [HtmlTargetElement("script-texts", TagStructure = TagStructure.WithoutEndTag)]
@@ -30,7 +31,8 @@ public sealed class ScriptTextsTagHelper : TagHelper
         {
             foreach (PropertyInfo property in of.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (property.PropertyType == typeof(string) && property.GetIndexParameters().Length == 0)
+                if (property.PropertyType == typeof(string) && property.GetIndexParameters().Length == 0
+                    && property.GetCustomAttribute<NotForScriptsAttribute>() is null)
                     texts[property.Name] = (string?)property.GetValue(of);
             }
         }

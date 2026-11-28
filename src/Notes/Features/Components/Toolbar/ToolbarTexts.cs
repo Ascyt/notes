@@ -36,6 +36,10 @@ public class ToolbarTexts
         => isFile ? "Download this file" : "Download this directory as a zip";
 
     public virtual string DownloadAsArchive => "Download this directory as an archive";
+    public virtual string LockEntry(bool isFile) => isFile ? "Lock this file again (its password)" : "Lock this directory again (its password)";
+
+    public virtual string ZipEntry(bool encrypted)
+        => encrypted ? "Zip and encrypt this directory now" : "Zip this directory now";
 
     public virtual string Upload => "Upload files";
 

@@ -1,9 +1,15 @@
 {
-    "version": "1.2.0",
+    "version": "1.6.0",
     "perms": {
         "inherit": true
     },
     "gitignore": false,
+    // A password protects this folder and everything in it, admins included. null for none; saving replaces a password with its hash (passwordHash).
+    // The entry of a file can have a "password" too.
+    "password": null,
+    // true keeps this folder in an archive (_.7z or _.zip in it), unzipped while it is used and zipped again after a while.
+    // filetype: "7z" or "zip". compressionLevel: 0 (none; for 7z the least), 1, 2 or 3 (most). encrypted, onLowestLevel: not supported yet.
+    "archive": { "enabled": false, "filetype": "7z", "compressionLevel": 2, "encrypted": false, "onLowestLevel": false },
     "files": [
         {
             "name": "markdown-cheat-sheet.md",

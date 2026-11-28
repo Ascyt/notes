@@ -23,13 +23,24 @@ public interface IPathService
 }
 
 /// <summary>Finds the physical virtual paths, through the bridges (<see cref="EntryLocations"/>).</summary>
-public sealed class PathService(EntryLocations locations) : IPathService
+public sealed class PathService(EntryLocations locations, RequestLookups? lookups = null) : IPathService
 {
     /// <summary>Hidden and system entries are entries like any other, and a directory that can't be read must not look empty.</summary>
     private static readonly EnumerationOptions ListOptions = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
 
     public string? ToPhysicalPath(string virtualPath)
-        => Resolve(virtualPath, FindEntry)?.FullName;
+        => Resolve(virtualPath, FindEntryOnce)?.FullName;
+
+    /// <summary>
+    /// <see cref="FindEntry"/>, and whether it is a link, looked at once per request: the checks of a request ask for the paths along its
+    /// path again and again, each of which goes through the same directories.
+    /// </summary>
+    private FileSystemInfo? FindEntryOnce(string directory, string name)
+        => lookups is null
+            ? FindEntry(directory, name)
+            : lookups.Get("entry", directory + Path.DirectorySeparatorChar + name, _ => FindEntry(directory, name) is { } entry && !IsLink(entry)
+                ? entry
+                : null);
 
     public IReadOnlyList<FileSystemInfo?> FindEntries(IReadOnlyList<string> virtualPaths)
     {
@@ -74,7 +85,7 @@ public sealed class PathService(EntryLocations locations) : IPathService
             walked = walked == "" ? name : walked + "/" + name;
             if (locations.BridgeAt(walked) is { } bridge)
             {
-                if (!Directory.Exists(bridge.PhysicalPath))
+                if (!(lookups?.IsDirectory(bridge.PhysicalPath) ?? Directory.Exists(bridge.PhysicalPath)))
                     return null;
                 current = new DirectoryInfo(bridge.PhysicalPath);
                 continue;
@@ -203,6 +214,8 @@ public sealed class PathService(EntryLocations locations) : IPathService
            && !name.EndsWith('.')
            && name is not ("." or ".." or ReservedName)
            && !string.Equals(name, ConfigFileName, StringComparison.OrdinalIgnoreCase)
+           // The archive of an archived folder (and the one being written): reserved everywhere, so that one is never taken for a user's file
+           && !ZippedFolders.ArchivedFolder.IsArchiveFileName(name)
            && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
            && !name.Contains('\\');
 }

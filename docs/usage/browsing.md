@@ -18,7 +18,25 @@ Above the listing is the path of the directory (the *breadcrumb*): each part of 
 |---|---|
 | ![A directory on a desktop](../screenshots/directory-desktop.png) | ![A directory on a phone](../screenshots/directory-phone.png) |
 
+An uploaded archive that is being unzipped has a bar after its name; the page is loaded again once it became a folder. One that couldn't be unzipped has a red mark, whose tooltip says why (see [Organizing](organizing.md#uploading)).
+
+Every bar of these (zipping, unzipping, making an archive to download, unzipping an upload, uploading) says next to it or under it what is being done, and how much of it: "Writing the archive: 12 of 340 files, 1.2 MiB of 40.0 MiB (35%)". The steps of zipping are counting what there is, writing (and encrypting) the archive, checking the new archive, putting it in place, and deleting (overwriting, for an encrypted one) the unzipped copy; of unzipping, unzipping its entries and putting them in place. Waiting for its turn, or for what uses the directory, says so too. An archived directory's own history goes into its archive, so zipping counts more files than are listed.
+
+A directory with a zipper after its name is kept in an archive (see [Archived directories](../administration/archived-directories.md)): it is used like any other. A solid blue zipper means it is zipped now, and going into it takes a moment, which the page shows with a bar; a gray outline means it is unzipped. A bar after the outline means it is being zipped; going into it then stops that, and takes no longer than usual. An encrypted one has a shield instead: whole and yellow while it is zipped, halved and gray while it is unzipped, with a yellow bar while it is being zipped (also while its password is locked again, as the lock button zips it); its lock, if it has a password of its own, comes before it, as for any entry with a password. The zipper (or shield) is also in the breadcrumb. While one is unzipped, a blue zipper next to the account (Alt+L, when there is nothing to lock) zips them at once.
+
 An entry with a lock can be seen but not opened: its name is visible, but what is in it isn't, for lack of permission. Hovering it says so.
+
+## Running storage operations
+
+While anything long runs on the storage that a logged-in user may see (in what they may read; admins see everything), a gray hard drive is in the navbar, next to the account (Alt+O). It opens the list of them, the most recent first: what is done (zipping or unzipping an archived directory, preparing a download, unzipping an uploaded archive, copying, moving or deleting selected entries), the directory it runs in, who started it ("the app" for what it does by itself, like zipping idle directories), a bar of how far it got, and what it does now in one line. Whoever started one, and admins, can cancel it (admins only what the app started):
+
+- Zipping stops (the directory stays unzipped, as before); past the point where the new archive took the old one's place, it finishes.
+- Unzipping stops: nothing is unzipped, and what was waiting for it says so.
+- A download being prepared is discarded.
+- Unzipping an uploaded archive stops: the archive stays a file, without a mark.
+- A copy or move stops while it copies, and nothing is changed (everything is first copied aside, and only then put in place in one quick step, which isn't stopped). A delete stops only before it begins: it is one quick step.
+
+What waits to begin (for its turn, or for what uses an archived directory) has an hourglass in place of its bar, here and wherever else its bar would be; its tooltip says what it waits for, where that is known.
 
 ## Earlier states
 
@@ -51,9 +69,13 @@ Different views of the same file share its address and only add to it: `?edit` f
 
 ![The page for an address that leads nowhere](../screenshots/error-desktop.png)
 
+## Passwords
+
+A directory or file can be protected by a password (see [Passwords](../administration/passwords.md)): it is listed like any other entry with a yellow lock after its name, and opening it (or anything in it) asks for the password. It then stays unlocked, with a gray unlocked padlock in its place (also in the breadcrumb, after the entry that has the password), in this browser for 10 minutes after it was last used; typing in it counts, saved or not. If it runs out while a file is being edited, saving asks for the password again and nothing typed is lost. The yellow lock next to the account (Alt+L) locks everything again at once, and goes to the folder above what was unlocked. The yellow lock leftmost in the toolbar of an unlocked entry locks only that one. Likewise, an archived directory that is unzipped has a zip button leftmost in its toolbar, which zips only it. After five wrong passwords, each further one has to wait a while, which the dialog counts down.
+
 ## Logging in
 
-Without logging in, only what is open to everyone can be seen, and nothing can be changed. A note at the top of the page says so, with the link to log in.
+Without logging in, only what is open to everyone can be seen, and nothing can be changed. A note at the top of the page says so, with the link to log in (Alt+Shift+L; logging out has the same shortcut).
 
 ![A directory without logging in](../screenshots/not-logged-in-desktop.png)
 

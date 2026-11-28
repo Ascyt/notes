@@ -54,7 +54,7 @@ Each commit is by the user who made its changes: their user name, and their emai
 
 ## What it keeps
 
-Every file of the notes, unless the [configuration](configuration.md#the-file) of its directory says `"gitignore": true`: then the files of that directory and below are left out (a subdirectory with its own configuration decides for itself). The `.config.json` files are always kept.
+Every file of the notes that isn't too large (see below), unless the [configuration](configuration.md#the-file) of its directory says `"gitignore": true`: then the files of that directory and below are left out (a subdirectory with its own configuration decides for itself). The `.config.json` files are always kept.
 
 When a configuration saved in the app changes what is kept, that is committed right away, in two steps:
 
@@ -67,6 +67,8 @@ With every commit, the app writes what is left out into the repository's exclude
 
 What is left out is worth thinking about for large binary files (videos, archives): the history keeps every version of every file it keeps, so it grows with each of them.
 
+**Large files** are left out whatever the configuration says: a file larger than `Config:History:MaxFileMegabytes` (50 by default) isn't put into the history. One that grows past it leaves the history with the next commit, like a file `gitignore` leaves out: it stays on disk, and its earlier versions stay in the commits that have them. If it gets smaller again, it comes back. `.config.json` files are always kept. Set it to `null` to keep every file, whatever its size. Its history button says why it is disabled (to those who manage the configuration).
+
 ## Settings
 
 In `appsettings.json` (or the environment, e.g. `Config__History__IdleMinutes`):
@@ -77,5 +79,6 @@ In `appsettings.json` (or the environment, e.g. `Config__History__IdleMinutes`):
 | `Config:History:IdleMinutes` | `10` | Minutes without a change after which what is pending is committed. |
 | `Config:History:LineThreshold` | `200` | Changed lines after which what is pending is committed at once. |
 | `Config:History:RemovedLineWeight` | `2` | How much a removed line counts, compared to an added one. |
+| `Config:History:MaxFileMegabytes` | `50` | Files larger than this are left out of the history (see [What it keeps](#what-it-keeps)). `null` keeps every file. |
 
 If something goes wrong with the history, what the user did still happens: the error is in the log.

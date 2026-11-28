@@ -1,4 +1,4 @@
-namespace Notes.Features.Helpers;
+﻿namespace Notes.Features.Helpers;
 
 /// <summary>
 /// Held by every operation that adds, removes or renames entries (create, upload, rename, copy, move, delete), for all users,
@@ -17,6 +17,8 @@ public sealed class StructureLock
     public async Task<IDisposable> EnterAsync()
     {
         await _gate.WaitAsync(CancellationToken.None);
+        // What is changed while it is held changes entries: requests look at the disk again, until it is released and after
+        RequestLookups.ChangingEntries();
         return new Releaser(_gate);
     }
 
@@ -27,7 +29,10 @@ public sealed class StructureLock
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                RequestLookups.EntriesChanged();
                 _ = gate.Release();
+            }
         }
     }
 }

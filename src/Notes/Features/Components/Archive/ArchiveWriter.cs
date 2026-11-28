@@ -19,15 +19,18 @@ public static class ArchiveWriter
     /// Writes the archive to a new file at <paramref name="targetPath"/>. Each entry of the folder is listed and opened when the writer gets to
     /// it (see <see cref="ZipFolderEntry.ListContents"/>).
     /// </summary>
+    /// <param name="progress">Counts what is read, to tell how far it got; none if nobody waits to see that.</param>
     public static async Task WriteAsync(ZipFolderEntry folder, ArchiveOptions options, string targetPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ArchiveProgress? progress = null)
     {
-        // ReadWrite: the 7z writer goes back to the start to fill in where its header is
-        await using FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, useAsync: true);
+        // ReadWrite: the 7z writer goes back to the start to fill in where its header is. (Others may read it meanwhile: the tests of
+        // zipped folders copy what is on disk while it is written.)
+        await using FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read, 81920, useAsync: true);
+        Func<ZipFileEntry, Stream> open = progress is null ? entry => entry.OpenRead() : entry => progress.Counting(entry.OpenRead());
         if (options.Format == ArchiveFormat.SevenZip)
-            await WriteSevenZipAsync(folder, options, file, cancellationToken);
+            await WriteSevenZipAsync(folder, options, file, open, cancellationToken);
         else
-            await WriteZipAsync(folder, options, file, cancellationToken);
+            await WriteZipAsync(folder, options, file, open, cancellationToken);
     }
 
     // ---- 7z
@@ -45,7 +48,7 @@ public static class ArchiveWriter
         _ => throw new ArgumentOutOfRangeException(nameof(compression), compression, "The 7z writer always compresses.")
     };
 
-    private static async Task WriteSevenZipAsync(ZipFolderEntry folder, ArchiveOptions options, Stream output,
+    private static async Task WriteSevenZipAsync(ZipFolderEntry folder, ArchiveOptions options, Stream output, Func<ZipFileEntry, Stream> open,
         CancellationToken cancellationToken)
     {
         SevenZipWriterOptions writerOptions = new(CompressionType.LZMA2)
@@ -57,11 +60,11 @@ public static class ArchiveWriter
             LeaveStreamOpen = true
         };
         await using SevenZipWriter writer = new(output, writerOptions);
-        await AddToSevenZipAsync(writer, folder, "", cancellationToken);
+        await AddToSevenZipAsync(writer, folder, "", open, cancellationToken);
     }
 
     /// <param name="prefix">Path of the folder in the archive: "" for the top level, otherwise ending in "/".</param>
-    private static async Task AddToSevenZipAsync(SevenZipWriter writer, ZipFolderEntry folder, string prefix,
+    private static async Task AddToSevenZipAsync(SevenZipWriter writer, ZipFolderEntry folder, string prefix, Func<ZipFileEntry, Stream> open,
         CancellationToken cancellationToken)
     {
         foreach (ZipEntry entry in folder.ListContents())
@@ -72,12 +75,12 @@ public static class ArchiveWriter
             {
                 // Every folder is an entry of its own, so empty ones are kept
                 await writer.WriteDirectoryAsync(name, null, cancellationToken);
-                await AddToSevenZipAsync(writer, subfolder, name + "/", cancellationToken);
+                await AddToSevenZipAsync(writer, subfolder, name + "/", open, cancellationToken);
                 continue;
             }
 
             ZipFileEntry fileEntry = (ZipFileEntry)entry;
-            await using (Stream source = fileEntry.OpenRead())
+            await using (Stream source = open(fileEntry))
                 await writer.WriteAsync(name, source, fileEntry.LastWriteTime.UtcDateTime, cancellationToken);
         }
     }
@@ -93,7 +96,7 @@ public static class ArchiveWriter
         _ => 9
     };
 
-    private static async Task WriteZipAsync(ZipFolderEntry folder, ArchiveOptions options, Stream output,
+    private static async Task WriteZipAsync(ZipFolderEntry folder, ArchiveOptions options, Stream output, Func<ZipFileEntry, Stream> open,
         CancellationToken cancellationToken)
     {
         await using ZipOutputStream zip = new(output) { IsStreamOwner = false };
@@ -101,12 +104,12 @@ public static class ArchiveWriter
         if (options.Password is not null)
             zip.Password = options.Password;
 
-        await AddToZipAsync(zip, folder, "", options, cancellationToken);
+        await AddToZipAsync(zip, folder, "", options, open, cancellationToken);
         await zip.FinishAsync(cancellationToken);
     }
 
     private static async Task AddToZipAsync(ZipOutputStream zip, ZipFolderEntry folder, string prefix, ArchiveOptions options,
-        CancellationToken cancellationToken)
+        Func<ZipFileEntry, Stream> open, CancellationToken cancellationToken)
     {
         ZipEntry[] entries = [.. folder.ListContents()];
 
@@ -122,7 +125,7 @@ public static class ArchiveWriter
             cancellationToken.ThrowIfCancellationRequested();
             if (entry is ZipFolderEntry subfolder)
             {
-                await AddToZipAsync(zip, subfolder, prefix + subfolder.Name + "/", options, cancellationToken);
+                await AddToZipAsync(zip, subfolder, prefix + subfolder.Name + "/", options, open, cancellationToken);
                 continue;
             }
 
@@ -138,7 +141,7 @@ public static class ArchiveWriter
             if (options.Compression == ArchiveCompression.Store)
                 zipEntry.CompressionMethod = CompressionMethod.Stored;
 
-            await using (Stream source = fileEntry.OpenRead())
+            await using (Stream source = open(fileEntry))
             {
                 await zip.PutNextEntryAsync(zipEntry, cancellationToken);
                 await source.CopyToAsync(zip, cancellationToken);

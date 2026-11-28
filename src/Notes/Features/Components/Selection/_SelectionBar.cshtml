@@ -16,7 +16,26 @@
 <div id="selection-bar" class="floating-card card shadow" data-directory="@Model.DirectoryPath" data-create-denied="@Model.CreateDeniedReason" hidden>
     <div class="card-body d-flex align-items-center flex-wrap gap-3 py-2 px-3">
         <span id="selection-count"></span>
-        <div id="selection-actions" class="d-flex gap-2">
+        <div id="selection-actions" class="d-flex flex-wrap gap-2">
+            @* First, solid: what the selected entries need, or can have done to them, as they are for this browser (SelectionStatus). While a
+               password locks some, Unlock is all that can be done (it asks for each password in turn); otherwise zipped archived folders
+               can be unzipped, and what is unzipped or unlocked zipped or locked again. Labels for one or for all are the script's. *@
+            <button type="button" id="selection-unlock" class="btn btn-sm btn-warning d-none" data-label="@Texts.UnlockOne">
+                <i class="fa-solid fa-key btn-icon"></i><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+                <span class="selection-label">@Texts.UnlockOne</span>
+            </button>
+            <button type="button" id="selection-unzip" class="btn btn-sm btn-primary d-none" data-label="@Texts.UnzipOne" title="@Texts.UnzipHint">
+                <i class="fa-regular fa-file-zipper btn-icon"></i><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+                <span class="selection-label">@Texts.UnzipOne</span>
+            </button>
+            <button type="button" id="selection-zip" class="btn btn-sm btn-primary d-none" data-label="@Texts.ZipOne" title="@Texts.ZipHint">
+                <i class="fa-solid fa-file-zipper btn-icon"></i><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+                <span class="selection-label">@Texts.ZipOne</span>
+            </button>
+            <button type="button" id="selection-lock" class="btn btn-sm btn-warning d-none" data-label="@Texts.LockOne" title="@Texts.LockHint">
+                <i class="fa-solid fa-lock btn-icon"></i><span class="spinner-border spinner-border-sm btn-spinner d-none" aria-hidden="true"></span>
+                <span class="selection-label">@Texts.LockOne</span>
+            </button>
             @* Either Copy and Move (selection from elsewhere) or Delete (selection in this very directory), never both. Which ones there are
                is up to the script, which also gives them their shortcuts (data-key) only while they are there. Those that are there but
                can't be used (permissions) are disabled with the reason, like the toolbar buttons (site.js). *@
@@ -68,6 +87,6 @@
 </div>
 
 @* What the selection is when the page is made, for the script *@
-<script type="application/json" id="selection-state">@Json.Serialize(Model.Selection)</script>
+<script type="application/json" id="selection-state">@Json.Serialize(SelectionView.Of(Model.Selection, Model.Status))</script>
 <script-texts id="selection-texts" texts="@Texts"/>
 <script component-asset="@_SelectionBar.Script"></script>

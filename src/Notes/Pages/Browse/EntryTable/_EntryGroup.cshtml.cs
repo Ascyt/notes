@@ -59,8 +59,9 @@ public class _EntryGroup : PageModel
     /// <summary>The row of an entry that can't be opened (see <see cref="ListedEntry.CanOpen"/>).</summary>
     public _UnopenableEntry UnopenableRow(ListedEntry entry, int index)
     {
-        // One without history leads to the entry as it is now, whose page says why; one that is gone now leads nowhere, nor does a locked one
-        string? href = entry.Kind == ListedKind.NoHistory && entry.ExistsNow
+        // One without history leads to the entry as it is now, whose page says why; one that is gone now leads nowhere, nor does a locked one.
+        // One that a password locks leads to where it is asked for.
+        string? href = (entry.Kind == ListedKind.NoHistory && entry.ExistsNow) || entry.Kind == ListedKind.PasswordLocked
             ? VirtualPaths.ToAddress(Listing.ToVirtualPath(entry.Path))
             : null;
         return new _UnopenableEntry
@@ -69,10 +70,18 @@ public class _EntryGroup : PageModel
             IsDirectory = IsDirectories,
             Icon = IconOf(entry),
             Kind = entry.Kind,
+            Archived = entry.Archived,
+            ArchiveEncrypted = entry.ArchiveEncrypted,
+            ZipProgress = entry.ZipProgress,
+            Address = VirtualPaths.ToAddress(Listing.ToVirtualPath(entry.Path)),
             Number = Number(index),
             Href = href,
             Key = href is null ? null : OpenKey(index),
-            ShowsCheckbox = Listing.CanSelect
+            ShowsCheckbox = Listing.CanSelect,
+            VirtualPath = Listing.ToVirtualPath(entry.Path),
+            Group = Group,
+            IsSelected = Listing.IsSelected(Listing.ToVirtualPath(entry.Path)),
+            SelectKey = SelectKey(index)
         };
     }
 }

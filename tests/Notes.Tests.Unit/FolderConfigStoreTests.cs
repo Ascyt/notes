@@ -102,6 +102,35 @@ public sealed class FolderConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void An_archive_to_unzip_is_marked_even_without_a_configuration_and_the_mark_stays_behind_on_rename()
+    {
+        _ = _notes.Files.File("dir/up.zip", "z");
+        string dir = _notes.P("dir");
+
+        Assert.True(_notes.Store.UnzipPending(dir, "up.zip"));
+        _notes.Store.FileRenaming(dir, "up.zip", "renamed.zip");
+        File.Move(Path.Combine(dir, "up.zip"), Path.Combine(dir, "renamed.zip"));
+        _notes.Store.FileRenamed(dir, "up.zip", "renamed.zip");
+
+        FileEntry renamed = _notes.Store.Get(dir).Config!.FindFile("renamed.zip")!;
+        Assert.False(renamed.UnzipPending);
+    }
+
+    [Fact]
+    public void A_failed_unzipping_replaces_the_pending_mark_with_the_reason()
+    {
+        _ = _notes.Files.File("dir/up.zip", "z");
+        string dir = _notes.P("dir");
+        _ = _notes.Store.UnzipPending(dir, "up.zip");
+
+        _notes.Store.UnzipFailed(dir, "up.zip", "it's damaged");
+
+        FileEntry entry = _notes.Store.Get(dir).Config!.FindFile("up.zip")!;
+        Assert.False(entry.UnzipPending);
+        Assert.Equal("it's damaged", entry.UnzipError);
+    }
+
+    [Fact]
     public void A_folder_without_a_configuration_stays_without_one()
     {
         string dir = _notes.Files.Dir("dir");

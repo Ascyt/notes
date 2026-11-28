@@ -62,6 +62,10 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 | `name` (of an upload) | A [name for a new entry](#names-of-new-entries) | 400 with the reason |
 | `folder` (of an upload) | Names for new entries, separated by `/` (no `.` or `..`) | 400 with the reason |
 | `offset` (of an upload) | A whole number from 0, no gap after what was uploaded so far | 400, 409 |
+| `unzip` (of an upload) | Only whether it is there counts; only for a `.zip` or `.7z` (for any other file it means nothing) | 403 if the folder it would be unzipped into may not be made |
+| `unzipping` (GET of a directory) | The name of a file in it (no `/` or `\`) | 400 |
+| `operations` | Nothing (GET: the list); `cancel` (POST, with `{ "id": "<guid>" }` as JSON) | 404 (GET with a value, or not logged in); 400 |
+| `hashes` (GET of a directory) | The name of a file in it, with `size` (a whole number from 0) and `piece` (bytes, from 1 MiB to 64 MiB) | 400; `{ "hashes": null }` for no such file, another size, or one the user may not read |
 | `selection` | `add`, `remove`, `clear` (POST); nothing (GET) | 400 |
 | `transfer` | `copy`, `move`, `delete` | 400 |
 | `archive` | `directory`, `selection` (POST); the id of an archive the server made, a GUID (GET) | 400; 404 for an id that is not one of the user's archives |
@@ -78,6 +82,7 @@ Parameters the page doesn't know are ignored.
 |---|---|---|
 | Text of a file | `POST /file` (save) | UTF-8, at most `Config:Limits:MaxTextBytes` (413 otherwise). Read completely before anything is checked or written. Bytes that aren't valid UTF-8 are refused with 400, not replaced. |
 | Chunk of an upload | `POST /dir?upload=<id>&…` | Raw bytes, each at most the server's request limit; the whole file at most `Config:Limits:MaxUploadBytes` (413, and the upload is discarded). Chunks of one upload come one after the other (409 for one that arrives while another is written). |
+| An archive to unzip | `POST /dir?upload=<id>&…&unzip` | Uploaded as any file; `&unzip` means something only for a `.zip` or `.7z` (by its name), which then gets `"unzipPending": true` in its entry and is unzipped in the background into a folder of the app's data first (`_/temp/unzip`), then renamed into place under the structure lock. Every entry is checked as a new name (one that can't be one, or that leads out of it: `..`, a path from the root, fails it); configurations, archives of archived folders and the app's data (`_`) are left out and counted. At most `Config:Limits:MaxUnzippedBytes` written and `Config:Limits:MaxUnzippedEntries` entries. Encrypted ones are not unzipped. What fails it leaves the archive as it is, with `unzipError` in its entry; nothing of what was unzipped is kept. |
 | Paths to select or unselect | `POST /?selection=add\|remove` | JSON (`Content-Type: application/json`) `{ "paths": [...] }`, at most 10,000 paths. Paths that can't be selected are left out. |
 | Version of the selection | `POST /dir?transfer=…` | JSON `{ "version": <number> }`. A transfer only runs if it is the version the user's selection has. |
 | How to make an archive | `POST /entry?archive=directory\|selection` | JSON `{ "format": "7z"\|"zip", "compression": "store"\|"min"\|"medium"\|"high"\|"max", "password": "…", "version": <number> }`, at most 4 KiB (the version only for the selection, see above). `store` only with `zip`, `min` only with `7z` (the 7z writer always compresses). The password is optional (missing or empty: none), at most 256 characters, without control characters; see [Passwords of archives](#passwords-of-archives). Anything else is refused with 400. |
@@ -91,6 +96,13 @@ The password an archive is encrypted with is the one secret a user types into th
 - It is used to encrypt the archive and nothing else: it is not logged, not stored, not shown, and not kept in the browser (the dialog forgets it once it is closed; the format and compression it keeps). The field is a password field that password managers are told not to fill in (`autocomplete="new-password"`), and it can be shown while typing.
 - A 7z is encrypted with AES-256, its names included (nothing about what is in it can be read without the password); a zip with AES-256 too (WinZip's AES, which 7-Zip and most programs open, not zip's old encryption, which is easily broken), with its names readable, as zip has no way to hide them.
 - The finished archive is a file in the app's data (`_/temp/archive`) until it is deleted, an hour after it was made at the latest. It is as safe as its password: the app doesn't check how strong that is.
+
+### Passwords of entries
+
+The [password of an entry](../administration/passwords.md) is typed in two places, and handled like that of an archive:
+
+- **In the configuration editor**, as `password`: checked with the rest of the text (not empty, no control characters, at most 72 bytes of UTF-8, which is what bcrypt reads; longer is refused, never cut off), and replaced by its hash before anything is written. The text the editor gets back has only the hash.
+- **To unlock**, in the body of `POST ?unlock` (JSON, at most 4 KB), or in the header `X-Notes-Password`, base64 of its UTF-8 (one per header value or comma-separated; at most 16 are decoded per request, each at most 288 characters, and what isn't valid base64 of UTF-8 is left out). Checked the same way before it is compared with the hash; it is not kept, logged or shown. The dialog forgets it once it is closed, and the field is one password managers may fill in (`autocomplete="current-password"`).
 
 ## Contents of the notes
 
@@ -125,6 +137,7 @@ Nothing a user sends is unbounded. The limits that can be changed are in `Config
 | All headers of a request | 32 KiB | Kestrel |
 | A request body | 30,000,000 bytes (about 28.6 MiB) | Kestrel. Uploads are sent in chunks of 8 MiB, so a file may be larger. |
 | An uploaded file | `Config:Limits:MaxUploadBytes` (64 GiB) | |
+| What an uploaded archive holds, unzipped | `Config:Limits:MaxUnzippedBytes` (64 GiB), `Config:Limits:MaxUnzippedEntries` (100,000) | What is written counts |
 | Unfinished uploads of one user | `Config:Limits:MaxUploadsInProgressPerUser` (100); they are discarded an hour after their last chunk | |
 | Text that is saved, shown in the editor or rendered | `Config:Limits:MaxTextBytes` (16 MiB) | |
 | Paths in one selection request | 10,000 | `SelectionHandler` |

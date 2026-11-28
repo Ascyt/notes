@@ -1,6 +1,19 @@
 @using Notes.Features.Components.Rename
 @model _Breadcrumb
 @inject BreadcrumbTexts Texts
+@inject Notes.Features.Passwords.PasswordLocks Passwords
+@inject IPathService Paths
+@inject Notes.Features.ZippedFolders.ArchivedFolders Archives
+
+@{
+    // An open lock goes after each entry along the way whose password is unlocked: the outermost entry of that password, as what is in it
+    // has the same one. The zipper goes after each archived folder.
+    HashSet<string> unlocked = Model.UnlockedPaths(Passwords, Paths);
+    Dictionary<string, Notes.Features.ZippedFolders._ArchivedMark> archived = Model.ArchivedPaths(Archives, Paths);
+    Func<object?, object> unlockedMark = @<partial name="/Features/Passwords/_UnlockedMark.cshtml"/>;
+    Func<Notes.Features.ZippedFolders._ArchivedMark, object> archivedMark = @<partial name="/Features/ZippedFolders/_ArchivedMark.cshtml"
+        model="item"/>;
+}
 
 @* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.css) *@
 @* Always one line: where the parents don't fit, _Breadcrumb.js shortens them (a dot each, then "…" for the outer ones), so that the name
@@ -20,7 +33,7 @@
     {
         @* Nowhere to go from here, and nothing to rename *@
         <i class="fa-regular fa-house fa-xs"></i>
-        <span>@rootName</span>
+        <span>@rootName@if (unlocked.Contains(Model.RootVirtualPath)) {@unlockedMark(null)}</span>
     }
     else
     {
@@ -38,7 +51,7 @@
         else
         {
             <a href="@Model.RootAddress" title="@rootName" class="text-decoration-none d-flex align-items-center" key="@rootKey">
-                <i class="fa-regular fa-house fa-xs"></i>
+                <i class="fa-regular fa-house fa-xs"></i>@if (unlocked.Contains(Model.RootVirtualPath)) {@unlockedMark(null)}
             </a>
         }
         <span class="text-secondary opacity-50">/</span>
@@ -56,7 +69,9 @@
             <span class="breadcrumb-part breadcrumb-parent" data-name="@name" data-address="@address">
                 @if (!Model.ParentsWithoutHistory.TryGetValue(virtualPath, out ParentWithoutHistory? withoutHistory))
                 {
-                    <a class="text-decoration-none" href="@address" key="@key"><span class="breadcrumb-name">@name</span>@dot(null)</a>
+                    @* (The open lock is part of the name, so it goes with it where a dot takes its place) *@
+                    <a class="text-decoration-none" href="@address" key="@key"><span class="breadcrumb-name">@name@if (unlocked.Contains(virtualPath))
+                        {@unlockedMark(null)}@if (archived.TryGetValue(virtualPath, out var parentState)) {@archivedMark(parentState)}</span>@dot(null)</a>
                 }
                 else
                 {
@@ -80,6 +95,14 @@
         <i class="fa-s @Model.Icon"></i>
         <partial name="/Features/Components/Rename/_RenameInput.cshtml"
             model="new _RenameInput { Name = Model.Name, IsFile = Model.IsFile, DisabledReason = Model.RenameDisabledReason }"/>
+        @if (Model.IsUnlocked(unlocked))
+        {
+            @unlockedMark(null)
+        }
+        @if (archived.TryGetValue(Model.VirtualPath.Trim('/'), out var ownState))
+        {
+            @archivedMark(ownState)
+        }
         <script component-asset="@_Breadcrumb.Script"></script>
     }
 </div>

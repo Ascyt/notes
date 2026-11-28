@@ -1,3 +1,5 @@
+using Notes.Features.Components.Assets;
+
 namespace Notes.Features.HistoryViewing;
 
 /// <summary>
@@ -84,9 +86,17 @@ public class HistoryTexts
 
     // Why the history can't be seen here at all (for those who manage the configuration, who may know why)
 
+    [NotForScripts]
     public virtual string BridgeHistoryNotViewable => "This is in a bridge (Config:Bridges), whose history is recorded but can't be viewed in the app yet.";
+    [NotForScripts]
     public virtual string BridgeWithoutHistory => "This is in a bridge (Config:Bridges) without a history (History:Enabled is false).";
+    [NotForScripts]
+    public virtual string ArchiveHistoryNotViewable => "This is in an archived folder, whose history is recorded (in its archive) but can't be viewed in the app yet.";
+    [NotForScripts]
+    public virtual string ArchiveWithoutHistory => "This is in an archived folder inside a bridge without a history (History:Enabled is false).";
     public virtual string LeftOut(bool isFile) => $"The configuration leaves this {Kind(isFile)} out of the history (gitignore).";
+    public virtual string TooBig(double maxMegabytes)
+        => $"This file is larger than {maxMegabytes.ToString(System.Globalization.CultureInfo.InvariantCulture)} MB, so it is left out of the history (History:MaxFileMegabytes).";
 
     /// <summary>What a page that was led to says, as the address asked for an earlier state that can't be shown (<see cref="Requests.EarlierStateNotice"/>).</summary>
     public virtual string? Notice(string notice) => notice switch
@@ -116,6 +126,7 @@ public class HistoryTexts
         History.CommitKeywords.OtherUser => "Before a change by another user",
         History.CommitKeywords.BinaryDeleted => "Binary file deleted",
         History.CommitKeywords.Startup => "Changed while the app was not running",
+        History.CommitKeywords.Zipping => "Before it was zipped",
         History.CommitKeywords.Migration when managesConfiguration => "Configuration brought up to date",
         History.CommitKeywords.BeforeGitignore when managesConfiguration => "Before a change of what the history keeps",
         History.CommitKeywords.Gitignore when managesConfiguration => "What the history keeps changed",

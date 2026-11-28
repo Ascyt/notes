@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Transfer;
@@ -14,7 +14,9 @@ namespace Notes.Features.Components.Rename;
 /// the same directory, so it needs the same permissions as a move (see <see cref="TransferPlanner.CheckRename"/>).
 /// </summary>
 public sealed class RenameHandler(EntryLocations locations, IPathService path, TransferPlanner planner, StructureLock structureLock,
-    FolderConfigStore configs, HistoryService history, EntryTexts entryTexts, NameTexts nameTexts) : IEntryPostAction
+    FolderConfigStore configs, HistoryService history, EntryTexts entryTexts, NameTexts nameTexts, Passwords.PasswordUnlocks unlocks,
+    ZippedFolders.ArchivedFolders archives, TransferTexts transferTexts, Auth.AccessTree tree, Passwords.PasswordLocks passwordLocks,
+    ZippedFolders.ArchivePasswordPrompt passwordPrompt, ILogger<RenameHandler> logger) : IEntryPostAction
 {
     public const string RenameParameter = "rename";
 
@@ -43,29 +45,77 @@ public sealed class RenameHandler(EntryLocations locations, IPathService path, T
             if (!locations.IsFree(newPhysicalPath) && !string.Equals(newPhysicalPath, physicalPath, StringComparison.OrdinalIgnoreCase))
                 return new ConflictObjectResult(entryTexts.NameTaken);
 
+            // What is in the archived folders in it (or that it is) is checked as for any directory: unzipped for that (those the user may
+            // open; the gate unzipped the entry itself), and kept so while it is checked
+            if (isDirectory)
+            {
+                try
+                {
+                    await archives.UnzipAllAtOrBelowAsync([physicalPath],
+                        folder => tree.CanOpen(user, folder) && passwordLocks.FirstLocked(folder) is null);
+                }
+                catch (IOException e)
+                {
+                    logger.LogError(e, "An archived folder in {path} could not be unzipped for a rename", physicalPath);
+                    return new ObjectResult(transferTexts.ArchivedFolderUnzipFailed) { StatusCode = StatusCodes.Status500InternalServerError };
+                }
+            }
+
+            using (await archives.UseAllAroundAsync([physicalPath]))
+            {
+                try
+                {
+                    // (Also checks the length of the new path of everything in the tree)
+                    planner.CheckRename(user, physicalPath, newPhysicalPath);
+                }
+                catch (TransferException e)
+                {
+                    return new ObjectResult(e.Message) { StatusCode = e.StatusCode };
+                }
+            }
+
+            if (!isDirectory)
+                return Rename(request.Context, user, directory, physicalPath, newPhysicalPath, isDirectory: false);
+
+            // What is archived at or in it is mounted where it is now: zipped first (and kept so meanwhile), it moves with it as its archive,
+            // and is unzipped again where it is then. The entry is then the folder itself, next to its archive, rather than its unzipped copy.
             try
             {
-                // (Also checks the length of the new path of everything in the tree)
-                planner.CheckRename(user, physicalPath, newPhysicalPath);
+                return await archives.WhileZippedAsync([physicalPath],
+                    folders => Task.FromResult(Rename(request.Context, user, directory, folders[0], newPhysicalPath, isDirectory: true)));
             }
-            catch (TransferException e)
+            catch (ZippedFolders.ArchivePasswordNeededException e)
             {
-                return new ObjectResult(e.Message) { StatusCode = e.StatusCode };
+                return passwordPrompt.Ask(request.Context, e.Protection, physicalPath);
             }
-
-            string[] changed = isDirectory
-                ? [physicalPath, newPhysicalPath]
-                : [physicalPath, newPhysicalPath, Path.Combine(directory, PathService.ConfigFileName)];
-            history.BeforeChange(user, changed);
-            if (isDirectory)
-                // (Its own configuration file is in it, and goes along in the same step)
-                Directory.Move(physicalPath, newPhysicalPath);
-            else
-                RenameFile(directory, physicalPath, newPhysicalPath);
-            history.AfterChange(user, changed, HistoryChangeKind.Change);
-
-            return new ContentResult { Content = VirtualPaths.ToAddress(path.ToVirtualPath(newPhysicalPath)) };
+            catch (IOException e)
+            {
+                logger.LogWarning(e, "What is archived in {path} could not be zipped for a rename", physicalPath);
+                return new ConflictObjectResult(entryTexts.InUse);
+            }
         }
+    }
+
+    private IActionResult Rename(HttpContext context, ClaimsPrincipal user, string directory, string physicalPath, string newPhysicalPath,
+        bool isDirectory)
+    {
+        string[] changed = isDirectory
+            ? [physicalPath, newPhysicalPath]
+            : [physicalPath, newPhysicalPath, configs.ConfigPathOf(directory)];
+        history.BeforeChange(user, changed);
+        if (isDirectory)
+            // (Its own configuration file is in it, and goes along in the same step)
+        {
+            Directory.Move(physicalPath, newPhysicalPath);
+            configs.TreeMoved(physicalPath, newPhysicalPath);
+        }
+        else
+            RenameFile(directory, physicalPath, newPhysicalPath);
+        history.AfterChange(user, changed, HistoryChangeKind.Change);
+        // Its passwords went along (in its configuration, or its entry), and so does what was unlocked of them
+        unlocks.TreeMoved(context, physicalPath, newPhysicalPath);
+
+        return new ContentResult { Content = VirtualPaths.ToAddress(path.ToVirtualPath(newPhysicalPath)) };
     }
 
     /// <summary>Renames the file with its entry in the configuration of the folder, so that it has its own permissions all the time.</summary>

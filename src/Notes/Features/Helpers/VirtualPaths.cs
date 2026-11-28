@@ -1,6 +1,6 @@
 namespace Notes.Features.Helpers;
 
-/// <summary>Virtual virtual paths as addresses.</summary>
+/// <summary>Virtual paths as addresses.</summary>
 public static class VirtualPaths
 {
     /// <summary>

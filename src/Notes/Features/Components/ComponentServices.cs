@@ -32,6 +32,10 @@ public static class ComponentServices
         _ = services.AddSingleton<ITransferService, TransferService>();
         _ = services.AddSingleton<IZipService, ZipService>();
         _ = services.AddSingleton<IUploadService, UploadService>();
+        _ = services.AddSingleton<UploadedArchiveUnzipper>();
+        _ = services.AddSingleton<SelectionStatusReader>();
+        _ = services.AddSingleton<Operations.StorageOperations>();
+        services.TryAddSingleton<Operations.OperationTexts>();
         _ = services.AddScoped<ClearStaleUploadsJob>();
         _ = services.AddSingleton<PreparedArchives>();
         _ = services.AddScoped<ClearStaleArchivesJob>();
@@ -47,6 +51,7 @@ public static class ComponentServices
         services.TryAddSingleton<TransferTexts>();
         services.TryAddSingleton<ArchiveTexts>();
         services.TryAddSingleton<BusyTexts>();
+        services.TryAddSingleton<ProgressTexts>();
         _ = services.AddSingleton<ToolbarButtons>();
         _ = services.AddComponentStyles(_Toolbar.Styles, _Breadcrumb.Styles, _RenameInput.Styles, _Toasts.Styles,
             _SelectionBar.Styles, _Upload.Styles, _BusyOverlay.Styles);
@@ -57,6 +62,9 @@ public static class ComponentServices
             .AddEntryAction<DownloadHandler>()
             .AddEntryAction<ArchiveHandler>()
             .AddEntryAction<UploadHandler>()
+            .AddEntryAction<UnzippingUploadHandler>()
+            .AddEntryAction<PieceHashesHandler>()
+            .AddEntryAction<Operations.OperationsHandler>()
             .AddEntryAction<CreateHandler>()
             .AddEntryAction<RenameHandler>()
             .AddEntryAction<DeleteHandler>();

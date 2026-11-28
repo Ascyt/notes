@@ -14,7 +14,7 @@ The app keeps changing, and so does everything around it. Code, comments and doc
 
 ### 2. Modular and customizable
 
-Each feature is self-contained (see [principle 19](#19-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
+Each feature is self-contained (see [principle 20](#20-code-that-reads-easily)), so that it can be changed or removed without touching the others. What one installation may want differently from another (the title, which features are there) is configuration, not code. What a site's own code changes is a part of a [component](components.md): its texts (a class with virtual members, never settings), its styles, its script or its HTML, each in a file of its own that the site can replace alone. A text a user reads is never written into a view, a script or a handler. Much is still missing here: customizability is a direction to move in, and new code doesn't make it harder.
 
 ## Security
 
@@ -68,16 +68,21 @@ What a user may not do at all isn't offered to them: someone who may change noth
 
 Texts in the app and in the documents are neutral, descriptive and informative. They don't talk to the reader: "The file has unsaved changes" rather than "You have unsaved changes", "Logging in again is needed" rather than "Please log in again". The passive is fine and often the better choice.
 
+They are also short, without the words that only bind the others together: "Incorrect password." rather than "The password is wrong.", "Enter password" rather than "Enter the password", "Password-protected" rather than "Protected by a password, which opening it asks for". What a text has to say stays; only the padding goes.
+
 ### 12. Plain, without fluff
 
 No animations: things appear, move and go away at once, without sliding, fading or growing. The only exception is what shows that something is still going on, such as a spinner. The same goes for other decoration that only makes the interface look busier (shadows that pulse, effects on hovering beyond a change of color, transitions between states): it hides what is going on rather than making it clearer. Something like it may come later, done properly and on purpose, but not by the way.
 
 ### 13. Long operations show that they run, and check again at the end
 
-Whatever may take a while shows that it is running: a progress bar where it is known how far it is (an upload, a copy or move), a spinner otherwise (renaming a directory with much in it, preparing an archive). In the scripts, `whileBusy` (`site.js`) does this for one request:
+Whatever may take a while shows that it is running: a progress bar where it can be told how far it is (an upload, a copy or move, preparing an archive), a spinner only where that can't be told without great effort (renaming a directory with much in it). When building something long, plan for the bar: it is often only counting what was done against what was measured before. In the scripts, `whileBusy` (`site.js`) does this for one request:
 
 - While it runs, leaving the page asks first (the browser's own warning), as its answer would be lost with the page.
 - Where using the page meanwhile could get in its way (renaming again, changing what is being copied or archived), the page is covered until it is done (`blockPage`, with `_BusyOverlay`), and its shortcuts do nothing. The messages and the card of the selection stay above it, so its progress can still be seen.
+- Work that knows how far it got is given `setProgress` (0 to 1), which shows a bar in the cover in place of the spinner.
+
+Something that may take minutes is not done within the request that asks for it: a proxy in front of the app cuts off a request that gets no answer for a minute or so (nginx after 60 s by default). It runs on its own, the request is answered at once, and the page asks how far it got until it is done (as the archive does with `Prefer: respond-async` and `?progress`). Nobody asking for a while means the page was left, which cancels it.
 
 On the server, such an operation checks the permissions when it starts and again when it ends, as they may change while it runs: an archive is checked once it is written against every entry in it, and it is not handed out if the user may no longer read one of them. Changes of structure hold the `StructureLock` instead, from their checks until they are done, so that what they checked can't change in between (see [User input](user-input.md#concurrency)).
 
@@ -109,7 +114,11 @@ A change to a format that is stored raises its version and comes with a migratio
 
 ## Code
 
-### 19. Code that reads easily
+### 19. A configuration file says what can be done with it
+
+What can be set in a `.config.json` is clear from reading the file alone, without the documentation: a new file has every setting there is, with its default value even where that is "nothing" (`"password": null`), and a comment above it that says what it does and which values it takes. A setting that is only described somewhere else is one nobody finds.
+
+### 20. Code that reads easily
 
 - Names say what something is, or what it does: descriptive, and preferably not abstract, without cryptic abbreviations or words that need looking up, and no longer than that takes. `TimesAtWhichEntryCanBeSeen` rather than `OpenTimes`, `CheckWhatDependsOnTheState` rather than `JudgeAt`.
 - Comments are short and simple, and say why rather than what. Code that is hard to follow (a loop that walks a tree, a method that weighs several cases, an algorithm) also gets a short comment for each step, saying what it does, so that it can be read without working it out first.
@@ -120,13 +129,17 @@ A change to a format that is stored raises its version and comes with a migratio
 - Namespaces always follow the folders: what is in `src/Notes/Features/HistoryViewing/Commits` is in `Notes.Features.HistoryViewing.Commits`. That is why the pages of the app itself are in `Pages/App`, with their `/_/` addresses given in their `@page`: a folder named `_` would make a namespace `_`, which hides the discard.
 - A return value that isn't used is discarded on purpose (`_ = Directory.CreateDirectory(path);`), so that it is clear it wasn't forgotten. Calls that only return what they were called on, to be chained (builders, `StringBuilder.Append`), and assertions are left as they are.
 
-### 20. Few dependencies
+### 21. Few dependencies
 
 Before writing something, look for a built-in ASP.NET feature or an existing library that does it. But every new package, service or container is discussed first: each one has to be kept up to date and trusted.
 
+### 22. As few file operations as possible
+
+Every look at the disk costs, and on a slow disk (a hard drive, a network share) it costs a lot. A request reads what it needs once, on the way from the root to the entry: for a file five directories down, the configurations of the root and of those five directories (a file's settings are in the configuration of its folder), each once. A directory's page adds the configuration of each directory it lists. Whatever else the request needs to know (the permissions, the passwords, the archived folders) comes from what was read, not from reading again. Only an operation that works on what is below (a copy, a move, a download) looks below, as part of its work. What is only there to be safe in rare cases (a configuration edited by hand on the server) is caught up with in the background, not by every request.
+
 ## Documentation
 
-### 21. Written for someone new
+### 23. Written for someone new
 
 A feature comes with its documentation in `docs/`, in simple words, so that someone new to the repository can learn what the app is and how it works. The documents form a tree: each topic has an overview (`docs/<topic>.md`) and its details in a folder of the same name (`docs/<topic>/`). The app will show these documents itself, so links between them are relative and stay inside `docs/`, and files elsewhere in the repository are named, not linked.
 
@@ -134,11 +147,11 @@ Examples help more than descriptions. Pictures of the app come from `docs/screen
 
 ## Tests
 
-### 22. Tested, without waiting
+### 24. Tested, without waiting
 
 Every feature gets tests at the level that fits (see [Tests](tests.md)). The integration tests matter most: they test every endpoint as every kind of user, with every kind of attack that applies, much like a penetration test. Time comes from the injected `TimeProvider` wherever a test would otherwise have to wait (a selection that runs out, a background job that runs every hour), so that the test moves a fake clock instead.
 
-### 23. Tests check logic, not wording or looks
+### 25. Tests check logic, not wording or looks
 
 Unit tests check methods, integration tests check endpoints, and UI tests check the scripts of the pages. None of them checks the exact wording of a text or anything about CSS, so that a sentence can be rephrased or a style changed without a test failing. Instead they check:
 

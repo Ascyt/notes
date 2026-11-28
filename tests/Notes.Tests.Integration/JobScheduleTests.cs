@@ -9,6 +9,7 @@ public sealed class JobScheduleTests
     [InlineData("ClearStaleUploads")]
     [InlineData("ClearStaleArchives")]
     [InlineData("CommitIdleChanges")]
+    [InlineData("ZipIdleArchives")]
     public void A_schedule_that_is_no_cron_expression_does_not_let_the_app_start_and_names_the_setting(string job)
     {
         using NotesAppFactory app = new();

@@ -6,9 +6,18 @@
 
 <div id="busy-overlay" class="busy-overlay" tabindex="-1" hidden>
     <div class="busy-overlay-box card">
-        <div class="card-body d-flex align-items-center gap-3">
-            <span class="spinner-border text-secondary" role="status" aria-label="@Texts.Working"></span>
-            <span id="busy-overlay-message"></span>
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-3">
+                <span id="busy-overlay-spinner" class="spinner-border text-secondary" role="status" aria-label="@Texts.Working"></span>
+                <span id="busy-overlay-message"></span>
+            </div>
+            @* Only for what tells how far it got (setProgress of whileBusy), in place of the spinner *@
+            <div id="busy-overlay-progress" class="progress busy-overlay-progress mt-3" role="progressbar" aria-label="@Texts.Working"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                <div class="progress-bar"></div>
+            </div>
+            @* What it is doing, in words (setProgress's second argument, see describeProgress) *@
+            <div id="busy-overlay-detail" class="small text-secondary mt-2" aria-live="polite" hidden></div>
         </div>
     </div>
 </div>

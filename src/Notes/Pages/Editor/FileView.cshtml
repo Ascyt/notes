@@ -71,6 +71,9 @@
     if (Model.ShowsPreview)
         toolbarButtons.Add(Buttons.SaveAsPdf());
     toolbarButtons.Add(Buttons.Download(isFile: true));
+    // Locking its password again, leftmost (as it is now only)
+    if (Model.OwnPasswordUnlocked && !Model.ShowsEarlierState)
+        toolbarButtons.Insert(0, Buttons.LockEntry(isFile: true));
 }
 
 <partial name="/Features/Components/Breadcrumb/_Breadcrumb.cshtml" model="new _Breadcrumb

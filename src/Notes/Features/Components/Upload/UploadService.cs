@@ -27,9 +27,13 @@ public interface IUploadService
     /// The file goes into <paramref name="folders"/> inside <paramref name="physicalDirectory"/> (none: right into it). Those that aren't there
     /// are made when the last chunk has arrived, each asked of <paramref name="mayCreate"/> first; those that are there are asked of
     /// <paramref name="mayEnter"/>. If either says no, the upload is discarded and an <see cref="AccessDeniedException"/> thrown.
+    /// <para>
+    /// With <paramref name="unzipAfterwards"/>, a .zip or .7z gets an entry in the configuration that says it is to be unzipped (in the same
+    /// step that puts it in place), which the caller then starts (<see cref="UploadedArchiveUnzipper"/>).
+    /// </para>
     /// </remarks>
     Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, IReadOnlyList<string> folders, string name, long offset,
-        bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter);
+        bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter, bool unzipAfterwards = false);
 
     /// <summary>
     /// Where a file put into <paramref name="folders"/> inside <paramref name="physicalDirectory"/> ends up: the folders that are there as
@@ -52,8 +56,11 @@ public sealed class UploadRefusedException(int statusCode, string message) : Exc
     public int StatusCode { get; } = statusCode;
 }
 
+/// <param name="archives">The archived folders (the app always has them; the tests of uploads alone go without).</param>
 public sealed class UploadService(EntryLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs,
-    LimitsConfig limits, TimeProvider time, UploadTexts texts, NameTexts nameTexts) : IUploadService
+    LimitsConfig limits, TimeProvider time, UploadTexts texts, NameTexts nameTexts, ILogger<UploadService> logger,
+    ZippedFolders.ArchivedFolders? archives = null)
+    : IUploadService
 {
     public string StartUpload(string userId)
     {
@@ -73,7 +80,7 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
     }
 
     public async Task<string?> UploadChunkAsync(string userId, Guid uploadId, string physicalDirectory, IReadOnlyList<string> folders, string name,
-        long offset, bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter)
+        long offset, bool isLast, Stream body, Func<string, bool> mayCreate, Func<string, bool> mayEnter, bool unzipAfterwards = false)
     {
         // Chunks pile up in a temp file outside the entries that only gets its real name once the last chunk has arrived
         string tempPath = Path.Combine(UserTempDirectory(userId), TempName(uploadId));
@@ -126,6 +133,9 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
             // While this waited for the lock, the upload may have been cleared as stale: then it is gone like any other cleared upload
             if (!File.Exists(tempPath))
                 return null;
+            // The directory may have been made an archived folder meanwhile: then it is in its unzipped copy now
+            if (archives is not null)
+                physicalDirectory = archives.WhereItIsNow(physicalDirectory);
 
             // Checked again now that nothing can change it: the directory may have gone while the chunks arrived
             if (!Directory.Exists(physicalDirectory))
@@ -173,7 +183,14 @@ public sealed class UploadService(EntryLocations locations, IPathService path, S
                         tempPath = MoveToVolumeOf(tempPath, physicalDirectory);
                         File.Move(tempPath, finalPath);
                         configs.FileAdded(physicalDirectory, finalName);
-                        return path.ToVirtualPath(finalPath);
+                        // (A crash right before this leaves a file that is only a file: nothing is lost)
+                        if (unzipAfterwards && UploadedArchives.FormatOf(finalName) is not null && !configs.UnzipPending(physicalDirectory, finalName))
+                            logger.LogWarning("{path} was uploaded to be unzipped, but its entry can't say so: it stays a file", finalPath);
+                        string virtualPath = path.ToVirtualPath(finalPath);
+                        // Below an onLowestLevel folder, a directory that holds a file now is archived right away
+                        if (archives is not null)
+                            await archives.ArchiveLowestLevelAfterChangeAsync(physicalDirectory);
+                        return virtualPath;
                     }
                     catch (FileNotFoundException) when (!File.Exists(tempPath))
                     {

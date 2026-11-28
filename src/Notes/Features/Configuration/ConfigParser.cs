@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Notes.Features.Components.Archive;
 using Notes.Features.Configuration.Migrations;
 using Notes.Features.Helpers;
+using Notes.Features.Passwords;
 using Notes.Features.Permissions;
 
 namespace Notes.Features.Configuration;
@@ -36,6 +38,30 @@ public static class ConfigParser
     public const string FilesKey = "files";
     public const string NameKey = "name";
 
+    /// <summary>A password as typed into the editor, which saving replaces with its hash (<see cref="PasswordHashKey"/>).</summary>
+    public const string PasswordKey = "password";
+    public const string PasswordHashKey = "passwordHash";
+
+    /// <summary>
+    /// A file's: an uploaded archive that is to be unzipped into a folder (true), and why that failed (see
+    /// <see cref="Components.Upload.UploadedArchiveUnzipper"/>). The app writes both; neither is carried along when the file is renamed.
+    /// </summary>
+    public const string UnzipPendingKey = "unzipPending";
+    public const string UnzipErrorKey = "unzipError";
+
+    /// <summary>The keys of a file's entry that only say how its unzipping goes, which a rename leaves behind.</summary>
+    public static readonly string[] UnzipKeys = [UnzipPendingKey, UnzipErrorKey];
+
+    public const string ArchiveKey = "archive";
+    public const string ArchiveEnabledKey = "enabled";
+    public const string ArchiveFiletypeKey = "filetype";
+    public const string ArchiveCompressionLevelKey = "compressionLevel";
+    public const string ArchiveEncryptedKey = "encrypted";
+    public const string ArchiveOnLowestLevelKey = "onLowestLevel";
+
+    /// <summary>The highest <c>compressionLevel</c>; 0 is none (a 7z, which can't store, the least).</summary>
+    public const int MaxCompressionLevel = 3;
+
     private static readonly string[] RwKeys = ["rwAllow", "rwReadOnly", "rwDeny"];
     private static readonly string[] CdKeys = ["cdAllow", "cdCreateOnly", "cdDeny"];
     private static readonly string[] HistoryKeys = ["historyAllow", "historyExistingOnly", "historyDeny"];
@@ -63,14 +89,20 @@ public static class ConfigParser
     /// permissions that are in force are read without it: a file that was removed from outside doesn't make its folder unusable.
     /// </param>
     /// <param name="texts">How the errors are worded: the site's, where they are shown; the app's own (<see cref="ConfigTexts.Default"/>) without.</param>
-    public static ParseResult<FolderConfig> ParseFolder(string text, IReadOnlySet<string>? existingFiles, ConfigTexts? texts = null)
+    /// <param name="allowsPlainPasswords">
+    /// Whether a <c>password</c> may be there (as typed into the editor, which saving replaces with its hash). In a file that was saved it is
+    /// an error: it was written there by hand, and only its hash may be kept.
+    /// </param>
+    public static ParseResult<FolderConfig> ParseFolder(string text, IReadOnlySet<string>? existingFiles, ConfigTexts? texts = null,
+        bool allowsPlainPasswords = false)
     {
         Problems errors = new(texts ?? ConfigTexts.Default);
         using JsonDocument? document = Open(text, errors);
         if (document is null)
             return ParseResult<FolderConfig>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [VersionKey, PermsKey, GitignoreKey, FilesKey],
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "",
+            [VersionKey, PermsKey, GitignoreKey, PasswordKey, PasswordHashKey, ArchiveKey, FilesKey],
             required: [PermsKey, GitignoreKey, FilesKey], errors);
         if (root is null)
             return ParseResult<FolderConfig>.Failed(errors);
@@ -84,6 +116,17 @@ public static class ConfigParser
             errors.Add(errors.Texts.NotABoolean(GitignoreKey));
 
         PermsBlock? perms = ParsePerms(root[PermsKey], PermsKey, errors);
+        string? passwordHash = ParsePassword(root, "", allowsPlainPasswords, errors);
+        // Optional, so that a file without it (written by hand) is still valid; every file the app writes has it (principle 19). Null (or none)
+        // is not set: an "onLowestLevel" folder above may archive this one (ArchiveSettingsResolver)
+        bool archiveIsSet = root.TryGetValue(ArchiveKey, out JsonElement archiveElement) && archiveElement.ValueKind != JsonValueKind.Null;
+        ArchiveSettings? archive = archiveIsSet ? ParseArchive(archiveElement, errors) : ArchiveSettings.Disabled;
+        // An archive is encrypted with the folder's password: without one there is nothing to encrypt it with (a password only being typed
+        // counts: its hash is made when it is saved)
+        bool hasPassword = passwordHash is not null
+                           || (root.TryGetValue(PasswordKey, out JsonElement plain) && plain.ValueKind == JsonValueKind.String);
+        if (archive is { Enabled: true, Encrypted: true } && !hasPassword)
+            errors.Add(errors.Texts.EncryptedNeedsPassword(ArchiveKey + "." + ArchiveEncryptedKey, PasswordKey));
         List<FileEntry> files = [];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
 
@@ -95,35 +138,160 @@ public static class ConfigParser
             foreach (JsonElement element in root[FilesKey].EnumerateArray())
             {
                 string path = $"{FilesKey}[{index++}]";
-                Dictionary<string, JsonElement>? entry = ReadObject(element, path, [NameKey, PermsKey], required: [NameKey, PermsKey], errors);
+                Dictionary<string, JsonElement>? entry = ReadObject(element, path,
+                    [NameKey, PermsKey, PasswordKey, PasswordHashKey, UnzipPendingKey, UnzipErrorKey], required: [NameKey, PermsKey], errors);
                 if (entry is null)
                     continue;
 
                 string? name = ParseName(entry[NameKey], path, names, existingFiles, errors);
                 PermsBlock? entryPerms = ParsePerms(entry[PermsKey], path + "." + PermsKey, errors);
+                string? entryPasswordHash = ParsePassword(entry, path, allowsPlainPasswords, errors);
+                (bool unzipPending, string? unzipError) = ParseUnzip(entry, path, errors);
                 if (name is not null && entryPerms is not null)
-                    files.Add(new FileEntry(name, entryPerms));
+                    files.Add(new FileEntry(name, entryPerms, entryPasswordHash) { UnzipPending = unzipPending, UnzipError = unzipError });
             }
         }
 
-        return errors.Count > 0 || perms is null
+        return errors.Count > 0 || perms is null || archive is null
             ? ParseResult<FolderConfig>.Failed(errors)
-            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files));
+            : ParseResult<FolderConfig>.Ok(new FolderConfig(perms, gitignore, files, passwordHash, archiveIsSet ? archive : null));
+    }
+
+    /// <summary>
+    /// Reads the <c>archive</c> block: <c>enabled</c> is required, the others have the defaults of <see cref="ArchiveSettings.Disabled"/>.
+    /// </summary>
+    private static ArchiveSettings? ParseArchive(JsonElement element, Problems errors)
+    {
+        Dictionary<string, JsonElement>? properties = ReadObject(element, ArchiveKey,
+            [ArchiveEnabledKey, ArchiveFiletypeKey, ArchiveCompressionLevelKey, ArchiveEncryptedKey, ArchiveOnLowestLevelKey],
+            required: [ArchiveEnabledKey], errors);
+        if (properties is null)
+            return null;
+
+        string Where(string key) => ArchiveKey + "." + key;
+        int before = errors.Count;
+        bool? BooleanOf(string key, bool fallback)
+        {
+            if (!properties.TryGetValue(key, out JsonElement value))
+                return fallback;
+            if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                return value.GetBoolean();
+            errors.Add(errors.Texts.NotABoolean(Where(key)));
+            return null;
+        }
+
+        bool? enabled = BooleanOf(ArchiveEnabledKey, false);
+        bool? encrypted = BooleanOf(ArchiveEncryptedKey, false);
+        bool? onLowestLevel = BooleanOf(ArchiveOnLowestLevelKey, false);
+
+        ArchiveFormat format = ArchiveSettings.Disabled.Format;
+        if (properties.TryGetValue(ArchiveFiletypeKey, out JsonElement filetype))
+        {
+            if (filetype.ValueKind == JsonValueKind.String && filetype.GetString() is "7z" or "zip")
+                format = filetype.GetString() == "7z" ? ArchiveFormat.SevenZip : ArchiveFormat.Zip;
+            else
+                errors.Add(errors.Texts.NotAFiletype(Where(ArchiveFiletypeKey)));
+        }
+
+        int level = 2;
+        if (properties.TryGetValue(ArchiveCompressionLevelKey, out JsonElement levelElement)
+            && !(levelElement.ValueKind == JsonValueKind.Number && levelElement.TryGetInt32(out level) && level is >= 0 and <= MaxCompressionLevel))
+            errors.Add(errors.Texts.NotACompressionLevel(Where(ArchiveCompressionLevelKey), MaxCompressionLevel));
+
+        if (errors.Count > before)
+            return null;
+
+        ArchiveCompression compression = level switch
+        {
+            0 => format == ArchiveFormat.SevenZip ? ArchiveCompression.Min : ArchiveCompression.Store,
+            1 => ArchiveCompression.Medium,
+            2 => ArchiveCompression.High,
+            _ => ArchiveCompression.Max
+        };
+        return new ArchiveSettings(enabled!.Value, format, compression, encrypted!.Value, onLowestLevel!.Value);
+    }
+
+    /// <summary>The <c>unzipPending</c> and <c>unzipError</c> of a file's entry (false and null where they aren't there).</summary>
+    private static (bool Pending, string? Error) ParseUnzip(Dictionary<string, JsonElement> properties, string path, Problems errors)
+    {
+        string Where(string key) => path == "" ? key : path + "." + key;
+        bool pending = false;
+        string? error = null;
+        if (properties.TryGetValue(UnzipPendingKey, out JsonElement pendingValue))
+        {
+            if (pendingValue.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                pending = pendingValue.GetBoolean();
+            else
+                errors.Add(errors.Texts.NotABoolean(Where(UnzipPendingKey)));
+        }
+        if (properties.TryGetValue(UnzipErrorKey, out JsonElement errorValue) && errorValue.ValueKind != JsonValueKind.Null)
+        {
+            if (errorValue.ValueKind == JsonValueKind.String)
+                error = errorValue.GetString();
+            else
+                errors.Add(errors.Texts.NotAString(Where(UnzipErrorKey)));
+        }
+        return (pending, error);
+    }
+
+    /// <summary>
+    /// Checks the <c>password</c> or <c>passwordHash</c> of an object (the root, a file's entry) and returns the hash, or null if there is none
+    /// (also for a password, whose hash is only made when it is saved). A password of null is none, as if it weren't there.
+    /// </summary>
+    private static string? ParsePassword(Dictionary<string, JsonElement> properties, string path, bool allowsPlainPasswords, Problems errors)
+    {
+        string Where(string key) => path == "" ? key : path + "." + key;
+        bool hasPassword = properties.TryGetValue(PasswordKey, out JsonElement password) && password.ValueKind != JsonValueKind.Null;
+        bool hasHash = properties.TryGetValue(PasswordHashKey, out JsonElement hash);
+
+        if (hasPassword && hasHash)
+        {
+            errors.Add(errors.Texts.PasswordAndHash(Where(PasswordKey), Where(PasswordHashKey)));
+            return null;
+        }
+
+        if (hasPassword)
+        {
+            if (password.ValueKind != JsonValueKind.String)
+                errors.Add(errors.Texts.NotAString(Where(PasswordKey)));
+            else if (!allowsPlainPasswords)
+                errors.Add(errors.Texts.PasswordNotSaved(Where(PasswordKey), Where(PasswordHashKey)));
+            else if (PasswordHashing.Check(password.GetString()!) is not PasswordProblem.None and var problem)
+                errors.Add(errors.Texts.NotAPassword(Where(PasswordKey), problem));
+            return null;
+        }
+
+        if (!hasHash)
+            return null;
+        if (hash.ValueKind != JsonValueKind.String || !PasswordHashing.IsHash(hash.GetString()!))
+        {
+            errors.Add(errors.Texts.NotAPasswordHash(Where(PasswordHashKey), Where(PasswordKey)));
+            return null;
+        }
+
+        return hash.GetString();
     }
 
     /// <summary>
     /// Reads what the editor shows for a single file: <c>{ "perms": {...} }</c>, the entry of the file without its name (which is the file's own).
     /// </summary>
     /// <param name="texts">How the errors are worded (see <see cref="ParseFolder"/>).</param>
-    public static ParseResult<PermsBlock> ParseFileBody(string text, ConfigTexts? texts = null)
+    /// <param name="allowsPlainPasswords">See <see cref="ParseFolder"/>.</param>
+    public static ParseResult<PermsBlock> ParseFileBody(string text, ConfigTexts? texts = null, bool allowsPlainPasswords = false)
     {
         Problems errors = new(texts ?? ConfigTexts.Default);
         using JsonDocument? document = Open(text, errors);
         if (document is null)
             return ParseResult<PermsBlock>.Failed(errors);
 
-        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "", [PermsKey], required: [PermsKey], errors);
+        Dictionary<string, JsonElement>? root = ReadObject(document.RootElement, "",
+            [PermsKey, PasswordKey, PasswordHashKey, UnzipPendingKey, UnzipErrorKey], required: [PermsKey], errors);
         PermsBlock? perms = root is null ? null : ParsePerms(root[PermsKey], PermsKey, errors);
+        if (root is not null)
+        {
+            _ = ParsePassword(root, "", allowsPlainPasswords, errors);
+            _ = ParseUnzip(root, "", errors);
+        }
 
         return errors.Count > 0 || perms is null
             ? ParseResult<PermsBlock>.Failed(errors)

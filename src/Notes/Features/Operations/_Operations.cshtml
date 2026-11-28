@@ -1,0 +1,24 @@
+@model _Operations
+@inject OperationTexts Texts
+
+@* The list is the script's (_Operations.js), which asks the server (GET /?operations) while the dialog is open: each row says what is done,
+   where, by whom, how far it got (or an hourglass while it is pending) and what it does now, with Cancel for who may. *@
+<div class="modal" id="operations-modal" tabindex="-1" aria-labelledby="operations-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="operations-title"><i class="fa-solid fa-hard-drive text-secondary"></i> @Texts.Title</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul id="operations-list" class="list-group"></ul>
+                <p id="operations-nothing" class="text-secondary mb-0" hidden>@Texts.Nothing</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">@Texts.Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script-texts id="operations-texts" texts="@Texts"/>
+<script component-asset="@_Operations.Script"></script>

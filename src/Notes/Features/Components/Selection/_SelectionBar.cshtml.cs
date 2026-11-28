@@ -14,6 +14,9 @@ public class _SelectionBar : PageModel
     /// <summary>The selection when the page is made.</summary>
     public SelectionSnapshot Selection { get; init; } = SelectionSnapshot.Empty;
 
+    /// <summary>What the selected entries are like for this browser now (locked, zipped, ...).</summary>
+    public SelectionStatus Status { get; init; } = SelectionStatus.None;
+
     /// <summary>Why nothing can be copied or moved into the directory, or null if it can.</summary>
     public string? CreateDeniedReason { get; init; }
 }

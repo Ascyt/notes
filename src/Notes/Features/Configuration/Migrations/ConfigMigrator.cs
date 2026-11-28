@@ -105,20 +105,36 @@ public sealed class ConfigMigrator
         IConfigMigration? running = null;
         try
         {
-            if (JsonNode.Parse(text, documentOptions: DocumentOptions) is not JsonObject root)
-                return (null, null);
-
+            // The text is kept (with its comments) as long as the steps can work on it; the first one that can't reads it into an object
+            string? migratedText = text;
+            JsonObject? root = null;
             foreach (IConfigMigration migration in pending)
             {
                 running = migration;
                 _logger.LogInformation("Migrating a configuration to {version}: {description}", migration.Version, migration.Description);
+                if (migratedText is not null && migration is ITextConfigMigration textMigration)
+                {
+                    migratedText = textMigration.ApplyToText(migratedText);
+                    continue;
+                }
+
+                if (root is null)
+                {
+                    if (JsonNode.Parse(migratedText!, documentOptions: DocumentOptions) is not JsonObject parsed)
+                        return (null, null);
+                    root = parsed;
+                    migratedText = null;
+                }
+
                 migration.Apply(root);
                 SetVersion(root, migration.Version);
             }
 
             // The last step may be older than the current version: the format didn't change in between
-            SetVersion(root, Current);
-            return (root.ToJsonString(WriteOptions) + "\n", null);
+            if (migratedText is not null)
+                return (ConfigText.SetVersion(migratedText, Current), null);
+            SetVersion(root!, Current);
+            return (root!.ToJsonString(WriteOptions) + "\n", null);
         }
         catch (Exception e)
         {

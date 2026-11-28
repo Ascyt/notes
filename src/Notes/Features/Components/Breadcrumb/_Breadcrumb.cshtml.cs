@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using Notes.Features.Helpers;
 
 namespace Notes.Features.Components.Breadcrumb;
@@ -69,6 +69,41 @@ public class _Breadcrumb : PageModel
             for (int i = 0; i < names.Length - 1; i++)
                 yield return (names[i], Below(names[..(i + 1)]));
         }
+    }
+
+    /// <summary>
+    /// The entries along the way (the start, the parents, the entry itself) with a password of their own that is unlocked, by virtual path: each
+    /// gets an open lock after its name. Of the entries as they are now, so nothing for a path that isn't there now.
+    /// </summary>
+    public HashSet<string> UnlockedPaths(Passwords.PasswordLocks locks, IPathService paths)
+    {
+        HashSet<string> unlocked = new(StringComparer.OrdinalIgnoreCase);
+        if (paths.ToPhysicalPath(VirtualPath) is not { } physicalPath)
+            return unlocked;
+        foreach (string protectedPath in locks.UnlockedAlong(physicalPath, isDirectory: !IsFile))
+            _ = unlocked.Add(paths.ToVirtualPath(protectedPath) is var virtualPath and not "." ? virtualPath : "");
+        return unlocked;
+    }
+
+    /// <summary>Whether the entry the breadcrumb ends with is in <paramref name="unlocked"/> (see <see cref="UnlockedPaths"/>).</summary>
+    public bool IsUnlocked(HashSet<string> unlocked)
+        => unlocked.Contains(VirtualPath.Trim('/'));
+
+    /// <summary>
+    /// The archived folders along the way (the parents, and the entry itself if it is a directory), by virtual path, with how each is kept
+    /// now: each gets the zipper (or the shield, if encrypted) after its name. Of the entries as they are now.
+    /// </summary>
+    public Dictionary<string, ZippedFolders._ArchivedMark> ArchivedPaths(ZippedFolders.ArchivedFolders archives, IPathService paths)
+    {
+        Dictionary<string, ZippedFolders._ArchivedMark> archived = new(StringComparer.OrdinalIgnoreCase);
+        IEnumerable<string> along = Parents.Select(parent => parent.Path);
+        if (!IsFile && !IsRoot)
+            along = along.Append(VirtualPath.Trim('/'));
+        foreach (string virtualPath in along)
+            // (All of them directories: the parents, and the page's own if it isn't a file)
+            if (paths.ToPhysicalPath(virtualPath) is { } physical && archives.ArchiveStateOf(physical) is { } state)
+                archived[virtualPath] = new ZippedFolders._ArchivedMark { State = state, Encrypted = archives.IsEncrypted(physical) };
+        return archived;
     }
 
     /// <summary>The virtual path of the names below the start.</summary>

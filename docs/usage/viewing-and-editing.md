@@ -76,6 +76,6 @@ The download icon (or Alt+PageDown) downloads the file. For a directory it downl
 - **Compression:** None (store) for a zip or Min for a 7z, then Medium, High or Max. The higher, the smaller the archive and the longer it takes to make.
 - **Password:** optional. With one, the archive is encrypted (AES-256); a 7z hides the names of the files inside too, a zip can't.
 
-The format and compression are remembered for the next time in this browser, the password never is. The archive is made on the server while the page is covered (it can't be left meanwhile), and then downloaded; entries without read access are left out, and a message says so. It is kept on the server for an hour, then deleted.
+The format and compression are remembered for the next time in this browser, the password never is. The archive is made on the server while the page is covered, with a bar that shows how far it got (the page can't be left meanwhile; closing it anyway cancels the archive after a minute), and then downloaded; entries without read access are left out, and a message says so. It is kept on the server for an hour, then deleted.
 
 Without logging in, and in an earlier state, a directory is downloaded as a zip right away, without the dialog.

@@ -15,7 +15,7 @@ namespace Notes.Features.Components.Create;
 /// </summary>
 public sealed class CreateHandler(EntryLocations locations, IPathService path, AccessTree tree, StructureLock structureLock,
     FolderConfigStore configs, HistoryService history, LimitsConfig limits, TimeProvider time, CreateTexts texts, EntryTexts entryTexts,
-    NameTexts nameTexts) : IEntryPostAction
+    NameTexts nameTexts, ZippedFolders.ArchivedFolders archives) : IEntryPostAction
 {
     public const string CreateParameter = "create";
 
@@ -34,6 +34,8 @@ public sealed class CreateHandler(EntryLocations locations, IPathService path, A
 
         using (await structureLock.EnterAsync())
         {
+            // It may have been made an archived folder while this waited: then it is in its unzipped copy now
+            physicalDirectory = archives.WhereItIsNow(physicalDirectory);
             // Checked under the lock: the directory could otherwise be moved, or another made in its place, after it was checked
             if (!Directory.Exists(physicalDirectory))
                 return new NotFoundObjectResult(entryTexts.DirectoryNotFound);
@@ -53,7 +55,7 @@ public sealed class CreateHandler(EntryLocations locations, IPathService path, A
                 return new BadRequestObjectResult(nameTexts.PathTooLong(path.ToVirtualPath(newPhysicalPath), limits.MaxPathBytes));
 
             // The configuration of the directory gets an entry for a new file
-            string[] changed = isFile ? [newPhysicalPath, Path.Combine(physicalDirectory, PathService.ConfigFileName)] : [newPhysicalPath];
+            string[] changed = isFile ? [newPhysicalPath, configs.ConfigPathOf(physicalDirectory)] : [newPhysicalPath];
             history.BeforeChange(user, changed);
             if (isFile)
             {
@@ -63,6 +65,10 @@ public sealed class CreateHandler(EntryLocations locations, IPathService path, A
             else
                 _ = Directory.CreateDirectory(newPhysicalPath);
             history.AfterChange(user, changed, HistoryChangeKind.Change);
+
+            // Below an onLowestLevel folder, a directory that holds a file now is archived right away
+            if (isFile)
+                await archives.ArchiveLowestLevelAfterChangeAsync(physicalDirectory);
 
             // A new file is there to be written: it opens in the editor, not as the (empty) preview of a markdown file
             return new RedirectResult(VirtualPaths.ToAddress(path.ToVirtualPath(newPhysicalPath)) + (isFile ? "?edit" : ""));

@@ -1,4 +1,4 @@
-#pragma warning disable CA1873
+﻿#pragma warning disable CA1873
 using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
@@ -23,6 +23,8 @@ using Notes.Features.ImageConversion;
 using Notes.Features.KillSwitch;
 using Notes.Features.Markdown;
 using Notes.Features.Media;
+using Notes.Features.Passwords;
+using Notes.Features.ZippedFolders;
 using Notes.Pages.App;
 using Notes.Pages.Browse;
 using Notes.Pages.Shared.AppLayout;
@@ -66,6 +68,8 @@ public static class NotesHosting
 
         _ = services.AddRazorPages(options =>
         {
+            // (Messages are plain text, whatever the request asks for)
+            options.Conventions.ConfigureFilter(new PlainTextMessages());
             options.Conventions.AddFolderRouteModelConvention("/App", page => MoveToAppPath(page, appAddresses));
             // The app's own pages, told from the site's by where their code is (a site may replace the view of one, but not its model)
             options.Conventions.AddFolderApplicationModelConvention("/", page =>
@@ -95,6 +99,9 @@ public static class NotesHosting
         _ = services.AddSingleton<AccessTree>();
         // One lock across the app (and so a single instance only) for everything that adds, removes or renames entries
         _ = services.AddSingleton<StructureLock>();
+        // What a request looked up on disk, so that it looks each up once (principles.md, 22)
+        _ = services.AddHttpContextAccessor();
+        _ = services.AddSingleton<RequestLookups>();
         _ = services.AddSingleton<KillSwitchService>();
         services.TryAddSingleton<KillSwitchTexts>();
         services.TryAddSingleton<AuthTexts>();
@@ -104,6 +111,7 @@ public static class NotesHosting
 
         // The features, each with the actions of the page of the entries that it answers (?download, ?rename=, …)
         _ = services.AddEntryActions();
+        _ = services.AddPasswords(config.Passwords);
         _ = services.AddConfiguration();
         _ = services.AddComponents();
         _ = services.AddListing();
@@ -112,6 +120,9 @@ public static class NotesHosting
         _ = services.AddMedia();
         _ = services.AddHistory();
         _ = services.AddHistoryViewing();
+        _ = services.AddArchivedFolders(config.Archives);
+        // (Does again what the start does, across the features above)
+        _ = services.AddScoped<Features.Maintenance.SoftRestartJob>();
 
         // The background jobs (scheduled in UseNotes)
         _ = services.AddHangfire(setup.ConfigureHangfire);
@@ -228,6 +239,11 @@ public static class NotesHosting
         // Writes what was migrated while reading back to the files, now that nothing else is using them
         if (app.Services.GetRequiredService<FolderConfigStore>().MigrateAll() > 0)
             history.CommitPending(CommitReason.Migration);
+
+        // What zipping or unzipping an archived folder left when the app stopped is put right (nothing of it is lost), before it is used
+        app.Services.GetRequiredService<ArchivedFolders>().RecoverAsync().GetAwaiter().GetResult();
+        // What unzipping an uploaded archive left is deleted: the listing starts it over (the archive's entry still says it is to be unzipped)
+        app.Services.GetRequiredService<Features.Components.Upload.UploadedArchiveUnzipper>().ClearLeftovers();
     }
 
     /// <summary>
@@ -244,6 +260,14 @@ public static class NotesHosting
             schedule => recurringJobs.AddOrUpdate<ClearStaleArchivesJob>(ClearStaleArchivesJob.Id, job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.CommitIdleChanges), jobs.CommitIdleChanges,
             schedule => recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), schedule));
+        Schedule(nameof(JobsConfig.ZipIdleArchives), jobs.ZipIdleArchives,
+            schedule => recurringJobs.AddOrUpdate<ZipIdleArchivesJob>(ZipIdleArchivesJob.Id, job => job.RunAsync(), schedule));
+        Schedule(nameof(JobsConfig.RescanConfigs), jobs.RescanConfigs,
+            schedule => recurringJobs.AddOrUpdate<Features.Configuration.RescanConfigsJob>(Features.Configuration.RescanConfigsJob.Id,
+                job => job.Run(), schedule));
+        Schedule(nameof(JobsConfig.SoftRestart), jobs.SoftRestart,
+            schedule => recurringJobs.AddOrUpdate<Features.Maintenance.SoftRestartJob>(Features.Maintenance.SoftRestartJob.Id,
+                job => job.RunAsync(), schedule));
     }
 
     // Hangfire refuses what isn't a cron expression with an ArgumentException that doesn't say which setting it was

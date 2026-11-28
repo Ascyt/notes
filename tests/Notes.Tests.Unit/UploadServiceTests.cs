@@ -16,7 +16,7 @@ public sealed class UploadServiceTests : IDisposable
     public UploadServiceTests()
     {
         _uploads = new UploadService(_notes.Locations, _notes.Paths, new StructureLock(), _notes.Store, new LimitsConfig(), _time,
-            new UploadTexts(), new NameTexts());
+            new UploadTexts(), new NameTexts(), Microsoft.Extensions.Logging.Abstractions.NullLogger<UploadService>.Instance);
         _ = _notes.Files.Dir("dir");
     }
 

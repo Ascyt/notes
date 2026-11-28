@@ -1,4 +1,4 @@
-@model _Toolbar
+﻿@model _Toolbar
 
 @* The row of small icons under the breadcrumb. They are buttons, but look like icons (no frame, no text): the label is the tooltip.
    The buttons are made by the page (with ToolbarButtons); the scripts of the page and of its components find them by id and use
@@ -8,7 +8,12 @@
 <div class="toolbar d-flex align-items-center gap-1 mb-2" role="toolbar">
     @foreach (ToolbarButton button in Model.Buttons)
     {
-        string tone = button.Tone == ToolbarTone.Primary ? "text-primary" : "text-body";
+        string tone = button.Tone switch
+        {
+            ToolbarTone.Primary => "text-primary",
+            ToolbarTone.Warning => "text-warning",
+            _ => "text-body"
+        };
         bool disabled = button.DisabledReason is not null;
         @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
         if (button.Href is not null)

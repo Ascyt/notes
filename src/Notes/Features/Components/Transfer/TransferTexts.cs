@@ -26,6 +26,9 @@ public class TransferTexts
     public virtual string NoReadAccessToTarget => "No read access to the target directory.";
     public virtual string IntoItself(WhatIsDone what, string name) => $"Cannot {Verb(what)} '{name}' into itself.";
     public virtual string AlreadyHere => "Everything selected is already in this directory.";
+
+    public virtual string ArchivedFolderUnzipFailed
+        => "An archived folder in what was selected could not be unzipped, so what is in it couldn't be checked. Nothing was changed.";
     public virtual string SameNameTwice(string name) => $"More than one of the selected entries is called '{name}'.";
     public virtual string NoReadAccess(string display, WhatIsDone what) => $"No read access to '{display}', so it can't be {Done(what)}.";
 
@@ -60,4 +63,7 @@ public class TransferTexts
     public virtual string SelectionChanged => "The selection was changed in the meantime (in another tab?). Nothing was done.";
     public virtual string NothingSelected => "Nothing is selected.";
     public virtual string FailedUnexpectedly => "The transfer failed unexpectedly.";
+
+    /// <summary>Stopped from the list of operations, while it was copying: nothing changed.</summary>
+    public virtual string Cancelled => "It was cancelled. Nothing was changed.";
 }

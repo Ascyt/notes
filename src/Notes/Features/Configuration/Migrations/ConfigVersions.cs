@@ -15,7 +15,7 @@ public static class ConfigVersions
     /// and applies the migrations of <see cref="ConfigMigrations.All"/> after the version it had. It is raised with every change of the format
     /// (docs/development/config-migrations.md); a version that changes nothing in the files needs no migration.
     /// </summary>
-    public static SemVersion Current { get; } = new(1, 2, 0);
+    public static SemVersion Current { get; } = new(1, 6, 0);
 
     /// <summary>What a configuration that has no version is: written before there were versions.</summary>
     public static SemVersion Zero { get; } = new(0, 0, 0);

@@ -11,6 +11,7 @@
 @inject ToolbarButtons Buttons
 @inject BreadcrumbStarts BreadcrumbStarts
 @inject ListingTexts Texts
+@inject Notes.Features.Components.Upload.UploadTexts UploadTexts
 
 @* The page of a directory: its breadcrumb and toolbar, then what is in it, in three groups (directories, files, media), and what is
    done with them (upload, the selection). *@
@@ -20,6 +21,14 @@
     // The configuration leftmost (only there for those who manage it), then the history (its changes, then the choice of a time), then
     // what moves files in and out.
     List<ToolbarButton> toolbarButtons = [];
+    // What puts the directory away again comes first: locking its password, zipping it (as it is now only)
+    if (!Model.ShowsEarlierState)
+    {
+        if (Model.OwnPasswordUnlocked)
+            toolbarButtons.Add(Buttons.LockEntry(isFile: false));
+        if (Model.IsUnzippedArchive)
+            toolbarButtons.Add(Buttons.ZipEntry(Model.IsEncryptedArchive));
+    }
     if (Model.CanConfigure)
         toolbarButtons.Add(Buttons.Config(isFile: false));
     if (Model.HistoryButton.IsShown)
@@ -101,6 +110,14 @@
     {
         DirectoryPath = Model.CanonicalVirtualPath,
         Selection = Model.Selection,
+        Status = Model.SelectionStatus,
         CreateDeniedReason = Model.CreateDeniedReason
     }"/>
+}
+
+@* The bars of uploaded archives that are being unzipped, kept up to date (also where nothing may be uploaded: whoever uploaded may still be at it) *@
+@if (Model.Files.Any(file => file.UnzipProgress is not null))
+{
+    <script-texts id="unzip-mark-texts" texts="@UploadTexts"/>
+    <script component-asset="@Notes.Features.Components.Upload._UnzipMark.Script"></script>
 }

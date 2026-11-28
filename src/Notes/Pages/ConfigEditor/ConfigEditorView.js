@@ -79,6 +79,10 @@
 
             if (window.editor.getValue().replace(/\r\n/g, '\n') !== message)
                 replaceAll(message);
+            // Saved, but something about it is worth knowing (archiving inside an archived folder, say)
+            const warning = response.headers.get('X-Notes-Config-Warning');
+            if (warning)
+                notify(decodeURIComponent(warning), 'warning');
             savedVersionId = window.editor.getModel().getAlternativeVersionId();
             updateDirty();
         } finally {

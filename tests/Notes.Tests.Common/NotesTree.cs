@@ -1,10 +1,13 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Notes.Tests.Common;
 
 /// <summary>Makes and looks at files and directories of a notes directory, by virtual path ("a/b.md").</summary>
-public sealed class NotesTree(string root)
+/// <param name="configsChanged">
+/// Told after a configuration file was written here: the app finds those changed by hand only in the background, and is told at once instead.
+/// </param>
+public sealed class NotesTree(string root, Action? configsChanged = null)
 {
     public string Root { get; } = root;
 
@@ -16,6 +19,8 @@ public sealed class NotesTree(string root)
         string physical = Physical(virtualPath);
         _ = Directory.CreateDirectory(Path.GetDirectoryName(physical)!);
         System.IO.File.WriteAllText(physical, contents);
+        if (string.Equals(Path.GetFileName(physical), ".config.json", StringComparison.OrdinalIgnoreCase))
+            configsChanged?.Invoke();
         return physical;
     }
 
@@ -38,6 +43,7 @@ public sealed class NotesTree(string root)
         // The app caches a configuration for as long as its time and length stay the same. The file system's clock may not have moved since
         // the last write (a test that changes the permissions right after a request), so every write gets a time of its own.
         System.IO.File.SetLastWriteTimeUtc(physical, DateTime.UtcNow.AddMilliseconds(Interlocked.Increment(ref _configWrites)));
+        configsChanged?.Invoke();
     }
 
     private static long _configWrites;
@@ -109,6 +115,7 @@ public static class Cfg
             ["version"] = Version,
             ["perms"] = perms,
             ["gitignore"] = gitignore,
+            ["archive"] = new JsonObject { ["enabled"] = false },
             ["files"] = new JsonArray([..files.Select(file => (JsonNode)new JsonObject { ["name"] = file.Name, ["perms"] = file.Perms })])
         }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 }

@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 using Notes.Features.HistoryViewing.Requests;
@@ -87,6 +87,8 @@ public sealed class HistoryReadingTests(NotesAppFactory app) : HistoryStateTest(
         _ = Tree.File("old/sub/c.md", "c");
         DateTimeOffset then = CommitNow();
         Directory.Delete(Tree.Physical("old"), recursive: true);
+        // (Deleted on the server, which the app finds in the background)
+        App.ConfigsChangedOnDisk();
         _ = CommitNow();
 
         string body = await BodyOf(await Client.GetAsync(Users.Alice, "/old/sub/c.md?" + At(then)));

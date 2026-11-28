@@ -27,6 +27,12 @@ public enum ListedKind
     /// <summary>Only its name, with a lock: the user may not read it.</summary>
     Locked,
 
+    /// <summary>
+    /// Its name, with a lock of its own: a password locks it, which opening it asks for (it, or a directory above, that the user could
+    /// otherwise read). It can't be selected.
+    /// </summary>
+    PasswordLocked,
+
     /// <summary>In an earlier state: only its name, with a crossed-out calendar, as its history can't be seen.</summary>
     NoHistory,
 }
@@ -43,6 +49,33 @@ public sealed record ListedEntry(string Path, ListedKind Kind, bool ExistsNow = 
     /// for an entry that can be opened, as the title is part of what is in it.
     /// </summary>
     public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// Whether it has a password of its own that is unlocked, which an open lock after its name shows. Only for an entry that can be opened (as
+    /// it is now): one that is still locked has its lock instead.
+    /// </summary>
+    public bool IsUnlocked { get; init; }
+
+    /// <summary>
+    /// How it is kept if it is an archived folder (zipped or unzipped now), which a zipper after its name shows; otherwise null. Only for an
+    /// entry that can be opened.
+    /// </summary>
+    public Features.ZippedFolders.ArchiveState? Archived { get; init; }
+
+    /// <summary>Whether that archive is encrypted, which a shield in place of the zipper shows.</summary>
+    public bool ArchiveEncrypted { get; init; }
+
+    /// <summary>How far its zipping got (0 to 1), while <see cref="Archived"/> is <c>Zipping</c>.</summary>
+    public double ZipProgress { get; init; }
+
+    /// <summary>
+    /// An uploaded archive being unzipped, with how far that got (0 to 1), which a bar after its name shows; otherwise null. Only for a file
+    /// that can be opened.
+    /// </summary>
+    public double? UnzipProgress { get; init; }
+
+    /// <summary>Why unzipping the uploaded archive failed, which a red mark after its name shows; otherwise null.</summary>
+    public string? UnzipError { get; init; }
 
     public bool CanOpen => Kind == ListedKind.Open;
 }
@@ -77,6 +110,30 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// <summary>Whether the user may see what is in the directory; without it the listing stays empty.</summary>
     public bool CanBrowse { get; init; }
 
+    /// <summary>What tells entries that a password locks from those the user may not read, for the directory as it is now.</summary>
+    public Features.Passwords.PasswordLocks? Passwords { get; init; }
+
+    /// <summary>What tells archived folders, for the directory as it is now (none for an earlier state).</summary>
+    public Features.ZippedFolders.ArchivedFolders? Archives { get; init; }
+
+    /// <summary>What unzips uploaded archives, and the configurations that say which are to be: for the directory as it is now.</summary>
+    public Features.Components.Upload.UploadedArchiveUnzipper? Unzipper { get; init; }
+
+    public Features.Configuration.FolderConfigStore? Configs { get; init; }
+
+    /// <summary>How an entry of the directory as it is now is shown, by what the user may do with it.</summary>
+    private ListedKind KindOf(string physicalPath, bool isDirectory)
+    {
+        if (tree.GetAccess(Viewer, physicalPath, isDirectory).CanRead)
+            return ListedKind.Open;
+        if (Passwords is null)
+            return ListedKind.Locked;
+
+        // Only what could be read without the passwords is said to be locked by one: the rest is no business of the user
+        using IDisposable ignoring = Passwords.IgnoringLocks();
+        return tree.GetAccess(Viewer, physicalPath, isDirectory).CanRead ? ListedKind.PasswordLocked : ListedKind.Locked;
+    }
+
     /// <summary>Which earlier state is shown (<c>?before=</c> or <c>?commit=</c>), or null for the directory as it is.</summary>
     public EarlierStateParameter? Shown { get; init; }
 
@@ -101,6 +158,15 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// user's own id, as the selection is kept, so it is where selecting is; elsewhere the directory is downloaded as a zip at once.
     /// </summary>
     public bool OffersArchiveOptions => CanSelect;
+
+    /// <summary>Whether the directory has a password of its own that is unlocked now: the toolbar has the button that locks it again.</summary>
+    public bool OwnPasswordUnlocked { get; init; }
+
+    /// <summary>Whether the directory is an archived folder that is unzipped now: the toolbar has the button that zips it.</summary>
+    public bool IsUnzippedArchive { get; init; }
+
+    /// <summary>Whether it is archived encrypted (the zip button is the shield then).</summary>
+    public bool IsEncryptedArchive { get; init; }
 
     /// <summary>Whether the user may manage permissions, so the page has the way to the permissions of the directory.</summary>
     public bool CanConfigure { get; init; }
@@ -142,6 +208,9 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     /// <summary>What the user has selected (anywhere) when the page is made.</summary>
     public SelectionSnapshot Selection { get; init; } = SelectionSnapshot.Empty;
 
+    /// <summary>What the selected entries are like for this browser now, for the card.</summary>
+    public SelectionStatus SelectionStatus { get; init; } = SelectionStatus.None;
+
     public bool IsRoot => VirtualPath == "";
 
     /// <summary>
@@ -157,6 +226,20 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
     public bool IsSelected(string virtualPath)
         => (_selectedPaths ??= new HashSet<string>(Selection.Paths, StringComparer.OrdinalIgnoreCase)).Contains(virtualPath);
 
+    /// <summary>The file with how its unzipping goes, if it is an uploaded archive that is to be unzipped (or couldn't be).</summary>
+    private ListedEntry WithUnzipping(ListedEntry file)
+    {
+        if (Unzipper is null || Configs?.Get(PhysicalPath).Config?.FindFile(System.IO.Path.GetFileName(file.Path)) is not { } entry)
+            return file;
+        if (entry.UnzipPending)
+        {
+            // (After a restart nothing unzips it yet: it starts now)
+            Unzipper.EnsureRunning(file.Path);
+            return file with { UnzipProgress = Unzipper.ProgressOf(file.Path) ?? 0 };
+        }
+        return entry.UnzipError is { } error ? file with { UnzipError = error } : file;
+    }
+
     public void Init()
     {
         if (!CanBrowse)
@@ -166,9 +249,26 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
         using IDisposable scope = ConfigReadScope.Begin();
 
         // The listing knows which are directories, so the permissions needn't look at the disk for each entry
-        Func<string, ListedEntry> ToListed(bool isDirectory) => entry => new(entry, tree.GetAccess(Viewer, entry, isDirectory).CanRead
-            ? ListedKind.Open : ListedKind.Locked);
-        // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames)
+        Func<string, ListedEntry> ToListed(bool isDirectory) => entry =>
+        {
+            ListedKind kind = KindOf(entry, isDirectory);
+            // (One a password locks shows its zipper too, after the lock)
+            Features.ZippedFolders.ArchiveState? archived = kind is ListedKind.Open or ListedKind.PasswordLocked && isDirectory
+                ? Archives?.ArchiveStateOf(entry)
+                : null;
+            // The lock only says whether its own password is unlocked; whether it is encrypted is the archive's mark (a folder can be
+            // encrypted with the password of an onLowestLevel folder above, and locked for one browser while it is unzipped for another)
+            ListedEntry listed = new(entry, kind)
+            {
+                IsUnlocked = kind == ListedKind.Open && Passwords?.HasOwnPassword(entry, isDirectory) == true,
+                Archived = archived,
+                ArchiveEncrypted = archived is not null && Archives?.IsEncrypted(entry) == true,
+                ZipProgress = archived == Features.ZippedFolders.ArchiveState.Zipping ? Archives?.ZipProgressOf(entry) ?? 0 : 0
+            };
+            return !isDirectory && kind == ListedKind.Open ? WithUnzipping(listed) : listed;
+        };
+        // Anonymous users don't see the names of what they may not read at all (see AccessTree.SeesUnreadableNames), but are asked for the
+        // password of what they could read with it
         bool seesUnreadable = tree.SeesUnreadableNames(Viewer);
 
         // With the bridges mounted here, which are directories like any other, and without what they hide or what the site doesn't show
@@ -179,13 +279,13 @@ public class DirectoryView(EntryLocations locations, IPathService path, AccessTr
             .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
             .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: true))
-            .Where(entry => entry.CanOpen || seesUnreadable)];
+            .Where(entry => entry.Kind != ListedKind.Locked || seesUnreadable)];
         // The configuration file is not an entry: it is changed through the configuration page, and never listed
         ListedEntry[] files = [..MediaEntries.InListingOrder(children.Where(child => child.Entry is FileInfo && !string.Equals(child.Name,
             PathService.ConfigFileName, StringComparison.OrdinalIgnoreCase)), child => child.Name)
             .Select(child => child.Entry.FullName)
             .Select(ToListed(isDirectory: false))
-            .Where(entry => entry.CanOpen || seesUnreadable)];
+            .Where(entry => entry.Kind != ListedKind.Locked || seesUnreadable)];
         SplitOffMedia(files);
         // Markdown files are shown by their titles, which only those who may read them see; the order stays that of the file names
         Files = [.. Files.Select(file => file.CanOpen && MarkdownTitles.IsMarkdown(file.Path)

@@ -1,6 +1,6 @@
 # Tests
 
-What is tested where, and how to run the tests. What tests check (and what they don't) is in the [principles](principles.md#23-tests-check-logic-not-wording-or-looks).
+What is tested where, and how to run the tests. What tests check (and what they don't) is in the [principles](principles.md#25-tests-check-logic-not-wording-or-looks).
 
 ```
 tests/Notes.Tests.Unit          methods on their own: paths, the permission parser and its resolution, config text editing, selections, uploads, session renewal

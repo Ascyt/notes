@@ -30,7 +30,7 @@ public sealed class RepositoryHistory : IDisposable
         _settings = settings;
         _logger = logger;
         _paths = new HistoryPaths(location.PhysicalPath);
-        _kept = new KeptFiles(configs, _paths, locations);
+        _kept = new KeptFiles(configs, _paths, locations, settings);
         _repository = new HistoryRepository(_paths, _kept, time, logger);
     }
 

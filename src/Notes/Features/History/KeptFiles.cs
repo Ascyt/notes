@@ -1,15 +1,17 @@
 using Notes.Features.Bridges;
 using Notes.Features.Configuration;
 using Notes.Features.Helpers;
+using Notes.Features.ZippedFolders;
 
 namespace Notes.Features.History;
 
 /// <summary>
 /// What the history keeps: every file, unless the configuration of its folder (or of the nearest folder above that has one) says
-/// <c>gitignore</c>. Configuration files are always kept, and the app's own data (<c>_</c>) never is. The folders above are those of the entries:
+/// <c>gitignore</c>, or it is larger than <see cref="HistoryConfig.MaxFileMegabytes"/>. Configuration files are always kept, and the app's own
+/// data (<c>_</c>) never is. The folders above are those of the entries:
 /// above a bridge, whose history is a repository of its own, comes the directory it is mounted in.
 /// </summary>
-public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, EntryLocations locations)
+public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, EntryLocations locations, HistoryConfig settings)
 {
     /// <summary>Whether the file (git path) is kept.</summary>
     public bool IsKept(string path)
@@ -83,8 +85,12 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, Ent
                 continue;
 
             string subfolderPattern = pattern + EscapeForPattern(name) + "/";
-            // What a bridge hides is no part of the entries, so nothing in it is kept
-            if (locations.IsHiddenByBridge(subfolder) || PatternsInside(subfolder, subfolderPattern, known) is not { } inside)
+            // What a bridge hides is no part of the entries, so nothing in it is kept. An unzipped archived folder hides its archive too, but
+            // its own configuration is next to it, and kept here (what is in the folder has the history of its unzipped copy).
+            List<string>? inside = IsUnzippedArchiveFolder(subfolder)
+                ? [subfolderPattern + "*", "!" + subfolderPattern + EscapeForPattern(PathService.ConfigFileName)]
+                : locations.IsHiddenByBridge(subfolder) ? null : PatternsInside(subfolder, subfolderPattern, known);
+            if (inside is null)
             {
                 // (In a folder that is left out, it already is by the folder's pattern)
                 if (!leftOut)
@@ -117,12 +123,29 @@ public sealed class KeptFiles(FolderConfigStore configs, HistoryPaths paths, Ent
 
     private bool IsKept(string path, Dictionary<string, bool> known)
     {
-        // What a bridge hides is no part of the entries, though it is in the work tree
-        if (path.Split('/')[0] == PathService.ReservedName || locations.IsHiddenByBridge(paths.ToPhysicalPath(path)))
+        if (path.Split('/')[0] == PathService.ReservedName)
             return false;
 
-        return IsConfigFile(path) || !IsLeftOut(Path.GetDirectoryName(paths.ToPhysicalPath(path))!, known);
+        // What a bridge hides is no part of the entries, though it is in the work tree; but for the configuration of an archived folder, which
+        // stays next to its archive while the folder is unzipped
+        string physicalPath = paths.ToPhysicalPath(path);
+        string folder = Path.GetDirectoryName(physicalPath)!;
+        if (locations.IsHiddenByBridge(physicalPath) && !(IsConfigFile(path) && IsUnzippedArchiveFolder(folder)))
+            return false;
+
+        // The archive of an archived folder never is: what is in it has a history of its own (in it), and it changes as a whole every time.
+        // (Its name is reserved: no user's file has it.)
+        if (ArchivedFolder.IsArchiveFileName(Path.GetFileName(physicalPath)))
+            return false;
+
+        // A file that grew too big leaves the history like one its gitignore left out: its earlier versions stay in it
+        return IsConfigFile(path) || (!IsLeftOut(folder, known) && !settings.IsTooBig(physicalPath));
     }
+
+    /// <summary>Whether the (physical) folder is an archived folder whose unzipped copy is mounted there now.</summary>
+    private bool IsUnzippedArchiveFolder(string folder)
+        => locations.UnzippedArchives.Any(archive => string.Equals(archive.MountPath, Path.TrimEndingDirectorySeparator(folder),
+            StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// What the nearest folder with a valid configuration says (an invalid one says nothing here: leaving something out of the history is never

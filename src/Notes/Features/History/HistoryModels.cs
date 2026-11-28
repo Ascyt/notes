@@ -50,7 +50,10 @@ public enum CommitReason
     BeforeGitignore,
 
     /// <summary>A configuration changed what the history keeps: the configuration, and the files that leave or come back with it.</summary>
-    Gitignore
+    Gitignore,
+
+    /// <summary>An archived folder is about to be zipped: what was pending in it, so that its archive holds it committed.</summary>
+    Zipping
 }
 
 /// <summary>
@@ -70,6 +73,7 @@ public static class CommitKeywords
     public const string Migration = "#migration";
     public const string BeforeGitignore = "#before-gitignore";
     public const string Gitignore = "#gitignore";
+    public const string Zipping = "#zipping";
 
     public static string Of(CommitReason reason)
         => reason switch
@@ -82,6 +86,7 @@ public static class CommitKeywords
             CommitReason.Migration => Migration,
             CommitReason.BeforeGitignore => BeforeGitignore,
             CommitReason.Gitignore => Gitignore,
+            CommitReason.Zipping => Zipping,
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
         };
 }

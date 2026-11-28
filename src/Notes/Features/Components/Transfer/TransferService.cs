@@ -1,6 +1,9 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Notes.Features.Auth;
+using Notes.Features.Bridges;
 using Notes.Features.Configuration;
+using Notes.Features.EntryActions;
+using Notes.Features.Passwords;
 using Notes.Features.Helpers;
 using Notes.Features.History;
 
@@ -22,33 +25,166 @@ public interface ITransferService
 /// anything, then the <see cref="TransferExecutor"/> does it and undoes it all if it fails. Both happen under the <see cref="StructureLock"/>,
 /// so nothing can change in between and no other operation sees a transfer half done. Turns the outcome into a <see cref="TransferResult"/>.
 /// </summary>
+/// <remarks>
+/// Passwords travel with what they protect, unlike permissions (<see cref="CarryPasswords"/>): otherwise copying something would be a way
+/// around its password.
+/// </remarks>
 public sealed class TransferService(TransferTexts texts, TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, FolderConfigStore configs,
-    HistoryService history, ILogger<TransferService> logger) : ITransferService
+    HistoryService history, PasswordLocks passwordLocks, EntryLocations locations, IPathService paths, ZippedFolders.ArchivedFolders archives,
+    AccessTree tree, EntryTexts entryTexts, ILogger<TransferService> logger, Operations.StorageOperations? operations = null) : ITransferService
 {
     public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget,
         IReadOnlyList<string> virtualPaths, Action<double>? reportProgress = null)
     {
+        // In the list of operations while it runs (also while it waits for the lock), where it can be cancelled while that changes nothing
+        using CancellationTokenSource cancellation = new();
+        double done = 0;
+        string phase = kind switch { TransferKind.Copy => WorkPhases.CopyingEntries, TransferKind.Move => WorkPhases.MovingEntries, _ => WorkPhases.DeletingEntries };
+        WorkStatus status = new(WorkPhases.Waiting);
+        using IDisposable? operation = operations?.Begin(kind switch
+            {
+                TransferKind.Copy => Operations.OperationKind.Copying,
+                TransferKind.Move => Operations.OperationKind.Moving,
+                _ => Operations.OperationKind.Deleting
+            }, physicalTarget, () => Volatile.Read(ref done), () => Volatile.Read(ref status), () => cancellation.Cancel(), user);
+        Action<double> report = progress =>
+        {
+            Volatile.Write(ref done, progress);
+            reportProgress?.Invoke(progress);
+        };
         // Once started, a transfer is never abandoned half way because the request that asked for it went away
         using (await structureLock.EnterAsync())
-            return await Task.Run(() => Run(user, kind, physicalTarget, virtualPaths, reportProgress ?? (_ => { })));
+        {
+            if (cancellation.IsCancellationRequested)
+                return new TransferResult(StatusCodes.Status409Conflict, texts.Cancelled);
+            Volatile.Write(ref status, new WorkStatus(phase, 0, virtualPaths.Count));
+            // The target may have been made an archived folder while this waited: then it is in its unzipped copy now
+            if (kind != TransferKind.Delete)
+                physicalTarget = archives.WhereItIsNow(physicalTarget);
+
+            // What is in the archived folders it takes is checked as for any directory: they are unzipped for that (those the user may
+            // open), and stay so while it is checked
+            List<string> sources = [.. virtualPaths.Select(paths.ToPhysicalPath).OfType<string>()];
+            try
+            {
+                await archives.UnzipAllAtOrBelowAsync(sources, folder => tree.CanOpen(user, folder) && passwordLocks.FirstLocked(folder) is null);
+            }
+            catch (IOException e)
+            {
+                logger.LogError(e, "An archived folder of a {kind} into {target} could not be unzipped", kind, physicalTarget);
+                return new TransferResult(StatusCodes.Status500InternalServerError, texts.ArchivedFolderUnzipFailed);
+            }
+
+            TransferPlan plan;
+            using (await archives.UseAllAroundAsync(sources))
+            {
+                try
+                {
+                    plan = await Task.Run(() => planner.Plan(user, kind, physicalTarget, virtualPaths));
+                }
+                catch (TransferException e)
+                {
+                    return new TransferResult(e.StatusCode, e.Message);
+                }
+
+                // A copy copies what is in them, as for any directory: the copy is a normal one (archiving is a setting of the folder)
+                if (kind == TransferKind.Copy)
+                {
+                    TransferResult copied = await Task.Run(() => Run(user, kind, physicalTarget, plan, report, cancellation.Token));
+                    // Below an onLowestLevel folder, what holds files now is archived right away
+                    await archives.ArchiveLowestLevelAfterChangeAsync(physicalTarget);
+                    return copied;
+                }
+            }
+
+            // A move or delete takes them as their folders (archive and configuration), zipped first, so a moved one stays archived
+            try
+            {
+                TransferResult result = await archives.WhileZippedAsync([.. plan.Items.Select(item => item.Source)], folders =>
+                    Task.Run(() => Run(user, kind, physicalTarget,
+                        plan with { Items = [.. plan.Items.Select((item, i) => AsZipped(item, folders[i]))] }, report, cancellation.Token)));
+
+                // One archived by an onLowestLevel folder above that was moved out from under it is an ordinary folder again where it is now
+                // (and one moved under such a folder may be archived by it)
+                if (kind == TransferKind.Move)
+                {
+                    foreach (TransferItem item in plan.Items.Where(item => item.IsDirectory))
+                        _ = await archives.ReconcileAsync(Path.Combine(physicalTarget, item.Name));
+                    await archives.ArchiveLowestLevelAfterChangeAsync(physicalTarget);
+                }
+                return result;
+            }
+            catch (ZippedFolders.ArchivePasswordNeededException e)
+            {
+                return new TransferResult(StatusCodes.Status403Forbidden, e.Message) { PasswordNeeded = e.Protection };
+            }
+            catch (IOException e)
+            {
+                logger.LogWarning(e, "The archived folders of a {kind} into {target} could not be zipped first", kind, physicalTarget);
+                return new TransferResult(StatusCodes.Status409Conflict, entryTexts.InUse);
+            }
+        }
     }
 
-    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, IReadOnlyList<string> virtualPaths,
-        Action<double> reportProgress)
+    /// <summary>
+    /// The item as it is once the archived folders at or in it are zipped (<paramref name="source"/>: the folder, for one that was its unzipped
+    /// copy): what the plan found in each of them (in its copy) is now in its archive, so each goes as its configuration and archive. Those go
+    /// for everyone, unlike other configurations: without its own, an archive would be a file like any other, which hands out what is in it.
+    /// </summary>
+    private TransferItem AsZipped(TransferItem item, string source)
+    {
+        if (!item.IsDirectory)
+            return item with { Source = source };
+
+        List<string> archived = [.. archives.ArchivedAtOrBelow([source])
+            .Select(folder => Path.GetRelativePath(source, folder)).Select(relative => relative == "." ? "" : relative)];
+        if (archived.Count == 0)
+            return item with { Source = source };
+
+        bool IsInsideArchived(InsideEntry entry)
+            => archived.Any(relative => relative == "" || entry.RelativePath.StartsWith(relative + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+        List<InsideEntry> contents = [.. item.Contents.Where(entry => !IsInsideArchived(entry))];
+        foreach (string relative in archived)
+        {
+            string folder = Path.Combine(source, relative);
+            contents.Add(new InsideEntry(Path.Combine(folder, PathService.ConfigFileName), Path.Combine(relative, PathService.ConfigFileName), false));
+            if (ZippedFolders.ArchivedFolders.ArchiveFileOf(folder) is { } archive)
+                contents.Add(new InsideEntry(archive, Path.Combine(relative, Path.GetFileName(archive)), false));
+        }
+        return item with { Source = source, Contents = contents };
+    }
+
+    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, TransferPlan plan, Action<double> reportProgress,
+        CancellationToken cancellationToken)
     {
         try
         {
-            TransferPlan plan = planner.Plan(user, kind, physicalTarget, virtualPaths);
             List<string> changed = ChangedPaths(kind, physicalTarget, plan.Items);
             history.BeforeChange(user, changed);
-            executor.Execute(kind, physicalTarget, plan.Items, reportProgress);
+            // (Found before: a move takes the originals, and their entries, away)
+            List<CarriedPassword> passwords = kind == TransferKind.Delete ? [] : PasswordsOf(physicalTarget, plan.Items);
+            try
+            {
+                executor.Execute(kind, physicalTarget, plan.Items, reportProgress, cancellationToken);
+            }
+            finally
+            {
+                // (Also after a failure, which puts things back: the disk is what counts. Before anything reads the configurations again.)
+                IndexTransferred(kind, physicalTarget, plan.Items);
+            }
             KeepFileEntriesInStep(kind, physicalTarget, plan.Items);
+            CarryPasswords(passwords);
             history.AfterChange(user, changed, kind == TransferKind.Delete ? HistoryChangeKind.Delete : HistoryChangeKind.Change);
             return TransferResult.Success with { LeftOutUnreadable = plan.LeftOutUnreadable };
         }
         catch (TransferException e)
         {
             return new TransferResult(e.StatusCode, e.Message);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Stopped while copying: nothing changed (the staging copies are deleted)
+            return new TransferResult(StatusCodes.Status409Conflict, texts.Cancelled);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -59,8 +195,20 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
         }
     }
 
+    /// <summary>Tells the configurations' index of the directories that came and went (their configurations, and those inside, with them).</summary>
+    private void IndexTransferred(TransferKind kind, string physicalTarget, IEnumerable<TransferItem> items)
+    {
+        foreach (TransferItem item in items.Where(item => item.IsDirectory))
+        {
+            if (kind != TransferKind.Copy)
+                configs.TreeChanged(item.Source);
+            if (kind != TransferKind.Delete)
+                configs.TreeChanged(Path.Combine(physicalTarget, item.Name));
+        }
+    }
+
     /// <summary>What the transfer changes: the entries that go away or come in, and the configurations whose file entries change with them.</summary>
-    private static List<string> ChangedPaths(TransferKind kind, string physicalTarget, IEnumerable<TransferItem> items)
+    private List<string> ChangedPaths(TransferKind kind, string physicalTarget, IEnumerable<TransferItem> items)
     {
         List<string> changed = [];
         foreach (TransferItem item in items)
@@ -70,12 +218,64 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
             if (kind != TransferKind.Delete)
                 changed.Add(Path.Combine(physicalTarget, item.Name));
             if (!item.IsDirectory && kind != TransferKind.Copy)
-                changed.Add(Path.Combine(Path.GetDirectoryName(item.Source)!, PathService.ConfigFileName));
+                changed.Add(configs.ConfigPathOf(Path.GetDirectoryName(item.Source)!));
             if (!item.IsDirectory && kind != TransferKind.Delete)
-                changed.Add(Path.Combine(physicalTarget, PathService.ConfigFileName));
+                changed.Add(configs.ConfigPathOf(physicalTarget));
         }
 
         return [.. changed.Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>A password that goes with a transferred entry (or one inside it) to where it goes.</summary>
+    private sealed record CarriedPassword(Protection From, string Destination, bool IsDirectory);
+
+    /// <summary>
+    /// The passwords of the transferred entries and of everything that is transferred inside them, with where each goes: the directories
+    /// (outermost first) before the files, so a file's folder has its configuration first.
+    /// </summary>
+    private List<CarriedPassword> PasswordsOf(string physicalTarget, IEnumerable<TransferItem> items)
+    {
+        List<CarriedPassword> passwords = [];
+        void Add(string source, string destination, bool isDirectory)
+        {
+            string? hash = isDirectory
+                ? configs.Get(source).Config?.PasswordHash
+                : configs.Get(locations.ParentOf(source)!).Config?.FindFile(Path.GetFileName(source))?.PasswordHash;
+            // (A directory's is keyed as PasswordLocks keys it: an archived folder's by the folder, also from its unzipped copy)
+            string protectedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
+            if (hash is not null)
+                passwords.Add(new CarriedPassword(new Protection(isDirectory ? locations.ConfigDirectoryOf(protectedPath) : protectedPath, hash),
+                    destination, isDirectory));
+        }
+
+        foreach (TransferItem item in items)
+        {
+            string destination = Path.Combine(physicalTarget, item.Name);
+            Add(item.Source, destination, item.IsDirectory);
+            foreach (InsideEntry inside in item.Contents)
+                Add(inside.Path, Path.Combine(destination, inside.RelativePath), inside.IsDirectory);
+        }
+
+        return [.. passwords.OrderBy(password => !password.IsDirectory)];
+    }
+
+    /// <summary>
+    /// Gives each transferred entry the password it had. One that can't be given it is logged as an error: the entry is there without it.
+    /// Whoever had one unlocked has it unlocked where it went.
+    /// </summary>
+    private void CarryPasswords(List<CarriedPassword> passwords)
+    {
+        foreach (CarriedPassword password in passwords)
+        {
+            bool carried = password.IsDirectory
+                ? configs.DirectoryPasswordCarried(password.Destination, password.From.Hash)
+                : configs.FilePasswordCarried(Path.GetDirectoryName(password.Destination)!, Path.GetFileName(password.Destination),
+                    password.From.Hash);
+            if (carried)
+                passwordLocks.Moved(password.From, password.Destination);
+            else
+                logger.LogError("{destination} was transferred, but could not be given the password it had: it is not protected by it", password.Destination);
+        }
     }
 
     /// <summary>

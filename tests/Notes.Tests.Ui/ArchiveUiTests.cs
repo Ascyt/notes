@@ -180,6 +180,102 @@ public sealed class ArchiveUiTests(UiFixture fixture) : UiTest(fixture), IClassF
     }
 
     [Fact]
+    public async Task While_the_archive_is_made_a_bar_shows_how_far_it_got()
+    {
+        // The first answer about it says it is 40% done, until the test lets the real ones through
+        TaskCompletionSource letThrough = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await Page.RouteAsync(new Regex(@"\?archive=[0-9a-f-]{36}&progress$"), async route =>
+        {
+            if (!letThrough.Task.IsCompleted)
+            {
+                await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = """
+                    {"done":false,"progress":0.4,"status":{"phase":"writing","files":12,"totalFiles":340,"bytes":1258291,"totalBytes":41943040}}
+                    """ });
+                return;
+            }
+            await route.ContinueAsync();
+        });
+        await OpenAsync("/docs");
+        await Page.Locator("#download-button").ClickAsync();
+        await Page.Locator("#archive-confirm").ClickAsync();
+
+        ILocator bar = Page.Locator("#busy-overlay-progress");
+        await Expect(bar).ToBeVisibleAsync();
+        await Expect(bar).ToHaveAttributeAsync("aria-valuenow", "40");
+        await Expect(Page.Locator("#busy-overlay-spinner")).ToBeHiddenAsync();
+        // ...and in words what it is doing
+        await Expect(Page.Locator("#busy-overlay-detail")).ToHaveTextAsync("Writing the archive: 12 of 340 files, 1.2 MiB of 40.0 MiB (40%)");
+
+        IDownload download = await Page.RunAndWaitForDownloadAsync(() =>
+        {
+            letThrough.SetResult();
+            return Task.CompletedTask;
+        });
+        Assert.Matches(@"\?archive=[0-9a-f-]{36}$", download.Url);
+        await Expect(Overlay).ToBeHiddenAsync();
+    }
+
+    /// <summary>docs/outer-ui with open.md, and locked/ inside it with a password.</summary>
+    private void OuterWithLockedFolder()
+    {
+        Tree.File("docs/outer-ui/open.md", "open");
+        Tree.File("docs/outer-ui/locked/x.md", "x");
+        System.Text.Json.Nodes.JsonObject config = System.Text.Json.Nodes.JsonNode.Parse(Cfg.Folder(Cfg.Perms()))!.AsObject();
+        config["passwordHash"] = Notes.Features.Passwords.PasswordHashing.Hash("pw", 4);
+        Tree.Config("docs/outer-ui/locked", config.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_folder_with_a_locked_folder_inside_downloads_without_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+
+        await Page.Locator("#download-button").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["open.md"], SevenZipNames(bytes));
+        await Expect(ToastOf("danger")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task A_folder_with_an_unlocked_folder_inside_downloads_with_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+        // Unlocked in this browser, as the dialog does it
+        _ = await Page.EvaluateAsync("""
+            () => fetch('/docs/outer-ui/locked?unlock', { method: 'POST', body: JSON.stringify({ password: 'pw' }),
+                headers: { 'Content-Type': 'application/json',
+                           'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value } })
+            """);
+
+        await Page.Locator("#download-button").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["locked/x.md", "open.md"], SevenZipNames(bytes).Order(StringComparer.Ordinal));
+        await Expect(ToastOf("danger")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task A_selected_unlocked_folder_downloads_with_what_is_in_it()
+    {
+        OuterWithLockedFolder();
+        await OpenAsync("/docs/outer-ui");
+        _ = await Page.EvaluateAsync("""
+            () => fetch('/docs/outer-ui/locked?unlock', { method: 'POST', body: JSON.stringify({ password: 'pw' }),
+                headers: { 'Content-Type': 'application/json',
+                           'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value } })
+            """);
+        await SelectAsync("docs/outer-ui", "docs/outer-ui/locked", "docs/outer-ui/open.md");
+
+        await Page.Locator("#selection-download").ClickAsync();
+        (_, byte[] bytes) = await DownloadArchiveAsync(() => Page.Locator("#archive-confirm").ClickAsync());
+
+        Assert.Equal(["locked/x.md", "open.md"], SevenZipNames(bytes).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task A_refusal_of_the_server_is_shown_and_the_page_is_usable_again()
     {
         await Page.RouteAsync(new Regex(@"\?archive=directory"), route => route.FulfillAsync(new() { Status = 409, Body = "refused" }));

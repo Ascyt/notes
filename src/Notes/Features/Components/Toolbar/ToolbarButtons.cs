@@ -143,6 +143,21 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
             : new(Id: "commit-changes-button", Icon: "fa-solid fa-code-commit", Label: texts.ShowStateOfCommit, Key: "+H", Href: href,
                 DisabledReason: disabledReason);
 
+    /// <summary>
+    /// Locks the entry's own password, which is unlocked now (and what is unlocked inside it), and goes to the folder it is in (POST
+    /// ?lock=entry, _PasswordModal.js). Only where the entry has a password of its own that is unlocked.
+    /// </summary>
+    public ToolbarButton LockEntry(bool isFile)
+        => new(Id: "lock-entry-button", Icon: "fa-solid fa-lock", Label: texts.LockEntry(isFile), Tone: ToolbarTone.Warning);
+
+    /// <summary>
+    /// Zips the directory, an archived folder that is unzipped now, and goes to the folder it is in (POST ?zip=entry, _Unzipping.js). Only
+    /// there.
+    /// </summary>
+    public ToolbarButton ZipEntry(bool encrypted)
+        => new(Id: "zip-entry-button", Icon: encrypted ? "fa-solid fa-shield" : "fa-solid fa-file-zipper", Label: texts.ZipEntry(encrypted),
+            Tone: encrypted ? ToolbarTone.Warning : ToolbarTone.Primary);
+
     /// <summary>Puts the default configuration into the editor of the configuration page (it is only saved by Save).</summary>
     public ToolbarButton ResetConfig()
         => new(Id: "reset-button", Icon: "fa-solid fa-rotate-left", Label: texts.ResetConfiguration, Key: "^!r");

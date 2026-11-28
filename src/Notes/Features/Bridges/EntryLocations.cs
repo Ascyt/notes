@@ -1,4 +1,4 @@
-using Notes.Features.Helpers;
+﻿using Notes.Features.Helpers;
 
 namespace Notes.Features.Bridges;
 
@@ -10,7 +10,11 @@ namespace Notes.Features.Bridges;
 /// the bridge. Null for the root.
 /// </param>
 /// <param name="KeepsHistory">Whether it has a history of its own (<c>History:Enabled</c>).</param>
-public sealed record EntryLocation(string VirtualPath, string PhysicalPath, string? MountPath, bool KeepsHistory)
+/// <param name="IsArchive">
+/// Whether it is the unzipped copy of an archived folder (see docs/development/zipped-folders.md), mounted while it is unzipped where the folder
+/// is (<paramref name="MountPath"/>, which holds the archive and the folder's own configuration), rather than a bridge of the configuration.
+/// </param>
+public sealed record EntryLocation(string VirtualPath, string PhysicalPath, string? MountPath, bool KeepsHistory, bool IsArchive = false)
 {
     public bool IsRoot => MountPath is null;
 
@@ -62,16 +66,70 @@ public sealed class EntryLocations
             all.Add(new EntryLocation(virtualPath, physicalPath, mountPath, bridge.History.Enabled));
         }
 
-        All = all;
+        _configured = all;
         Bridges = [.. all.Skip(1)];
     }
 
+    /// <summary>The root and the bridges of the configuration, each bridge after the one it is in.</summary>
+    private readonly List<EntryLocation> _configured;
+
+    /// <summary>
+    /// The archived folders that are unzipped now, each after the one it is in (an archived folder inside another is only unzipped once that
+    /// one is). Replaced as a whole when one comes or goes, so that a reader always sees one state of them.
+    /// </summary>
+    private volatile IReadOnlyList<EntryLocation> _archives = [];
+
+    private readonly Lock _archivesLock = new();
+
     public EntryLocation Root { get; }
 
-    /// <summary>The root and the bridges, each bridge after the one it is in.</summary>
-    public IReadOnlyList<EntryLocation> All { get; }
+    /// <summary>The root, the bridges, and the archived folders that are unzipped now; each after the one it is in.</summary>
+    public IReadOnlyList<EntryLocation> All => [.. _configured, .. _archives];
 
+    /// <summary>The bridges of the configuration (not the archived folders, which come and go).</summary>
     public IReadOnlyList<EntryLocation> Bridges { get; }
+
+    /// <summary>What is mounted somewhere among the entries: the bridges, and the archived folders that are unzipped now.</summary>
+    private IEnumerable<EntryLocation> Mounted => [.. Bridges, .. _archives];
+
+    /// <summary>The archived folders that are unzipped now.</summary>
+    public IReadOnlyList<EntryLocation> UnzippedArchives => _archives;
+
+    /// <summary>
+    /// Mounts the unzipped copy of an archived folder where the folder is, so that what is in it is found there (as for a bridge). The
+    /// folder's own configuration stays where it is (<see cref="ConfigDirectoryOf"/>).
+    /// </summary>
+    /// <param name="folderPath">The physical path of the archived folder (where its archive and configuration are).</param>
+    public EntryLocation MountArchive(string folderPath, string unzippedPath, bool keepsHistory)
+    {
+        EntryLocation location = new(ToVirtualPath(folderPath), Normalize(unzippedPath), Normalize(folderPath), keepsHistory, IsArchive: true);
+        lock (_archivesLock)
+        {
+            if (_archives.Any(other => IsSamePhysical(other.PhysicalPath, location.PhysicalPath)))
+                throw new InvalidOperationException($"{unzippedPath} is mounted already.");
+            _archives = [.. _archives, location];
+        }
+        // (Its configurations are now those of its folder's path)
+        Helpers.RequestLookups.Changed();
+        return location;
+    }
+
+    /// <summary>Takes the unzipped copy away from where it was mounted (before it is zipped), with every one mounted inside it.</summary>
+    public void UnmountArchive(EntryLocation archive)
+    {
+        lock (_archivesLock)
+            _archives = [.. _archives.Where(other => !IsSameOrInsidePhysical(other.PhysicalPath, archive.PhysicalPath))];
+        Helpers.RequestLookups.Changed();
+    }
+
+    /// <summary>
+    /// The directory whose <c>.config.json</c> is the directory's configuration: the directory itself, but for the unzipped copy of an archived
+    /// folder, whose own configuration stays with the archive (so that it can be read while the folder is zipped).
+    /// </summary>
+    public string ConfigDirectoryOf(string physicalDirectory)
+        => _archives.FirstOrDefault(archive => IsSamePhysical(archive.PhysicalPath, physicalDirectory)) is { } location
+            ? location.MountPath!
+            : physicalDirectory;
 
     /// <summary>
     /// Checks on disk what the configuration can't say by itself, once the root exists: every bridge's physical directory exists (and is no link,
@@ -111,25 +169,28 @@ public sealed class EntryLocations
     public EntryLocation LocationOfVirtual(string virtualPath)
         => DeepestLocationOf(All, string.Join('/', SegmentsOf(virtualPath)));
 
-    /// <summary>The bridge at exactly the virtual path (in any case), or null.</summary>
+    /// <summary>The bridge (or unzipped archived folder) at exactly the virtual path (in any case), or null.</summary>
     public EntryLocation? BridgeAt(string virtualPath)
     {
         string path = string.Join('/', SegmentsOf(virtualPath));
-        return Bridges.FirstOrDefault(bridge => string.Equals(bridge.VirtualPath, path, StringComparison.OrdinalIgnoreCase));
+        return Mounted.FirstOrDefault(bridge => string.Equals(bridge.VirtualPath, path, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>The bridge whose physical directory this is, or null.</summary>
+    /// <summary>The bridge (or unzipped archived folder) whose physical directory this is, or null.</summary>
     public EntryLocation? BridgeOf(string physicalDirectory)
     {
         string path = Normalize(physicalDirectory);
-        return Bridges.FirstOrDefault(bridge => IsSamePhysical(path, bridge.PhysicalPath));
+        return Mounted.FirstOrDefault(bridge => IsSamePhysical(path, bridge.PhysicalPath));
     }
 
-    /// <summary>Whether the path is where a bridge is mounted, or inside it: whatever is there on disk is hidden by the bridge.</summary>
+    /// <summary>
+    /// Whether the path is where a bridge (or unzipped archived folder) is mounted, or inside it: whatever is there on disk is hidden by it (for
+    /// an archived folder, its archive and its own configuration).
+    /// </summary>
     public bool IsHiddenByBridge(string physicalPath)
     {
         string path = Normalize(physicalPath);
-        return Bridges.Any(bridge => IsSameOrInsidePhysical(path, bridge.MountPath!));
+        return Mounted.Any(bridge => IsSameOrInsidePhysical(path, bridge.MountPath!));
     }
 
     /// <summary>Whether the path (that may not exist) is part of the entries: in one of the locations, and not hidden by a bridge.</summary>
@@ -160,11 +221,11 @@ public sealed class EntryLocations
     public string NameOf(string physicalPath)
         => BridgeOf(physicalPath)?.Name ?? Path.GetFileName(Normalize(physicalPath));
 
-    /// <summary>The bridges mounted right inside the physical directory.</summary>
+    /// <summary>The bridges (and unzipped archived folders) mounted right inside the physical directory.</summary>
     public IEnumerable<EntryLocation> BridgesIn(string physicalDirectory)
     {
         string path = Normalize(physicalDirectory);
-        return Bridges.Where(bridge => IsSamePhysical(Path.GetDirectoryName(bridge.MountPath)!, path));
+        return Mounted.Where(bridge => IsSamePhysical(Path.GetDirectoryName(bridge.MountPath)!, path));
     }
 
     /// <summary>
@@ -174,7 +235,10 @@ public sealed class EntryLocations
     public bool HoldsBridge(string physicalPath)
         => BridgesAtOrBelow(physicalPath).Any();
 
-    /// <summary>The bridges at the entry or somewhere inside it, the ones above first.</summary>
+    /// <summary>
+    /// The bridges of the configuration at the entry or somewhere inside it, the ones above first. (Not the unzipped archived folders: they are
+    /// zipped before what holds them is moved or deleted.)
+    /// </summary>
     public IEnumerable<EntryLocation> BridgesAtOrBelow(string physicalPath)
     {
         string virtualPath = ToVirtualPath(physicalPath);

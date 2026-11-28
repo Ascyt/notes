@@ -280,4 +280,45 @@ public sealed class ConfigTextTests
         string? added = ConfigText.AddFile(renamed!, "🎉.md");
         Assert.Equal(["ü.md", "🎉.md"], ConfigText.FileNames(added!));
     }
+
+    [Fact]
+    public void A_property_of_a_file_is_set_and_removed_without_touching_the_rest()
+    {
+        string? pending = ConfigText.SetFileProperty(Commented, "plan.md", ConfigParser.UnzipPendingKey, "true");
+        AssertValid(pending);
+        Assert.True(ConfigParser.ParseFolder(pending!, existingFiles: null).Value!.FindFile("plan.md")!.UnzipPending);
+        Assert.Contains("// carol's", pending);
+
+        string? failed = ConfigText.SetFileProperty(ConfigText.RemoveFileProperties(pending!, "plan.md", [ConfigParser.UnzipPendingKey])!,
+            "plan.md", ConfigParser.UnzipErrorKey, "\"it is \\\"damaged\\\"\"");
+        AssertValid(failed);
+        FileEntry entry = ConfigParser.ParseFolder(failed!, existingFiles: null).Value!.FindFile("plan.md")!;
+        Assert.False(entry.UnzipPending);
+        Assert.Equal("it is \"damaged\"", entry.UnzipError);
+
+        string? cleared = ConfigText.RemoveFileProperties(failed!, "plan.md", ConfigParser.UnzipKeys);
+        AssertValid(cleared);
+        Assert.Null(ConfigParser.ParseFolder(cleared!, existingFiles: null).Value!.FindFile("plan.md")!.UnzipError);
+        Assert.Contains("// the plan", cleared);
+    }
+
+    [Fact]
+    public void A_file_without_an_entry_gets_one_for_its_property()
+    {
+        string? text = ConfigText.SetFileProperty(Commented, "new.zip", ConfigParser.UnzipPendingKey, "true");
+
+        AssertValid(text);
+        Assert.True(ConfigParser.ParseFolder(text!, existingFiles: null).Value!.FindFile("new.zip")!.UnzipPending);
+    }
+
+    [Theory]
+    [InlineData("{ \"a\": 1, \"b\": 2, \"c\": 3 }", "{ \"a\": 1, \"c\": 3 }")]
+    [InlineData("{ \"a\": 1, \"b\": 2 }", "{ \"a\": 1 }")]
+    [InlineData("{ \"b\": 2 }", "{  }")]
+    public void Removing_a_property_takes_its_comma_along(string text, string expected)
+        => Assert.Equal(expected, ConfigText.RemoveProperties(text, ["b"]));
+
+    [Fact]
+    public void A_file_body_with_an_unzip_mark_is_valid()
+        => Assert.True(ConfigParser.ParseFileBody("{ \"perms\": { \"inherit\": true }, \"unzipError\": \"x\" }").IsValid);
 }

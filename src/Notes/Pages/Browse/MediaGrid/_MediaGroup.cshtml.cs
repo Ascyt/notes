@@ -29,7 +29,8 @@ public class _MediaGroup : PageModel
                 ? "&" + CommitChangesRequests.ChangesParameter
                     + (entry.Mark == ChangeMark.Deleted ? "&" + CommitChangesRequests.PreviousParameter : "")
                 : "");
-        bool leadsToNow = entry.Kind == ListedKind.NoHistory && entry.ExistsNow;
+        // (One that a password locks leads to where it is asked for)
+        bool leadsToNow = (entry.Kind == ListedKind.NoHistory && entry.ExistsNow) || entry.Kind == ListedKind.PasswordLocked;
         return new _MediaTile
         {
             Entry = entry,

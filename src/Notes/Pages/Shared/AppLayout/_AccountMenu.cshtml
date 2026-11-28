@@ -1,10 +1,18 @@
-@using Notes.Extensions
+﻿@using Notes.Extensions
 @using Notes.Features.Auth
-@* Logging in and out, and who is logged in, for a layout that wants it (docs/library.md). It needs nothing of the page. *@
+@inject Notes.Features.Passwords.PasswordUnlocks Unlocks
+@inject Notes.Features.Passwords.PasswordLocks Locks
+@inject Notes.Features.ZippedFolders.ArchivedFolders Archives
+@inject AccessTree Tree
+@inject Notes.Features.Operations.StorageOperations Operations
+@* Logging in and out, who is logged in, locking what is unlocked, zipping what is unzipped, and the storage operations that run, for a layout that wants it (docs/library.md). It needs nothing of the page. *@
 <partial name="/Features/Auth/_Account.cshtml" model='new _Account
 {
     IsAuthenticated = User.Identity?.IsAuthenticated == true,
+    HasOperations = Operations.VisibleTo(User, Tree).Count > 0,
     IsAdmin = User.IsInRole(AppAccess.AdminRole),
     UserName = User.Identity?.Name ?? "",
+    HasUnlocked = Unlocks.HasAnyUnlocked(Context),
+    HasZippable = Notes.Features.ZippedFolders.ZipHandler.ZippableFor(User, Archives, Tree, Locks).Count > 0,
     ReturnUrl = Context.OriginalPathAndQuery
 }'/>

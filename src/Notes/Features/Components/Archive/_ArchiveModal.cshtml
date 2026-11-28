@@ -1,52 +1,73 @@
 @model _ArchiveModal
 @inject ArchiveTexts Texts
 
-@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password. Opened by the toolbar's download
-   button of a directory (where OpensFromToolbar), and by the selection card (archiveDownload.open in _ArchiveModal.js). *@
+@* The dialog that asks how to make an archive before it is downloaded: format, compression and a password, and what to do with the
+   archived folders in it. Opened by the toolbar's download button of a directory (where OpensFromToolbar), and by the selection card
+   (archiveDownload.open in _ArchiveModal.js). Scrolls within the screen (modal-dialog-scrollable), as the list of folders may be long. *@
 
 @Html.AntiForgeryToken()
 <div class="modal" id="archive-modal" tabindex="-1" aria-labelledby="archive-title" aria-hidden="true"
     data-opens-from-toolbar="@(Model.OpensFromToolbar ? "true" : "false")">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="archive-title">@Texts.Title</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
             </div>
             <form id="archive-form" class="modal-body d-flex flex-column gap-3" autocomplete="off">
-                <fieldset>
-                    <legend class="form-label fs-6">@Texts.Format</legend>
-                    <div class="btn-group" role="group">
-                        <input type="radio" class="btn-check" name="archive-format" id="archive-format-7z" value="7z" checked/>
-                        <label class="btn btn-outline-secondary" for="archive-format-7z">.7z</label>
-                        <input type="radio" class="btn-check" name="archive-format" id="archive-format-zip" value="zip"/>
-                        <label class="btn btn-outline-secondary" for="archive-format-zip">.zip</label>
+                @* The archived folders in what is downloaded (GET ?archive=folders), filled in by _ArchiveModal.js; hidden while there are
+                   none. For admins, a box for each: ticked, it is unzipped and what is in it goes in; not ticked (at first), it goes in as it
+                   is kept. Everyone else is told that they are unzipped for it. *@
+                <div id="archive-folders" hidden>
+                    <div id="archive-folders-admin" hidden>
+                        <div class="fw-semibold mb-1">@Texts.ArchivedFolders</div>
+                        <div class="form-text mt-0 mb-2" id="archive-folders-hint">@Texts.ArchivedFoldersHint</div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="archive-unzip-all" aria-describedby="archive-folders-hint"/>
+                            <label class="form-check-label fw-semibold" for="archive-unzip-all">@Texts.UnzipAll</label>
+                        </div>
+                        <div id="archive-folder-list" class="d-flex flex-column ms-3"></div>
+                    </div>
+                    <div id="archive-folders-user" class="alert alert-warning mb-0" role="status" hidden>
+                        <i class="fa-solid fa-triangle-exclamation"></i> <span id="archive-folders-warning"></span>
+                    </div>
+                </div>
+                <div id="archive-whole-as-is" class="alert alert-info mb-0" role="status" hidden>@Texts.WholeAsIs</div>
+                <fieldset id="archive-options" class="d-flex flex-column gap-3">
+                    <fieldset>
+                        <legend class="form-label fs-6">@Texts.Format</legend>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="archive-format" id="archive-format-7z" value="7z" checked/>
+                            <label class="btn btn-outline-secondary" for="archive-format-7z">.7z</label>
+                            <input type="radio" class="btn-check" name="archive-format" id="archive-format-zip" value="zip"/>
+                            <label class="btn btn-outline-secondary" for="archive-format-zip">.zip</label>
+                        </div>
+                    </fieldset>
+                    <div>
+                        <label class="form-label" for="archive-compression">@Texts.Compression</label>
+                        @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.js): a zip can
+                           be stored without compression, a 7z only compressed as little as can be *@
+                        <select id="archive-compression" class="form-select">
+                            <option value="min" id="archive-compression-min">@Texts.Min</option>
+                            <option value="store" id="archive-compression-store">@Texts.Store</option>
+                            <option value="medium">@Texts.Medium</option>
+                            <option value="high" selected>@Texts.High</option>
+                            <option value="max">@Texts.Max</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="archive-password">@Texts.Password</label>
+                        <div class="input-group">
+                            <input type="password" id="archive-password" class="form-control" maxlength="@ArchiveOptions.MaxPasswordLength"
+                                autocomplete="new-password" spellcheck="false" aria-describedby="archive-password-hint"/>
+                            <button type="button" id="archive-password-toggle" class="btn btn-outline-secondary" aria-pressed="false"
+                                title="@Texts.ShowPassword" aria-label="@Texts.ShowPassword">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <div id="archive-password-hint" class="form-text">@Texts.PasswordHint</div>
                     </div>
                 </fieldset>
-                <div>
-                    <label class="form-label" for="archive-compression">@Texts.Compression</label>
-                    @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.js): a zip can be stored
-                       without compression, a 7z only compressed as little as can be *@
-                    <select id="archive-compression" class="form-select">
-                        <option value="min" id="archive-compression-min">@Texts.Min</option>
-                        <option value="store" id="archive-compression-store">@Texts.Store</option>
-                        <option value="medium">@Texts.Medium</option>
-                        <option value="high" selected>@Texts.High</option>
-                        <option value="max">@Texts.Max</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label" for="archive-password">@Texts.Password</label>
-                    <div class="input-group">
-                        <input type="password" id="archive-password" class="form-control" maxlength="@ArchiveOptions.MaxPasswordLength"
-                            autocomplete="new-password" spellcheck="false" aria-describedby="archive-password-hint"/>
-                        <button type="button" id="archive-password-toggle" class="btn btn-outline-secondary" aria-pressed="false"
-                            title="@Texts.ShowPassword" aria-label="@Texts.ShowPassword">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
-                    </div>
-                    <div id="archive-password-hint" class="form-text">@Texts.PasswordHint</div>
-                </div>
             </form>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" key="Escape">@Texts.Cancel</button>
