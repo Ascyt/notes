@@ -19,6 +19,7 @@
     const progress = document.getElementById('upload-progress');
     const statusText = document.getElementById('upload-status');
     const bar = document.getElementById('upload-bar');
+    const detail = document.getElementById('upload-detail');
     const errorBox = document.getElementById('upload-error');
     const addMoreButton = document.getElementById('upload-add-more');
     const cancelButton = document.getElementById('upload-cancel');
@@ -53,16 +54,6 @@
     function persist() {
         if (operations)
             operations.save(stored());
-    }
-
-    function formatSize(bytes) {
-        const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
-        let i = 0;
-        while (bytes >= 1024 && i < units.length - 1) {
-            bytes /= 1024;
-            i++;
-        }
-        return (i === 0 ? bytes : bytes.toFixed(1)) + ' ' + units[i];
     }
 
     function tagOf(item) {
@@ -182,8 +173,13 @@
         errorBox.hidden = false;
     }
 
-    function setBar(done, total) {
-        bar.style.width = (total === 0 ? 100 : Math.min(100, done / total * 100)) + '%';
+    // The bar of the whole upload, and under it how far it got, in files and bytes
+    function setBar(done, total, queue) {
+        const fraction = total === 0 ? 1 : Math.min(1, done / total);
+        bar.style.width = fraction * 100 + '%';
+        detail.textContent = describeProgress({
+            phase: 'uploading', files: queue.filter(item => item.state !== 'todo').length, totalFiles: queue.length, bytes: done, totalBytes: total
+        }, fraction);
     }
 
     function openModal() {
@@ -270,7 +266,7 @@
         controller = new AbortController();
         const signal = controller.signal;
         setBusy(true);
-        setBar(done, total);
+        setBar(done, total, queue);
         persist();
         release = operations ? operations.hold(stored) : () => { };
 
@@ -283,7 +279,7 @@
                         item.state = 'skipped';
                         skipped++;
                         done += item.size;
-                        setBar(done, total);
+                        setBar(done, total, queue);
                         persist();
                         render();
                         continue;
@@ -305,7 +301,7 @@
                     onBytes: (bytes, offset) => {
                         done += bytes;
                         item.offset = offset;
-                        setBar(done, total);
+                        setBar(done, total, queue);
                         persist();
                     }
                 });

@@ -35,7 +35,7 @@ public class ToolbarTexts
 - Each class is registered by its feature with `TryAddSingleton`, so a class of a site that is registered before or after takes its place. Add a class to the feature's registration (`AddComponents`, `AddEditor`, `NotesHosting.cs` for the shared ones).
 - Views and handlers get it by injection (`@inject ToolbarTexts Texts`, a constructor parameter), never by `new`. Where nothing can be injected (a value parsed in a static method) there is `ConfigTexts.Default`; use it as the last resort.
 - Text that the server says in a response (a refusal, a message of a save) is in a texts class too, so a site's wording reaches it. Only what no user of the app ever sees stays in code: log lines, exceptions for a mistake in the code or in the settings, the text of a kill switch marker.
-- Tests don't check a text's wording ([principle 24](principles.md#24-tests-check-logic-not-wording-or-looks)). A test that needs one takes it from the class.
+- Tests don't check a text's wording ([principle 25](principles.md#25-tests-check-logic-not-wording-or-looks)). A test that needs one takes it from the class.
 
 ### Texts in scripts
 

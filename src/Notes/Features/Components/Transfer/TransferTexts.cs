@@ -63,4 +63,7 @@ public class TransferTexts
     public virtual string SelectionChanged => "The selection was changed in the meantime (in another tab?). Nothing was done.";
     public virtual string NothingSelected => "Nothing is selected.";
     public virtual string FailedUnexpectedly => "The transfer failed unexpectedly.";
+
+    /// <summary>Stopped from the list of operations, while it was copying: nothing changed.</summary>
+    public virtual string Cancelled => "It was cancelled. Nothing was changed.";
 }

@@ -1,3 +1,4 @@
+using Notes.Features.Helpers;
 using System.IO.Compression;
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -243,6 +244,41 @@ public sealed class FolderArchiverTests : IDisposable
         _archiver.StepReached = null;
         TestDirectories.Delete(folder.UnzippedDirectory);
         Assert.Equal(new SortedDictionary<string, string>(Original, StringComparer.Ordinal), await ContentsOfArchive(folder, null));
+    }
+
+    [Theory]
+    [InlineData("7z", null)]
+    [InlineData("zip", "secret")]
+    public async Task Zipping_and_unzipping_say_what_they_are_doing_step_by_step(string format, string? password)
+    {
+        ArchiveOptions options = Options(format, password);
+        ArchivedFolder folder = Folder(options);
+        Write(folder.UnzippedDirectory, Original);
+        List<Notes.Features.Helpers.WorkStatus> zipping = [];
+
+        await _archiver.ZipAsync(folder, options, TestContext.Current.CancellationToken, status: zipping.Add);
+
+        string writing = password is null ? WorkPhases.Writing : WorkPhases.Encrypting;
+        string deleting = password is null ? WorkPhases.Deleting : WorkPhases.Overwriting;
+        Assert.Equal([WorkPhases.Measuring, writing, WorkPhases.Checking, WorkPhases.Replacing, deleting],
+            zipping.Select(status => status.Phase).Distinct());
+        // Each counts up to all of the files (and writing to all of the bytes); the empty folder is no file
+        int files = Original.Keys.Count(key => !key.EndsWith('/'));
+        Assert.All(zipping.Where(status => status.Phase != WorkPhases.Measuring && status.Phase != WorkPhases.Replacing),
+            status => Assert.Equal(files, status.TotalFiles));
+        Assert.Equal(files, zipping.Last(status => status.Phase == WorkPhases.Checking).Files);
+        Assert.Equal(files, zipping.Last(status => status.Phase == deleting).Files);
+        Notes.Features.Helpers.WorkStatus written = zipping.Last(status => status.Phase == writing);
+        Assert.Equal(written.TotalBytes, written.Bytes);
+        Assert.True(written.TotalBytes > 0);
+
+        List<Notes.Features.Helpers.WorkStatus> unzipping = [];
+        await _archiver.UnzipAsync(folder, password, null, TestContext.Current.CancellationToken, unzipping.Add);
+
+        Assert.Equal([WorkPhases.Unzipping, WorkPhases.Placing], unzipping.Select(status => status.Phase).Distinct());
+        Notes.Features.Helpers.WorkStatus unzipped = unzipping.Last(status => status.Phase == WorkPhases.Unzipping);
+        Assert.Equal(unzipped.TotalFiles, unzipped.Files);
+        Assert.True(unzipped.TotalFiles >= files);
     }
 
     private sealed class SynchronousProgress(Action<double> report) : IProgress<double>

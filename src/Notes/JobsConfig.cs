@@ -1,4 +1,4 @@
-namespace Notes;
+﻿namespace Notes;
 
 /// <summary>
 /// When the background jobs run (<c>Config:Jobs</c> in appsettings), as cron expressions (minute, hour, day of the month, month, day of
@@ -23,6 +23,12 @@ public sealed class JobsConfig
     /// <c>Archives:ZipAfterMinutes</c>.
     /// </summary>
     public string ZipIdleArchives { get; init; } = "* * * * *";
+
+    /// <summary>
+    /// When the configuration files are looked for on disk again, for those added, changed or deleted on the server by hand (the app knows of
+    /// its own changes at once). Every 10 minutes by default.
+    /// </summary>
+    public string RescanConfigs { get; init; } = "*/10 * * * *";
 
     /// <summary>
     /// When the soft restart runs (what the start does that is safe while the app runs, for what was changed outside of it). Never by default

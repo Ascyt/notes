@@ -32,7 +32,7 @@ public sealed class UnzippingUploadHandler(IPathService path, AccessTree tree, F
             return Task.FromResult<IActionResult>(new StatusCodeResult(StatusCodes.Status403Forbidden));
 
         if (unzipper.ProgressOf(archive) is { } progress)
-            return Answer("unzipping", progress);
+            return Answer("unzipping", progress, status: unzipper.StatusOf(archive));
         if (unzipper.OutcomeOf(archive) is { } outcome)
             return outcome.Error is null
                 ? Answer("unzipped", 1, folder: outcome.FolderVirtualPath, leftOut: outcome.LeftOut)
@@ -48,6 +48,7 @@ public sealed class UnzippingUploadHandler(IPathService path, AccessTree tree, F
         return entry?.UnzipError is { } error ? Answer("failed", 0, error: error) : Answer(null, 0);
     }
 
-    private static Task<IActionResult> Answer(string? state, double progress, string? folder = null, int leftOut = 0, string? error = null)
-        => Task.FromResult<IActionResult>(new JsonResult(new { state, progress, folder, leftOut, error }));
+    private static Task<IActionResult> Answer(string? state, double progress, string? folder = null, int leftOut = 0, string? error = null,
+        WorkStatus? status = null)
+        => Task.FromResult<IActionResult>(new JsonResult(new { state, progress, folder, leftOut, error, status }));
 }

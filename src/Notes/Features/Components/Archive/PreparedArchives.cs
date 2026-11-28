@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Notes.Features.Bridges;
+using Notes.Features.Helpers;
 
 namespace Notes.Features.Components.Archive;
 
@@ -22,6 +23,7 @@ public sealed class ArchiveJob
     private readonly TimeProvider _time;
     private readonly TimeSpan _abandonAfter;
     private double _progress;
+    private WorkStatus _status = new(WorkPhases.Waiting);
     private int _waiting;
     private long _lastAskedTicks;
 
@@ -42,6 +44,11 @@ public sealed class ArchiveJob
 
     /// <summary>How far it got, 0 to 1 (1 only once it is finished).</summary>
     public double Progress => Finished.IsCompletedSuccessfully ? 1 : Volatile.Read(ref _progress);
+
+    /// <summary>What it is doing now, for the text under its bar (waiting for its turn, at first).</summary>
+    public WorkStatus Status => Volatile.Read(ref _status);
+
+    internal void SetStatus(WorkStatus status) => Volatile.Write(ref _status, status);
 
     public Task<ArchiveJobResult> Finished { get; internal set; } = Task.FromResult(new ArchiveJobResult(null, false));
 
@@ -87,7 +94,8 @@ public sealed class ArchiveJob
 /// <see cref="DeleteStale"/>. Also limits how many are made at once, as compressing takes processors and memory, and keeps the ones being
 /// made (<see cref="ArchiveJob"/>).
 /// </summary>
-public sealed class PreparedArchives(EntryLocations locations, TimeProvider time, IHostApplicationLifetime lifetime)
+public sealed class PreparedArchives(EntryLocations locations, TimeProvider time, IHostApplicationLifetime lifetime,
+    Operations.StorageOperations? operations = null)
 {
     /// <summary>A user downloads one archive at a time; older ones are deleted to make room for new ones beyond this.</summary>
     public const int MaxKeptPerUser = 5;
@@ -120,10 +128,15 @@ public sealed class PreparedArchives(EntryLocations locations, TimeProvider time
     /// Starts making an archive, apart from the request: <paramref name="work"/> runs on its own and is given the job (to report how far it
     /// got) and what cancels it (the app stopping, or nobody waiting any more). The claim is given back once it is finished.
     /// </summary>
-    public ArchiveJob Start(Guid id, string userId, IDisposable claim, Func<ArchiveJob, CancellationToken, Task<ArchiveJobResult>> work)
+    /// <param name="physicalPath">What it is of (the directory the request is for), for the list of operations.</param>
+    public ArchiveJob Start(Guid id, string userId, IDisposable claim, Func<ArchiveJob, CancellationToken, Task<ArchiveJobResult>> work,
+        string physicalPath = "")
     {
         ArchiveJob job = new(id, userId, time, AbandonAfter, lifetime.ApplicationStopping);
         _jobs[id] = job;
+        // (In the list of operations while it runs; who started it is the user of this request)
+        IDisposable? operation = operations?.Begin(Operations.OperationKind.PreparingDownload, physicalPath, () => job.Progress, () => job.Status,
+            () => job.Cancellation.Cancel());
         job.Finished = Task.Run(async () =>
         {
             try
@@ -132,6 +145,7 @@ public sealed class PreparedArchives(EntryLocations locations, TimeProvider time
             }
             finally
             {
+                operation?.Dispose();
                 claim.Dispose();
                 job.Cancellation.Dispose();
             }
@@ -144,8 +158,12 @@ public sealed class PreparedArchives(EntryLocations locations, TimeProvider time
         => _jobs.TryGetValue(id, out ArchiveJob? job) && job.UserId == userId ? job : null;
 
     /// <summary>Waits until an archive may be made (see <see cref="_makingSlots"/>); disposing what it returns ends the turn.</summary>
-    public async Task<IDisposable> WaitForTurnAsync(CancellationToken cancellationToken)
+    /// <param name="job">Told, while it waits, which one it waits for.</param>
+    public async Task<IDisposable> WaitForTurnAsync(CancellationToken cancellationToken, ArchiveJob? job = null)
     {
+        if (job is not null && _makingSlots.CurrentCount == 0)
+            job.SetStatus(new WorkStatus(WorkPhases.Waiting,
+                WaitingFor: operations?.WaitingFor(Operations.OperationKind.PreparingDownload, other => other.Started >= job.Started)));
         await _makingSlots.WaitAsync(cancellationToken);
         return new Turn(_makingSlots);
     }

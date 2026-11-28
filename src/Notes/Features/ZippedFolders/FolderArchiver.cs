@@ -61,8 +61,9 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
     /// Stops it until the new archive takes the old one's place (the copy is then as it was); from there on it is finished either way.
     /// </param>
     /// <param name="progress">Told how much is done (0 to 1) as it goes: writing the archive, then reading it back.</param>
+    /// <param name="status">Told what it is doing as it goes (<see cref="WorkStatus"/>), for the text under the bar.</param>
     public async Task ZipAsync(ArchivedFolder folder, ArchiveOptions options, CancellationToken cancellationToken,
-        IProgress<double>? progress = null)
+        IProgress<double>? progress = null, Action<WorkStatus>? status = null)
     {
         if (!Directory.Exists(folder.UnzippedDirectory))
             throw new DirectoryNotFoundException($"{folder.UnzippedDirectory} is not there to be zipped.");
@@ -80,11 +81,13 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
 
             // Writing takes the most of it, reading it back (unpacking and hashing) the rest
             ArchiveProgress? writing = null;
-            if (progress is not null)
+            if (progress is not null || status is not null)
             {
                 // (Off the caller's thread: it may be a request, which shouldn't wait for a big folder to be walked)
+                status?.Invoke(new WorkStatus(WorkPhases.Measuring));
                 (long bytes, int files) = await Task.Run(() => MeasureCopy(folder.UnzippedDirectory), cancellationToken);
-                writing = new ArchiveProgress(bytes, files, done => progress.Report(done * WritingShare));
+                writing = new ArchiveProgress(bytes, files, done => progress?.Report(done * WritingShare), status,
+                    options.Password is null ? WorkPhases.Writing : WorkPhases.Encrypting);
             }
             await ArchiveWriter.WriteAsync(ContentsOf(folder.UnzippedDirectory, "", zipped, Opened), options, folder.NewArchivePath,
                 cancellationToken, writing);
@@ -93,7 +96,14 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
 
             int checkedFiles = 0;
             int toCheck = Math.Max(1, zipped.FileCount);
-            void Checked() => progress?.Report(WritingShare + (1 - WritingShare) * Math.Min(0.999, (double)++checkedFiles / toCheck));
+            status?.Invoke(new WorkStatus(WorkPhases.Checking, 0, zipped.FileCount));
+            void Checked()
+            {
+                // (Counted apart from the report, which may be left out)
+                checkedFiles++;
+                progress?.Report(WritingShare + (1 - WritingShare) * Math.Min(0.999, (double)checkedFiles / toCheck));
+                status?.Invoke(new WorkStatus(WorkPhases.Checking, Math.Min(checkedFiles, zipped.FileCount), zipped.FileCount));
+            }
             FolderManifest inArchive = await Task.Run(() => ArchiveReading.ManifestOf(folder.NewArchivePath, options.Format, options.Password,
                 cancellationToken, Checked), cancellationToken);
             if (!inArchive.SameAs(zipped))
@@ -101,6 +111,7 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
             Reached(ArchiveStep.ArchiveChecked);
 
             // The archive it replaces wasn't encrypted: overwritten first (the copy, which counts, is still there)
+            status?.Invoke(new WorkStatus(WorkPhases.Replacing));
             if (folder.ShredsReplacedArchives)
                 Shredding.Overwrite(folder.ArchivePath, OverwritePasses);
             File.Move(folder.NewArchivePath, folder.ArchivePath, overwrite: true);
@@ -134,7 +145,25 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
         Reached(ArchiveStep.UnzippedMovedAway);
 
         // (The copy of an encrypted one is what the encryption is for: overwritten before it is deleted)
-        DeleteTrash(trash, afterDeletingSome: () => Reached(ArchiveStep.DeletingUnzipped), shred: options.Password is not null);
+        bool shred = options.Password is not null;
+        string deleting = shred ? WorkPhases.Overwriting : WorkPhases.Deleting;
+        int toDelete = status is null ? 0 : CountFiles(trash);
+        status?.Invoke(new WorkStatus(deleting, 0, toDelete));
+        DeleteTrash(trash, afterDeletingSome: () => Reached(ArchiveStep.DeletingUnzipped), shred,
+            deleted => status?.Invoke(new WorkStatus(deleting, Math.Min(deleted, toDelete), toDelete)));
+    }
+
+    /// <summary>How many files are in the directory (for telling how far deleting it got), 0 if it can't be told.</summary>
+    private static int CountFiles(string directory)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(directory, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }).Count();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
     }
 
     /// <summary>How much of zipping's progress is writing the archive; reading it back is the rest.</summary>
@@ -216,7 +245,9 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
     /// (<see cref="ArchiveUnreadableException"/> if the archive can't be read, also for a wrong password), nothing being unzipped then.
     /// </summary>
     /// <param name="progress">Told how much is done (0 to 1) as it goes.</param>
-    public async Task UnzipAsync(ArchivedFolder folder, string? password, IProgress<double>? progress, CancellationToken cancellationToken)
+    /// <param name="status">Told what it is doing as it goes (<see cref="WorkStatus"/>), for the text under the bar.</param>
+    public async Task UnzipAsync(ArchivedFolder folder, string? password, IProgress<double>? progress, CancellationToken cancellationToken,
+        Action<WorkStatus>? status = null)
     {
         if (Directory.Exists(folder.UnzippedDirectory))
             throw new IOException($"{folder.UnzippedDirectory} is unzipped already.");
@@ -225,7 +256,8 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
         _ = Directory.CreateDirectory(staging);
         try
         {
-            await Task.Run(() => Extract(folder, password, staging, progress, cancellationToken), cancellationToken);
+            await Task.Run(() => Extract(folder, password, staging, progress, status, cancellationToken), cancellationToken);
+            status?.Invoke(new WorkStatus(WorkPhases.Placing));
             DurableFiles.FlushTree(staging);
             Reached(ArchiveStep.Unzipped);
 
@@ -241,11 +273,13 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
         }
     }
 
-    private void Extract(ArchivedFolder folder, string? password, string staging, IProgress<double>? progress,
+    private void Extract(ArchivedFolder folder, string? password, string staging, IProgress<double>? progress, Action<WorkStatus>? status,
         CancellationToken cancellationToken)
     {
-        int total = Math.Max(1, ArchiveReading.CountEntries(folder.ArchivePath, folder.Format, password));
+        int entries = ArchiveReading.CountEntries(folder.ArchivePath, folder.Format, password);
+        int total = Math.Max(1, entries);
         int done = 0;
+        status?.Invoke(new WorkStatus(WorkPhases.Unzipping, 0, entries));
         int files = 0;
         ArchiveReading.ForEachEntry(folder.ArchivePath, folder.Format, password, (entry, contents) =>
         {
@@ -264,7 +298,9 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
                 if (++files == 1)
                     Reached(ArchiveStep.Unzipping);
             }
-            progress?.Report(Math.Min(1, (double)++done / total));
+            done++;
+            progress?.Report(Math.Min(1, (double)done / total));
+            status?.Invoke(new WorkStatus(WorkPhases.Unzipping, Math.Min(done, entries), entries));
         }, cancellationToken);
     }
 
@@ -366,8 +402,10 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
     /// </summary>
     /// <param name="afterDeletingSome">Called once the first file is deleted (for the tests: a copy that is partly deleted).</param>
     /// <param name="shred">Whether each file is overwritten first (<see cref="Shredding"/>).</param>
-    private void DeleteTrash(string directory, Action? afterDeletingSome, bool shred)
+    /// <param name="deleted">Told how many files were deleted so far, after each.</param>
+    private void DeleteTrash(string directory, Action? afterDeletingSome, bool shred, Action<int>? deleted = null)
     {
+        int count = 0;
         try
         {
             if (!Directory.Exists(directory))
@@ -379,6 +417,7 @@ public sealed class FolderArchiver(ILogger<FolderArchiver> logger, ArchivesConfi
                 if (shred)
                     Shredding.Overwrite(file, OverwritePasses);
                 File.Delete(file);
+                deleted?.Invoke(++count);
                 if (first)
                     afterDeletingSome?.Invoke();
                 first = false;

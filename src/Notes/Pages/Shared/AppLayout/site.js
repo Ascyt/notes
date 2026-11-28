@@ -44,9 +44,10 @@ window.setButtonBusy = function (button, busy) {
 //   const response = await whileBusy(() => fetch(…), { blockPage: true, message: texts.renaming });
 //
 // It returns what the work returns (and throws what it throws). Leaving the page afterwards (to show the result) asks nothing, as long as
-// nothing else is still running. Work that knows how far it got is given setProgress (0 to 1), which shows a bar in place of the spinner:
+// nothing else is still running. Work that knows how far it got is given setProgress (0 to 1), which shows a bar in place of the spinner,
+// and, with what it is doing (a WorkStatus of the server, see describeProgress), that in words under it:
 //
-//   await whileBusy(async setProgress => { … setProgress(0.4); … }, { blockPage: true, message: texts.preparing });
+//   await whileBusy(async setProgress => { … setProgress(0.4, state.status); … }, { blockPage: true, message: texts.preparing });
 (function () {
     let running = 0;
     let blocking = 0;
@@ -62,13 +63,18 @@ window.setButtonBusy = function (button, busy) {
             overlay.focus(); // so that Enter doesn't press the button that started it again
     }
 
-    // null hides the bar (and shows the spinner again)
-    function showProgress(fraction) {
+    // null hides the bar (and shows the spinner again), and the text under it
+    function showProgress(fraction, status) {
         const bar = document.getElementById('busy-overlay-progress');
         if (!bar)
             return;
+        const detail = document.getElementById('busy-overlay-detail');
+        const text = typeof fraction === 'number' ? describeProgress(status, fraction) : '';
+        detail.textContent = text;
+        detail.hidden = text === '';
         const known = typeof fraction === 'number';
         bar.hidden = !known;
+        showPending(bar, known ? status : null);
         document.getElementById('busy-overlay-spinner').hidden = known;
         const percent = known ? Math.round(Math.min(1, Math.max(0, fraction)) * 100) : 0;
         bar.setAttribute('aria-valuenow', String(percent));
@@ -178,4 +184,54 @@ window.textsOf = function (id) {
 
 window.fillIn = function (text, values) {
     return String(text).replace(/\{(\w+)\}/g, (whole, name) => name in values ? String(values[name]) : whole);
+};
+
+// Where work is pending (its status is "waiting"): an hourglass in place of its bar, whose tooltip says so (and for what, where that is
+// known). The hourglass goes right before the bar, and the bar is back once the work begins.
+window.showPending = function (bar, status) {
+    const pending = !!status && status.phase === 'waiting';
+    let mark = bar.previousElementSibling;
+    if (!mark || !mark.classList.contains('pending-mark')) {
+        mark = document.createElement('i');
+        mark.className = 'fa-solid fa-hourglass-half text-secondary pending-mark';
+        bar.before(mark);
+    }
+    const texts = textsOf('progress-texts');
+    mark.hidden = !pending;
+    mark.title = !pending ? '' : status.waitingFor ? fillIn(texts.pendingFor, { operation: status.waitingFor }) : texts.pending;
+    mark.setAttribute('aria-label', mark.title);
+    // (Not the hidden attribute: the bars are flex boxes, which their class shows whatever it says)
+    bar.style.display = pending ? 'none' : '';
+    return pending;
+};
+
+// A size in bytes as people read it: "1.2 MiB"
+window.formatSize = function (bytes) {
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) {
+        bytes /= 1024;
+        i++;
+    }
+    return (i === 0 ? bytes : bytes.toFixed(1)) + ' ' + units[i];
+};
+
+// What long work is doing, in words, for the text under its bar: the status the server tells (WorkStatus: { phase, files, totalFiles, bytes,
+// totalBytes }), with how far it got (0 to 1) if known: "Writing the archive: 12 of 340 files, 1.2 of 40.0 MiB (35%)". '' for none.
+window.describeProgress = function (status, fraction) {
+    if (!status || !status.phase)
+        return '';
+    const texts = textsOf('progress-texts');
+    if (status.phase === 'waiting' && status.waitingFor)
+        return fillIn(texts.waitingFor, { operation: status.waitingFor });
+    const phase = texts[status.phase] || status.phase;
+    const counts = [];
+    if (status.totalFiles > 0)
+        counts.push(fillIn(status.phase === 'unzipping' ? texts.entries : texts.files, { done: status.files, total: status.totalFiles }));
+    if (status.totalBytes > 0)
+        counts.push(fillIn(texts.bytes, { done: formatSize(status.bytes), total: formatSize(status.totalBytes) }));
+    const text = counts.length === 0 ? phase : fillIn(texts.withCounts, { phase, counts: counts.join(', ') });
+    return typeof fraction === 'number'
+        ? fillIn(texts.withPercent, { text, percent: fillIn(texts.percent, { percent: Math.round(Math.min(1, Math.max(0, fraction)) * 100) }) })
+        : text;
 };

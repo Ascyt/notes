@@ -32,16 +32,18 @@ public static class UploadedArchives
             null => format == ArchiveFormat.SevenZip ? texts.ArchiveDamagedOrEncrypted(name) : texts.ArchiveDamaged(name)
         };
 
-    /// <summary>How large its files say they are, unpacked, for telling how far unzipping it got (0 if it can't tell).</summary>
-    public static long DeclaredSize(string archivePath, ArchiveFormat format)
+    /// <summary>
+    /// How large its files say they are, unpacked, and how many entries it has, for telling how far unzipping it got (0 if it can't tell).
+    /// </summary>
+    public static (long Bytes, int Entries) DeclaredSize(string archivePath, ArchiveFormat format)
     {
         try
         {
-            return ArchiveReading.DeclaredSize(archivePath, format, password: null);
+            return (ArchiveReading.DeclaredSize(archivePath, format, password: null), ArchiveReading.CountEntries(archivePath, format, password: null));
         }
         catch (ArchiveUnreadableException)
         {
-            return 0;
+            return (0, 0);
         }
     }
 
@@ -68,9 +70,9 @@ public static class UploadedArchives
     /// <see cref="UploadRefusedException"/> for what it holds that can't be uploaded, and an <see cref="ArchiveUnreadableException"/> if it
     /// can't be read (damaged).
     /// </summary>
-    /// <param name="written">Told how many bytes were written so far, after each file.</param>
+    /// <param name="written">Told how many bytes were written so far, and how many entries were gone through, after each.</param>
     public static int Extract(string archivePath, ArchiveFormat format, string staging, string name, LimitsConfig limits,
-        UploadTexts texts, NameTexts nameTexts, CancellationToken cancellationToken, Action<long>? written = null)
+        UploadTexts texts, NameTexts nameTexts, CancellationToken cancellationToken, Action<long, int>? written = null)
     {
         _ = Directory.CreateDirectory(staging);
         string root = Path.GetFullPath(staging) + Path.DirectorySeparatorChar;
@@ -125,7 +127,7 @@ public static class UploadedArchives
             _ = Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             using (FileStream file = new(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920))
                 total += CopyAtMost(contents, file, limits.MaxUnzippedBytes - total, limits, texts);
-            written?.Invoke(total);
+            written?.Invoke(total, entries);
             if (entry.LastWriteTimeUtc is { } time)
                 File.SetLastWriteTimeUtc(target, time);
         }, cancellationToken);

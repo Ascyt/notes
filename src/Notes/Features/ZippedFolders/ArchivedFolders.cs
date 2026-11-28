@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Archive;
 using Notes.Features.Configuration;
@@ -26,7 +26,8 @@ namespace Notes.Features.ZippedFolders;
 /// </remarks>
 public sealed partial class ArchivedFolders(EntryLocations locations, IPathService paths, FolderConfigStore configs, FolderArchiver archiver,
     ArchiveSettingsResolver resolver, ArchivePasswords passwords, HistoryService history, ArchivesConfig settings, TimeProvider time,
-    IHostApplicationLifetime lifetime, ILogger<ArchivedFolders> logger)
+    IHostApplicationLifetime lifetime, ILogger<ArchivedFolders> logger, Operations.StorageOperations? operations = null,
+    RequestLookups? lookups = null)
 {
     public const string UnzippedKind = "unzipped";
     public const string ZippingKind = "zipping";
@@ -210,8 +211,9 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
     /// zipping for, or waits for.
     /// </summary>
     public bool IsZipped(string folderPath)
-        => MountedAt(folderPath) is null && (ArchiveFileOf(folderPath) is not null || ZipProgressOf(folderPath) is not null)
-           && IsArchived(folderPath);
+        // (What the configurations say first: for a folder that isn't archived, which most aren't, nothing is looked for on disk)
+        => IsArchived(folderPath) && MountedAt(folderPath) is null
+           && (ZipProgressOf(folderPath) is not null || ArchiveFileOf(folderPath) is not null);
 
     /// <summary>
     /// How the directory (its physical path, or that of its unzipped copy) is kept now, for the mark after its name; null if it isn't an
@@ -229,6 +231,12 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
             return ArchiveState.Unzipped;
         return ArchiveFileOf(folder) is not null ? ArchiveState.Zipped : null;
     }
+
+    /// <summary>What the zipping of the folder (its physical path, or that of its unzipped copy) is doing now; null if it isn't zipped now.</summary>
+    public WorkStatus? ZipStatusOf(string physicalDirectory)
+        => _states.TryGetValue(OuterOf(physicalDirectory), out FolderState? state) && Volatile.Read(ref state.Zipping) is { } job
+            ? job.Status
+            : null;
 
     /// <summary>How far the zipping of the folder (its physical path, or that of its unzipped copy) got, 0 to 1; null if it isn't zipped now.</summary>
     public double? ZipProgressOf(string physicalDirectory)
@@ -277,7 +285,9 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
             bool changed = false;
             for (int length = 1; length <= count && !changed; length++)
             {
-                if (paths.ToPhysicalPath(string.Join('/', names.Take(length))) is not { } physical || !Directory.Exists(physical))
+                // (Only the last one may be a file, which is no archived folder: its folder's configuration was read already)
+                if (paths.ToPhysicalPath(string.Join('/', names.Take(length))) is not { } physical
+                    || (length == names.Length && !(lookups?.IsDirectory(physical) ?? Directory.Exists(physical))))
                     break;
 
                 if (locations.BridgeOf(physical) is { IsArchive: true } mounted)
@@ -344,8 +354,21 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
             if (state.Unzipping is { Finished.IsCompleted: false } running)
                 return running;
 
-            UnzipJob job = new();
-            job.Finished = Task.Run(() => UnzipAsync(folderPath, state, job));
+            UnzipJob job = new(lifetime.ApplicationStopping);
+            // (In the list of operations while it runs; who started it is the user of the request that needs it)
+            IDisposable? operation = operations?.Begin(Operations.OperationKind.Unzipping, folderPath, () => job.Progress, () => job.Status,
+                job.Cancel);
+            job.Finished = Task.Run(async () =>
+            {
+                try
+                {
+                    return await UnzipAsync(folderPath, state, job);
+                }
+                finally
+                {
+                    operation?.Dispose();
+                }
+            });
             state.Unzipping = job;
             return job;
         }
@@ -375,11 +398,16 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
                     }
                     password = known;
                 }
-                await archiver.UnzipAsync(folder, password, new Progress<double>(job.Report), lifetime.ApplicationStopping);
+                await archiver.UnzipAsync(folder, password, new Progress<double>(job.Report), job.Token, job.SetStatus);
             }
 
             Mount(folderPath, folder.UnzippedDirectory, state);
             return null;
+        }
+        catch (OperationCanceledException) when (job.Token.IsCancellationRequested && !lifetime.ApplicationStopping.IsCancellationRequested)
+        {
+            logger.LogInformation("Unzipping the archived folder {folder} was cancelled", folderPath);
+            return "Cancelled.";
         }
         catch (Exception e)
         {
@@ -396,6 +424,7 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
     {
         EntryLocation location = locations.MountArchive(folderPath, unzippedPath,
             keepsHistory: (locations.LocationOf(folderPath) ?? locations.Root).KeepsHistory);
+        configs.LocationMounted(location);
         history.ArchiveUnzipped(location);
         Interlocked.Exchange(ref state.LastUsedTicks, time.GetUtcNow().UtcTicks);
         logger.LogInformation("Unzipped the archived folder /{folder}", location.VirtualPath);
@@ -414,12 +443,14 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
     /// that only saves space (the idle ones, the archive button, the as-is download), not for a move or a delete that waits for it.
     /// </param>
     /// <param name="report">Also told how far it got (0 to 1), from the thread that zips.</param>
-    public Task<bool> ZipAsync(string folderPath, bool onlyIfIdle = false, bool stopsWhenOpened = false, Action<double>? report = null)
-        => ZipAsync(folderPath, onlyIfIdle, stopsWhenOpened, report, lifetime.ApplicationStopping);
+    /// <param name="status">Also told what it is doing (<see cref="WorkStatus"/>).</param>
+    public Task<bool> ZipAsync(string folderPath, bool onlyIfIdle = false, bool stopsWhenOpened = false, Action<double>? report = null,
+        Action<WorkStatus>? status = null)
+        => ZipAsync(folderPath, onlyIfIdle, stopsWhenOpened, report, lifetime.ApplicationStopping, status);
 
     /// <param name="outer">Stops it with the zipping of the folder it is in (opening that one stops this one too).</param>
     private async Task<bool> ZipAsync(string folderPath, bool onlyIfIdle, bool stopsWhenOpened, Action<double>? report,
-        CancellationToken outer)
+        CancellationToken outer, Action<WorkStatus>? status = null)
     {
         FolderState state = StateOf(folderPath);
         if (onlyIfIdle)
@@ -430,7 +461,11 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
         else
             await state.Gate.WaitAsync();
 
-        using ZipJob job = new(stopsWhenOpened, outer) { AlsoReport = report };
+        using ZipJob job = new(stopsWhenOpened, outer) { AlsoReport = report, AlsoStatus = status };
+        // (In the list of operations while it runs, by the address of its unzipped copy, which is what is at the folder's place now; who started
+        // it is the user of the request that asked for it, if any)
+        using IDisposable? operation = operations?.Begin(Operations.OperationKind.Zipping, MountedAt(folderPath)?.PhysicalPath ?? folderPath,
+            () => job.Progress, () => job.Status, job.Cancel);
         try
         {
             if (MountedAt(folderPath) is not { } location)
@@ -507,9 +542,10 @@ public sealed partial class ArchivedFolders(EntryLocations locations, IPathServi
 
         history.ArchiveZipping(location);
         locations.UnmountArchive(location);
+        configs.LocationUnmounted(location);
         try
         {
-            await archiver.ZipAsync(folder, new ArchiveOptions(folder.Format, compression, password), job.Token, job);
+            await archiver.ZipAsync(folder, new ArchiveOptions(folder.Format, compression, password), job.Token, job, job.SetStatus);
             logger.LogInformation("Zipped the archived folder /{folder}", location.VirtualPath);
             if (password is not null)
                 ForgetPasswordIfUnneeded(resolved.SettingsFolder ?? Normalize(folderPath));

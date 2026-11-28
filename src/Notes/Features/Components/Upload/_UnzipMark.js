@@ -51,6 +51,8 @@
                 const percent = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
                 bar.setAttribute('aria-valuenow', String(percent));
                 bar.querySelector('.progress-bar').style.width = percent + '%';
+                showPending(bar, state.status);
+                mark.querySelector('.upload-unzipping-detail').textContent = describeProgress(state.status, state.progress);
                 continue;
             }
             if (state.state === 'failed')

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text;
 using Notes.Features.Bridges;
@@ -30,22 +30,35 @@ public sealed record UnzipOutcome(string? FolderVirtualPath, int LeftOut, string
 /// </remarks>
 public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathService path, StructureLock structureLock, FolderConfigStore configs,
     LimitsConfig limits, UploadTexts texts, NameTexts nameTexts, HistoryService history, ILogger<UploadedArchiveUnzipper> logger,
-    IHostApplicationLifetime lifetime, ArchivedFolders? archives = null)
+    IHostApplicationLifetime lifetime, ArchivedFolders? archives = null, Operations.StorageOperations? operations = null)
 {
     public const string StagingKind = "unzip";
 
     /// <summary>How long it is remembered how one ended, for the bar that asks about it.</summary>
     private static readonly TimeSpan KeepOutcomes = TimeSpan.FromMinutes(10);
 
-    private sealed class Job(string physicalPath, ClaimsPrincipal user)
+    private sealed class Job(string physicalPath, ClaimsPrincipal user, CancellationToken stopping)
     {
         public string PhysicalPath { get; } = physicalPath;
         public ClaimsPrincipal User { get; } = user;
+
+        /// <summary>Stops it when the app stops, or when it is cancelled (in the list of operations).</summary>
+        public CancellationTokenSource Cancellation { get; } = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+
+        public IDisposable? Operation { get; set; }
         private double _progress;
         public double Progress
         {
             get => Volatile.Read(ref _progress);
             set => Volatile.Write(ref _progress, value);
+        }
+
+        // (Waiting for its turn until it begins: one archive is unzipped at a time)
+        private WorkStatus _status = new(WorkPhases.Waiting);
+        public WorkStatus Status
+        {
+            get => Volatile.Read(ref _status);
+            set => Volatile.Write(ref _status, value);
         }
     }
 
@@ -61,9 +74,13 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
     /// </summary>
     public void Start(string physicalPath, ClaimsPrincipal? user)
     {
-        Job job = new(physicalPath, user ?? new ClaimsPrincipal());
-        if (_jobs.TryAdd(physicalPath, job))
-            _ = Task.Run(() => RunAsync(job));
+        Job job = new(physicalPath, user ?? new ClaimsPrincipal(), lifetime.ApplicationStopping);
+        if (!_jobs.TryAdd(physicalPath, job))
+            return;
+        // (In the list of operations from now on, also while it waits for its turn; one started after a restart is the app's)
+        job.Operation = operations?.Begin(Operations.OperationKind.UnzippingUpload, physicalPath, () => job.Progress, () => job.Status,
+            () => job.Cancellation.Cancel(), job.User);
+        _ = Task.Run(() => RunAsync(job));
     }
 
     /// <summary>For the listing, which shows a bar for an archive whose entry says it is to be unzipped: starts it if it doesn't run (after a restart).</summary>
@@ -76,6 +93,10 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
     /// <summary>How far unzipping it got (0 to 1), or null if it isn't being unzipped.</summary>
     public double? ProgressOf(string physicalPath)
         => _jobs.TryGetValue(physicalPath, out Job? job) ? job.Progress : null;
+
+    /// <summary>What unzipping it is doing now, or null if it isn't being unzipped.</summary>
+    public WorkStatus? StatusOf(string physicalPath)
+        => _jobs.TryGetValue(physicalPath, out Job? job) ? job.Status : null;
 
     /// <summary>How unzipping it ended lately, if it did.</summary>
     public UnzipOutcome? OutcomeOf(string physicalPath)
@@ -104,13 +125,18 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
 
     private async Task RunAsync(Job job)
     {
-        CancellationToken stopping = lifetime.ApplicationStopping;
+        CancellationToken stopping = job.Cancellation.Token;
         UnzipOutcome? outcome = null;
         try
         {
+            // Pending while another one is unzipped: which one is said
+            if (_oneAtATime.CurrentCount == 0)
+                job.Status = new WorkStatus(WorkPhases.Waiting, WaitingFor: operations?.WaitingFor(Operations.OperationKind.UnzippingUpload,
+                    other => string.Equals(other.PhysicalPath, job.PhysicalPath, StringComparison.OrdinalIgnoreCase)));
             await _oneAtATime.WaitAsync(stopping);
             try
             {
+                job.Status = new WorkStatus(WorkPhases.Measuring);
                 // (The archived folder it is in, if any, isn't zipped meanwhile: the archive is in its unzipped copy)
                 using IDisposable uses = archives is null ? new NoUses() : await archives.UseAllAroundAsync([job.PhysicalPath]);
                 outcome = await UnzipAsync(job, stopping);
@@ -120,9 +146,14 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
                 _ = _oneAtATime.Release();
             }
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        catch (OperationCanceledException) when (lifetime.ApplicationStopping.IsCancellationRequested)
         {
             // The app stops: its entry still says it is to be unzipped, which starts it again
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        {
+            // Cancelled: it stays a file, without the mark (what was unzipped of it is deleted already)
+            await MarkCancelledAsync(job);
         }
         catch (Exception e)
         {
@@ -133,6 +164,8 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
             if (outcome is not null)
                 Remember(job.PhysicalPath, outcome);
             _ = _jobs.TryRemove(job.PhysicalPath, out _);
+            job.Operation?.Dispose();
+            job.Cancellation.Dispose();
         }
     }
 
@@ -153,9 +186,16 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
                 error = why;
             else
             {
-                long declared = await Task.Run(() => UploadedArchives.DeclaredSize(job.PhysicalPath, format), stopping);
+                job.Status = new WorkStatus(WorkPhases.Measuring);
+                (long declared, int entries) = await Task.Run(() => UploadedArchives.DeclaredSize(job.PhysicalPath, format), stopping);
+                job.Status = new WorkStatus(WorkPhases.Unzipping, 0, entries, 0, declared);
                 int leftOut = await Task.Run(() => UploadedArchives.Extract(job.PhysicalPath, format, staging, name, limits, texts, nameTexts,
-                    stopping, written => job.Progress = declared == 0 ? 0 : Math.Min(0.99, (double)written / declared)), stopping);
+                    stopping, (written, files) =>
+                    {
+                        job.Progress = declared == 0 ? 0 : Math.Min(0.99, (double)written / declared);
+                        job.Status = new WorkStatus(WorkPhases.Unzipping, Math.Min(files, entries), entries, Math.Min(written, declared), declared);
+                    }), stopping);
+                job.Status = new WorkStatus(WorkPhases.Placing);
                 return await PutInPlaceAsync(job, staging, leftOut);
             }
         }
@@ -224,6 +264,8 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
                     {
                         // (What is in it has no configuration of its own: it has the permissions of the folder it is in)
                         Directory.Move(contents, finalPath);
+                        // (For the index: that it has none is then known too)
+                        configs.TreeChanged(finalPath);
                         break;
                     }
                     catch (IOException) when (Path.Exists(finalPath))
@@ -258,6 +300,22 @@ public sealed class UploadedArchiveUnzipper(EntryLocations locations, IPathServi
             if (!File.Exists(Path.Combine(directory, name)) || !IsPending(directory, name))
                 return;
             configs.UnzipFailed(directory, name, error);
+            configPath = configs.ConfigPathOf(directory);
+        }
+        history.AfterChange(job.User, [configPath], HistoryChangeKind.Change);
+    }
+
+    /// <summary>Its entry no longer says it is to be unzipped (if it is still there): it is a file like any other.</summary>
+    private async Task MarkCancelledAsync(Job job)
+    {
+        string name = Path.GetFileName(job.PhysicalPath);
+        string configPath;
+        using (await structureLock.EnterAsync())
+        {
+            string directory = archives?.WhereItIsNow(Path.GetDirectoryName(job.PhysicalPath)!) ?? Path.GetDirectoryName(job.PhysicalPath)!;
+            if (!File.Exists(Path.Combine(directory, name)) || !IsPending(directory, name))
+                return;
+            configs.UnzipCancelled(directory, name);
             configPath = configs.ConfigPathOf(directory);
         }
         history.AfterChange(job.User, [configPath], HistoryChangeKind.Change);

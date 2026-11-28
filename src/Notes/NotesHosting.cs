@@ -1,4 +1,4 @@
-#pragma warning disable CA1873
+﻿#pragma warning disable CA1873
 using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
@@ -99,6 +99,9 @@ public static class NotesHosting
         _ = services.AddSingleton<AccessTree>();
         // One lock across the app (and so a single instance only) for everything that adds, removes or renames entries
         _ = services.AddSingleton<StructureLock>();
+        // What a request looked up on disk, so that it looks each up once (principles.md, 22)
+        _ = services.AddHttpContextAccessor();
+        _ = services.AddSingleton<RequestLookups>();
         _ = services.AddSingleton<KillSwitchService>();
         services.TryAddSingleton<KillSwitchTexts>();
         services.TryAddSingleton<AuthTexts>();
@@ -259,6 +262,9 @@ public static class NotesHosting
             schedule => recurringJobs.AddOrUpdate<CommitIdleChangesJob>(CommitIdleChangesJob.Id, job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.ZipIdleArchives), jobs.ZipIdleArchives,
             schedule => recurringJobs.AddOrUpdate<ZipIdleArchivesJob>(ZipIdleArchivesJob.Id, job => job.RunAsync(), schedule));
+        Schedule(nameof(JobsConfig.RescanConfigs), jobs.RescanConfigs,
+            schedule => recurringJobs.AddOrUpdate<Features.Configuration.RescanConfigsJob>(Features.Configuration.RescanConfigsJob.Id,
+                job => job.Run(), schedule));
         Schedule(nameof(JobsConfig.SoftRestart), jobs.SoftRestart,
             schedule => recurringJobs.AddOrUpdate<Features.Maintenance.SoftRestartJob>(Features.Maintenance.SoftRestartJob.Id,
                 job => job.RunAsync(), schedule));

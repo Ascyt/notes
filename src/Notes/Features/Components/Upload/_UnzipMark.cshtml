@@ -9,7 +9,8 @@
     <span class="upload-unzipping ms-2" data-unzipping-directory="@Model.DirectoryAddress" data-unzipping-name="@Model.Name"
         title="@Texts.UnzippingNow"><span class="progress upload-unzipping-progress" role="progressbar" aria-label="@Texts.UnzippingNow"
         aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent.ToString(CultureInfo.InvariantCulture)"><span
-        class="progress-bar progress-bar-striped progress-bar-animated" style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span></span>
+        class="progress-bar progress-bar-striped progress-bar-animated" style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span><span
+        class="upload-unzipping-detail small text-secondary ms-2" aria-live="polite"></span></span>
 }
 else if (Model.Error is { } error)
 {

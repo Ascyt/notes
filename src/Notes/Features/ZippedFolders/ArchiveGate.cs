@@ -103,9 +103,10 @@ public sealed class ArchiveGate(ArchivedFolders archives, AccessTree tree, Passw
             string display = paths.ToVirtualPath(zipped) is var shown and not "." ? shown : "";
             string address = VirtualPaths.ToAddress(paths.ToVirtualPath(zipped));
             if (asksProgress)
-                return new ArchiveGateAnswer(new JsonResult(new { done = false, progress = job.Progress }), null);
+                return new ArchiveGateAnswer(new JsonResult(new { done = false, progress = job.Progress, status = job.Status }), null);
             if (isPage)
-                return new ArchiveGateAnswer(null, new _Unzipping { Address = address, Display = display, Progress = job.Progress });
+                return new ArchiveGateAnswer(null, new _Unzipping { Address = address, Display = display, Progress = job.Progress,
+                    Status = job.Status });
 
             context.Response.Headers[UnzippingHeader] = address;
             context.Response.Headers.RetryAfter = "2";

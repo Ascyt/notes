@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -41,7 +41,18 @@ public class NotesAppFactory : WebApplicationFactory<Program>
     /// </summary>
     public FakeTimeProvider Time { get; init; } = new(DateTimeOffset.UtcNow);
 
-    public NotesTree Tree => new(NotesDir);
+    public NotesTree Tree => new(NotesDir, ConfigsChangedOnDisk);
+
+    private IHost? _host;
+
+    protected override IHost CreateHost(IHostBuilder builder) => _host = base.CreateHost(builder);
+
+    /// <summary>
+    /// A test changed configuration files on disk, as someone on the server would: the app is told at once, rather than when its background
+    /// job looks (only once it runs: when it starts, it looks anyway).
+    /// </summary>
+    public void ConfigsChangedOnDisk()
+        => _host?.Services.GetRequiredService<Notes.Features.Configuration.FolderConfigStore>().Rescan();
 
     /// <summary>Called (on the thread of the request) every time the app asks what a user may do with a physical path, before it is answered.</summary>
     public Action<ClaimsPrincipal, string>? BeforeAccessCheck { get; set; }
@@ -113,6 +124,7 @@ public class NotesAppFactory : WebApplicationFactory<Program>
             TestDirectories.Delete(directory);
         foreach (string file in Directory.EnumerateFiles(NotesDir))
             File.Delete(file);
+        ConfigsChangedOnDisk();
     }
 
     /// <summary>

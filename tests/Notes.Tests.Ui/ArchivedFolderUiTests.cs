@@ -155,6 +155,8 @@ public sealed class ArchivedFolderUiTests(NoWaitForUnzippingFixture fixture) : U
             await OpenAsync("/docs");
             ILocator row = Page.Locator(".entry-row[data-path='docs/vault-zipping']");
             await Expect(row.Locator("[data-archived-mark='zipping'] .progress")).ToBeVisibleAsync();
+            // ...with what it is doing next to it, once the page asked (held right after writing)
+            await Expect(row.Locator(".archived-zipping-detail")).ToContainTextAsync(new System.Text.RegularExpressions.Regex(@"^Writing the archive: \d+ of \d+ files, .* \(70%\)$"));
 
             release.Set();
             Assert.True(await zipping);

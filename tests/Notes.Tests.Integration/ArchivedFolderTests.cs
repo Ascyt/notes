@@ -588,7 +588,7 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
 
     // ---- While it is being zipped
 
-    private sealed record ZippingDto(string? State, double Progress);
+    private sealed record ZippingDto(string? State, double Progress, Notes.Features.Helpers.WorkStatus? Status = null);
 
     /// <summary>
     /// Holds every zipping once its new archive is written (before it is checked), until <c>release</c> is set; <c>reached</c> is set when one
@@ -627,8 +627,12 @@ public sealed class ArchivedFolderTests() : IntegrationTest(new NotesAppFactory(
 
         ZippingDto state = await ZippingOf("/docs/vault");
         Assert.Equal("zipping", state.State);
-        // Written: 70 % (writing is that part of it)
+        // Written: 70 % (writing is that part of it), and it says what it is doing
         Assert.InRange(state.Progress, 0.6, 0.71);
+        Assert.Equal(Notes.Features.Helpers.WorkPhases.Writing, state.Status?.Phase);
+        // (Its own history goes into its archive too, so there are more files than the two the user made)
+        Assert.True(state.Status!.TotalFiles >= 2);
+        Assert.Equal(state.Status.TotalFiles, state.Status.Files);
         string listing = await BodyOf(await Client.GetAsync(Users.Alice, "/docs"));
         Assert.Contains("data-archived-mark=\"zipping\"", listing);
         Assert.Contains("data-zipping-address=\"/docs/vault\"", listing);

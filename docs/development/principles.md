@@ -133,9 +133,13 @@ What can be set in a `.config.json` is clear from reading the file alone, withou
 
 Before writing something, look for a built-in ASP.NET feature or an existing library that does it. But every new package, service or container is discussed first: each one has to be kept up to date and trusted.
 
+### 22. As few file operations as possible
+
+Every look at the disk costs, and on a slow disk (a hard drive, a network share) it costs a lot. A request reads what it needs once, on the way from the root to the entry: for a file five directories down, the configurations of the root and of those five directories (a file's settings are in the configuration of its folder), each once. A directory's page adds the configuration of each directory it lists. Whatever else the request needs to know (the permissions, the passwords, the archived folders) comes from what was read, not from reading again. Only an operation that works on what is below (a copy, a move, a download) looks below, as part of its work. What is only there to be safe in rare cases (a configuration edited by hand on the server) is caught up with in the background, not by every request.
+
 ## Documentation
 
-### 22. Written for someone new
+### 23. Written for someone new
 
 A feature comes with its documentation in `docs/`, in simple words, so that someone new to the repository can learn what the app is and how it works. The documents form a tree: each topic has an overview (`docs/<topic>.md`) and its details in a folder of the same name (`docs/<topic>/`). The app will show these documents itself, so links between them are relative and stay inside `docs/`, and files elsewhere in the repository are named, not linked.
 
@@ -143,11 +147,11 @@ Examples help more than descriptions. Pictures of the app come from `docs/screen
 
 ## Tests
 
-### 23. Tested, without waiting
+### 24. Tested, without waiting
 
 Every feature gets tests at the level that fits (see [Tests](tests.md)). The integration tests matter most: they test every endpoint as every kind of user, with every kind of attack that applies, much like a penetration test. Time comes from the injected `TimeProvider` wherever a test would otherwise have to wait (a selection that runs out, a background job that runs every hour), so that the test moves a fake clock instead.
 
-### 24. Tests check logic, not wording or looks
+### 25. Tests check logic, not wording or looks
 
 Unit tests check methods, integration tests check endpoints, and UI tests check the scripts of the pages. None of them checks the exact wording of a text or anything about CSS, so that a sentence can be rephrased or a style changed without a test failing. Instead they check:
 

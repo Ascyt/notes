@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using Notes.Features.Helpers;
 
 namespace Notes.Features.Components.Breadcrumb;
@@ -100,8 +100,8 @@ public class _Breadcrumb : PageModel
         if (!IsFile && !IsRoot)
             along = along.Append(VirtualPath.Trim('/'));
         foreach (string virtualPath in along)
-            if (paths.ToPhysicalPath(virtualPath) is { } physical && Directory.Exists(physical)
-                && archives.ArchiveStateOf(physical) is { } state)
+            // (All of them directories: the parents, and the page's own if it isn't a file)
+            if (paths.ToPhysicalPath(virtualPath) is { } physical && archives.ArchiveStateOf(physical) is { } state)
                 archived[virtualPath] = new ZippedFolders._ArchivedMark { State = state, Encrypted = archives.IsEncrypted(physical) };
         return archived;
     }

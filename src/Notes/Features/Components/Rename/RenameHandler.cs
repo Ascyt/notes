@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Transfer;
@@ -105,7 +105,10 @@ public sealed class RenameHandler(EntryLocations locations, IPathService path, T
         history.BeforeChange(user, changed);
         if (isDirectory)
             // (Its own configuration file is in it, and goes along in the same step)
+        {
             Directory.Move(physicalPath, newPhysicalPath);
+            configs.TreeMoved(physicalPath, newPhysicalPath);
+        }
         else
             RenameFile(directory, physicalPath, newPhysicalPath);
         history.AfterChange(user, changed, HistoryChangeKind.Change);

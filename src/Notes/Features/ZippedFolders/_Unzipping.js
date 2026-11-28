@@ -34,7 +34,7 @@
             if (!response.ok)
                 return (await response.text()) || fillIn(texts.failedWithStatus, { status: response.status });
             const state = await response.json();
-            setProgress(state.progress);
+            setProgress(state.progress, state.status);
             if (state.done)
                 return null;
             // (The server waits a moment itself before it answers, so this is not asked too often)
@@ -45,11 +45,14 @@
     // (For the selection's Unzip, which unzips the selected archived folders one after the other)
     window.archiveUnzipping = { waitUntilUnzipped };
 
-    function showOnPage(fraction) {
+    function showOnPage(fraction, status) {
         const bar = document.getElementById('unzipping-progress');
         const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 100);
         bar.setAttribute('aria-valuenow', String(percent));
         bar.querySelector('.progress-bar').style.width = percent + '%';
+        showPending(bar, status);
+        if (status)
+            document.getElementById('unzipping-detail').textContent = describeProgress(status, fraction);
     }
 
     // ---- The page of an entry in a folder that is being unzipped
@@ -59,7 +62,11 @@
         if (!page)
             return;
         const bar = document.getElementById('unzipping-progress');
-        showOnPage(Number(bar.getAttribute('aria-valuenow')) / 100);
+        let status = null;
+        try {
+            status = JSON.parse(page.dataset.status || 'null');
+        } catch { }
+        showOnPage(Number(bar.getAttribute('aria-valuenow')) / 100, status);
         const failure = await waitUntilUnzipped(page.dataset.address, showOnPage);
         if (failure === null)
             window.location.reload();
@@ -136,6 +143,10 @@
             const percent = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
             bar.setAttribute('aria-valuenow', String(percent));
             bar.querySelector('.progress-bar').style.width = percent + '%';
+            showPending(bar, state.status);
+            const detail = zipping.querySelector('.archived-zipping-detail');
+            if (detail)
+                detail.textContent = describeProgress(state.status, state.progress);
         }
     }
 

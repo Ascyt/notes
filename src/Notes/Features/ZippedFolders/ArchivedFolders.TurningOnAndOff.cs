@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Notes.Features.Bridges;
 using Notes.Features.Components.Archive;
 using Notes.Features.Configuration;
@@ -54,7 +54,7 @@ public sealed partial class ArchivedFolders
     /// After the folder was renamed into its unzipped copy (by <see cref="ConvertAsync"/>, or before a crash): the folder is made again, with its
     /// configuration, which stays next to the archive.
     /// </summary>
-    private static void PutBackConfiguration(string folder, string unzipped)
+    private void PutBackConfiguration(string folder, string unzipped)
     {
         _ = Directory.CreateDirectory(folder);
         string inCopy = Path.Combine(unzipped, PathService.ConfigFileName);
@@ -62,6 +62,8 @@ public sealed partial class ArchivedFolders
         if (File.Exists(inCopy) && !File.Exists(outside))
             File.Move(inCopy, outside);
         DurableFiles.FlushDirectory(folder);
+        // (What was in it is in its copy now, which mounting it walks)
+        configs.TreeChanged(folder);
     }
 
     // ---- Turning it off
@@ -133,6 +135,7 @@ public sealed partial class ArchivedFolders
             {
                 history.ArchiveZipping(mounted);
                 locations.UnmountArchive(mounted);
+                configs.LocationUnmounted(mounted);
             }
             try
             {
@@ -249,6 +252,8 @@ public sealed partial class ArchivedFolders
         }
         DurableFiles.FlushDirectory(folder);
 
+        // (What was in its copy is in it again)
+        configs.TreeChanged(folder);
         Directory.Delete(staging);
         File.Delete(marker);
         DurableFiles.FlushDirectory(Path.GetDirectoryName(marker)!);

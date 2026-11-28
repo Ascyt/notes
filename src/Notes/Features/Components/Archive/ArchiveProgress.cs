@@ -15,15 +15,31 @@ public sealed class ArchiveProgress
 
     private readonly long _total;
     private readonly Action<double> _report;
+    private readonly long _bytes;
+    private readonly int _files;
+    private readonly string _phase;
+    private readonly Action<WorkStatus>? _status;
     private long _done;
+    private long _bytesRead;
+    private int _filesRead;
     private long _lastReportedPerMille = -1;
 
     /// <param name="report">Told the new value whenever it moved by at least a thousandth (from the thread that is writing).</param>
-    public ArchiveProgress(long bytes, int files, Action<double> report)
+    /// <param name="status">Also told, then and after each file, how many files and bytes were read, as <paramref name="phase"/>.</param>
+    public ArchiveProgress(long bytes, int files, Action<double> report, Action<WorkStatus>? status = null, string phase = WorkPhases.Writing)
     {
         _total = Math.Max(1, bytes + files * BytesPerFile);
         _report = report;
+        _bytes = bytes;
+        _files = files;
+        _phase = phase;
+        _status = status;
+        status?.Invoke(Status);
     }
+
+    /// <summary>How far it got, in files and bytes (never more than measured: those are only for telling).</summary>
+    public WorkStatus Status => new(_phase, Math.Min(Volatile.Read(ref _filesRead), _files), _files,
+        Math.Min(Interlocked.Read(ref _bytesRead), _bytes), _bytes);
 
     /// <summary>
     /// What the files of the entries (files, and everything below directories, bridges included) have together, by what is on disk now. Links
@@ -76,13 +92,20 @@ public sealed class ArchiveProgress
     /// <summary>The source of a file, counted as it is read.</summary>
     public Stream Counting(Stream source) => new CountingReadStream(source, this);
 
-    private void Add(long bytes)
+    private void Add(long bytes, bool fileDone = false)
     {
         long done = Interlocked.Add(ref _done, bytes);
+        if (fileDone)
+            _ = Interlocked.Increment(ref _filesRead);
+        else
+            _ = Interlocked.Add(ref _bytesRead, bytes);
         // Never done before the writer is (what was measured may be more than goes in, or less if files grew)
         long perMille = Math.Min(999, done * 1000 / _total);
-        if (perMille > Interlocked.Exchange(ref _lastReportedPerMille, perMille))
+        bool moved = perMille > Interlocked.Exchange(ref _lastReportedPerMille, perMille);
+        if (moved)
             _report(perMille / 1000.0);
+        if (moved || fileDone)
+            _status?.Invoke(Status);
     }
 
     /// <summary>Reads through, counting the bytes, and the file itself once it is closed.</summary>
@@ -130,7 +153,7 @@ public sealed class ArchiveProgress
             if (disposing && !_closed)
             {
                 _closed = true;
-                progress.Add(BytesPerFile);
+                progress.Add(BytesPerFile, fileDone: true);
                 inner.Dispose();
             }
             base.Dispose(disposing);
@@ -141,7 +164,7 @@ public sealed class ArchiveProgress
             if (!_closed)
             {
                 _closed = true;
-                progress.Add(BytesPerFile);
+                progress.Add(BytesPerFile, fileDone: true);
                 await inner.DisposeAsync();
             }
             await base.DisposeAsync();

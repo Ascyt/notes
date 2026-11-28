@@ -19,7 +19,8 @@ else if (Model.State == ArchiveState.Zipping && Model.Address is not null)
         class="@Model.IconClasses(zipped: false)"></i><span class="progress archived-zipping-progress ms-2"
         role="progressbar" aria-label="@Texts.ZippingNow" aria-valuemin="0" aria-valuemax="100"
         aria-valuenow="@percent.ToString(CultureInfo.InvariantCulture)"><span class="progress-bar @(Model.Encrypted ? "bg-warning" : "")"
-        style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span></span>
+        style="width: @percent.ToString(CultureInfo.InvariantCulture)%"></span></span><span
+        class="archived-zipping-detail small text-secondary ms-2" aria-live="polite"></span></span>
 }
 else
 {

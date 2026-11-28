@@ -64,6 +64,7 @@ A name may contain what means something in an address (`#`, `%`, `?` where the f
 | `offset` (of an upload) | A whole number from 0, no gap after what was uploaded so far | 400, 409 |
 | `unzip` (of an upload) | Only whether it is there counts; only for a `.zip` or `.7z` (for any other file it means nothing) | 403 if the folder it would be unzipped into may not be made |
 | `unzipping` (GET of a directory) | The name of a file in it (no `/` or `\`) | 400 |
+| `operations` | Nothing (GET: the list); `cancel` (POST, with `{ "id": "<guid>" }` as JSON) | 404 (GET with a value, or not logged in); 400 |
 | `hashes` (GET of a directory) | The name of a file in it, with `size` (a whole number from 0) and `piece` (bytes, from 1 MiB to 64 MiB) | 400; `{ "hashes": null }` for no such file, another size, or one the user may not read |
 | `selection` | `add`, `remove`, `clear` (POST); nothing (GET) | 400 |
 | `transfer` | `copy`, `move`, `delete` | 400 |

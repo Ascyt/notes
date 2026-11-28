@@ -19,4 +19,7 @@ public class _Unzipping : PageModel
 
     /// <summary>How far it got when the page was made, 0 to 1.</summary>
     public double Progress { get; init; }
+
+    /// <summary>What it was doing then, for the text under the bar (which the script keeps up to date).</summary>
+    public Helpers.WorkStatus Status { get; init; } = new(Helpers.WorkPhases.Waiting);
 }

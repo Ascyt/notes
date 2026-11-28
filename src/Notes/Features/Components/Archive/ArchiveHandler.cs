@@ -227,7 +227,7 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
         {
             using IDisposable carried = passwordLocks.WithUnlocks(unlocks);
             return await work(job, cancellationToken);
-        });
+        }, request.PhysicalPath);
 
         if (RespondsAtOnce(request.Request))
             return new ObjectResult(new { id = job.Id }) { StatusCode = StatusCodes.Status202Accepted };
@@ -266,14 +266,19 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
 
             // (Waits for what uses it, a while at most: the request that asked for this holds no use of it, see ArchiveGate. Opening the
             // folder meanwhile stops it: who opens it needs it now, and this ends as "in use")
-            if (!await archivedFolders.ZipAsync(folder, stopsWhenOpened: true, report: done => job.Report(done * zipShare)))
+            if (!await archivedFolders.ZipAsync(folder, stopsWhenOpened: true, report: done => job.Report(done * zipShare), status: job.SetStatus))
                 return new ArchiveJobResult(null, false, StatusCodes.Status409Conflict, texts.ArchivedFolderInUse);
             if (ZippedFolders.ArchivedFolders.ArchiveFileOf(folder) is not { } kept)
                 return new ArchiveJobResult(null, false, StatusCodes.Status409Conflict, texts.NotArchived);
 
             string extension = Path.GetExtension(kept);
             string target = keepTarget(archives.NewPath(job.Id, extension));
-            await CopyAsync(kept, target, done => job.Report(zipShare + done * (1 - zipShare)), cancellationToken);
+            long size = new FileInfo(kept).Length;
+            await CopyAsync(kept, target, done =>
+            {
+                job.Report(zipShare + done * (1 - zipShare));
+                job.SetStatus(new WorkStatus(WorkPhases.Copying, Bytes: (long)(done * size), TotalBytes: size));
+            }, cancellationToken);
             if (job.IsAbandoned)
                 throw new OperationCanceledException();
             return new ArchiveJobResult(archives.Add(job.Id, userId, target, name + extension), false);
@@ -313,7 +318,7 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
 
         job.Asked();
         if (!job.Finished.IsCompleted)
-            return new JsonResult(new { done = false, progress = job.Progress });
+            return new JsonResult(new { done = false, progress = job.Progress, status = job.Status });
 
         ArchiveJobResult result = job.Finished.Result;
         return result.Archive is null
@@ -380,17 +385,19 @@ public sealed class ArchiveHandler(EntryLocations locations, IPathService path, 
             // What goes in as it is kept is its archive: zipped first, where it is unzipped (opening it meanwhile stops that, as for the
             // as-is download of the folder itself)
             foreach (string folder in keptAsIs)
-                if (!await archivedFolders.ZipAsync(folder, stopsWhenOpened: true))
+                if (!await archivedFolders.ZipAsync(folder, stopsWhenOpened: true,
+                        status: zipping => job.SetStatus(new WorkStatus(WorkPhases.ZippingKept, zipping.Files, zipping.TotalFiles))))
                     return new ArchiveJobResult(null, false, StatusCodes.Status409Conflict, texts.ArchivedFolderInUse);
 
             string target = keepTarget(archives.NewPath(job.Id, options.Extension));
             // The archived folders it reads stay unzipped until it is done (the request that asked for it may be answered long before)
             using IDisposable uses = await archivedFolders.UseAllAroundAsync(topLevel);
-            using (await archives.WaitForTurnAsync(cancellationToken))
+            using (await archives.WaitForTurnAsync(cancellationToken, job))
             {
+                job.SetStatus(new WorkStatus(WorkPhases.Measuring));
                 (long bytes, int files) = ArchiveProgress.Measure(locations, topLevel);
                 await ArchiveWriter.WriteAsync(contents.Folder, options, target, cancellationToken,
-                    new ArchiveProgress(bytes, files, job.Report));
+                    new ArchiveProgress(bytes, files, job.Report, job.SetStatus, options.Password is null ? WorkPhases.Writing : WorkPhases.Encrypting));
             }
 
             // (The progress only says so when it moves: the last of it may have been read after the page was left)

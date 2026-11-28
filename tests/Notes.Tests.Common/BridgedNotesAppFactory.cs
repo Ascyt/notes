@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Hosting;
+﻿using Microsoft.AspNetCore.Hosting;
 
 namespace Notes.Tests.Common;
 
@@ -28,11 +28,11 @@ public sealed class BridgedNotesAppFactory : NotesAppFactory
 
     public string DeepDir { get; }
 
-    public NotesTree Hdd => new(HddDir);
+    public NotesTree Hdd => new(HddDir, ConfigsChangedOnDisk);
 
-    public NotesTree Archive => new(ArchiveDir);
+    public NotesTree Archive => new(ArchiveDir, ConfigsChangedOnDisk);
 
-    public NotesTree Deep => new(DeepDir);
+    public NotesTree Deep => new(DeepDir, ConfigsChangedOnDisk);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -58,6 +58,7 @@ public sealed class BridgedNotesAppFactory : NotesAppFactory
             foreach (string file in Directory.EnumerateFiles(bridge))
                 File.Delete(file);
         }
+        ConfigsChangedOnDisk();
     }
 
     protected override void Dispose(bool disposing)

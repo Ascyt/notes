@@ -40,6 +40,8 @@ So `inherit: true` with empty lists means "as above", and `inherit: false` with 
 
 `inherit` only decides where an entry's own permissions come from: it looks *up*, never down. A folder with `inherit: false` still passes its permissions on to its files and subfolders; each of them decides with its own `inherit` whether to take them. For `/a/b`: with `inherit: true`, `b` has what `a` has (whatever `a`'s `inherit` is), plus or minus `b`'s own lists; with `inherit: false`, `b` has only its own lists. A directory without a `.config.json` counts as `inherit: true` with empty lists.
 
+**A `.config.json` changed on the server by hand** (added, edited or deleted) counts once the app has found it, which its [background job](jobs.md) does every 10 minutes by default: the app doesn't look at the disk for every request. What is saved in the app counts at once.
+
 **An invalid `.config.json`** (edited by hand, say) is never guessed at: until it is fixed, everyone but admins has no access to anything it applies to (the directory and, through inheritance, everything under it). The editor says what is wrong.
 
 A user needs to read the root to get anywhere, and every directory above something to reach it. A directory or file that a logged-in user may not read is still listed by its name (with a lock): to hide something from them entirely, it has to be in a directory they may not read. Anonymous users don't see what they may not read at all.

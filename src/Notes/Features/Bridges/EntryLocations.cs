@@ -1,4 +1,4 @@
-using Notes.Features.Helpers;
+﻿using Notes.Features.Helpers;
 
 namespace Notes.Features.Bridges;
 
@@ -109,6 +109,8 @@ public sealed class EntryLocations
                 throw new InvalidOperationException($"{unzippedPath} is mounted already.");
             _archives = [.. _archives, location];
         }
+        // (Its configurations are now those of its folder's path)
+        Helpers.RequestLookups.Changed();
         return location;
     }
 
@@ -117,6 +119,7 @@ public sealed class EntryLocations
     {
         lock (_archivesLock)
             _archives = [.. _archives.Where(other => !IsSameOrInsidePhysical(other.PhysicalPath, archive.PhysicalPath))];
+        Helpers.RequestLookups.Changed();
     }
 
     /// <summary>

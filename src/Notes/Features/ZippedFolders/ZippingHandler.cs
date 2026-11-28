@@ -5,8 +5,8 @@ namespace Notes.Features.ZippedFolders;
 
 /// <summary>
 /// <c>GET /folder?zipping</c>: how the archived folder is kept now, for the bar of the listing while it is zipped (_Unzipping.js asks until it
-/// is no longer being zipped): <c>{ "state": "zipping" | "zipped" | "unzipped" | null, "progress": 0…1 }</c>, null for a folder that isn't
-/// archived. The <see cref="ArchiveGate"/> holds no use of it and unzips nothing for it: asking must not stop the zipping it asks about.
+/// is no longer being zipped): <c>{ "state": "zipping" | "zipped" | "unzipped" | null, "progress": 0…1, "status": … }</c> (status: what the
+/// zipping is doing, see <see cref="Helpers.WorkStatus"/>), null for a folder that isn't archived. The <see cref="ArchiveGate"/> holds no use of it and unzips nothing for it: asking must not stop the zipping it asks about.
 /// </summary>
 public sealed class ZippingHandler(ArchivedFolders archives, Auth.AccessTree tree, Passwords.PasswordLocks passwordLocks) : IEntryGetAction
 {
@@ -37,6 +37,7 @@ public sealed class ZippingHandler(ArchivedFolders archives, Auth.AccessTree tre
             ArchiveState.Unzipped => "unzipped",
             _ => null
         };
-        return Task.FromResult<IActionResult>(new JsonResult(new { state = name, progress }));
+        Helpers.WorkStatus? status = state == ArchiveState.Zipping ? archives.ZipStatusOf(request.PhysicalPath) : null;
+        return Task.FromResult<IActionResult>(new JsonResult(new { state = name, progress, status }));
     }
 }

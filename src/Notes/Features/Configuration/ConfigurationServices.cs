@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection.Extensions;
+﻿using Microsoft.Extensions.DependencyInjection.Extensions;
 using Notes.Features.Components.Assets;
 using Notes.Features.Configuration.Migrations;
 using Notes.Features.EntryActions;
@@ -20,6 +20,7 @@ public static class ConfigurationServices
         _ = services.AddSingleton(provider => new ConfigMigrator(ConfigVersions.Current, ConfigMigrations.All,
             provider.GetRequiredService<ILogger<ConfigMigrator>>(), provider.GetRequiredService<ConfigTexts>()));
         _ = services.AddSingleton<FolderConfigStore>();
+        _ = services.AddScoped<RescanConfigsJob>();
         // The configuration page: its texts are the site's to replace (see ConfigEditorTexts)
         services.TryAddSingleton<ConfigEditorTexts>();
         _ = services.AddComponentStyles(ConfigEditorView.Styles);

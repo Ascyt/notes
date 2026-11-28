@@ -17,7 +17,12 @@ namespace Notes.Features.Components.Transfer;
 public sealed class TransferExecutor(EntryLocations locations, TransferTexts texts, ILogger<TransferExecutor> logger)
 {
     /// <param name="reportProgress">Told how much is done (0 to 1) as it goes.</param>
-    public void Execute(TransferKind kind, string physicalTarget, List<TransferItem> items, Action<double> reportProgress)
+    /// <param name="cancellationToken">
+    /// Stops it while it copies (after any file; what was copied into the staging folder is deleted, nothing else has changed) and before a
+    /// delete begins. The renames that follow are not stopped: they are quick, and stopping among them would leave things half moved.
+    /// </param>
+    public void Execute(TransferKind kind, string physicalTarget, List<TransferItem> items, Action<double> reportProgress,
+        CancellationToken cancellationToken = default)
     {
         // One staging folder in each location the transfer touches: renames only work within a volume
         string id = Guid.NewGuid().ToString("N");
@@ -35,10 +40,11 @@ public sealed class TransferExecutor(EntryLocations locations, TransferTexts tex
             foreach (string trash in trashOf)
                 _ = Directory.CreateDirectory(Path.GetDirectoryName(trash)!);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (kind == TransferKind.Delete)
                 TrashOriginals(items, trashOf, kind, reportProgress);
             else
-                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trashOf, reportProgress);
+                CopyAndCommit(kind, physicalTarget, items, stagedCopies, trashOf, reportProgress, cancellationToken);
         }
         catch (TransferException e) when (e.KeepsStaging)
         {
@@ -56,7 +62,7 @@ public sealed class TransferExecutor(EntryLocations locations, TransferTexts tex
     }
 
     private void CopyAndCommit(TransferKind kind, string physicalTarget, List<TransferItem> items, string stagedCopies, string[] trashOf,
-        Action<double> reportProgress)
+        Action<double> reportProgress, CancellationToken cancellationToken)
     {
         // Copying is what takes time (the rest is renames), so the progress is how much of it is done
         long totalWork = items.Sum(item => item.IsDirectory
@@ -67,10 +73,13 @@ public sealed class TransferExecutor(EntryLocations locations, TransferTexts tex
         {
             doneWork += work;
             reportProgress((double)doneWork / totalWork);
+            // (Only the staging copies are there yet: stopping here changes nothing)
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         for (int i = 0; i < items.Count; i++)
             CopyEntry(items[i], Path.Combine(stagedCopies, i.ToString()), Copied);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Put the copies in place...
         List<string> placed = [];

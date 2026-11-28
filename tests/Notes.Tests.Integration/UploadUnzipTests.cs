@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using Notes.Features.Components.Archive;
@@ -251,7 +251,7 @@ public sealed class UploadUnzipTests() : IntegrationTest(new NotesAppFactory()),
         string[] expected = [.. contents.Chunk(piece).Select(chunk => Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(chunk)))];
         Assert.Equal(expected, answer["hashes"]!.AsArray().Select(hash => (string)hash!));
         // Another size, or no such file: nothing to compare with
-        Assert.Null(answer = (await JsonOf(await Client.GetAsync(Users.Alice, $"/docs?hashes=big.bin&size=3&piece={piece}")))["hashes"]);
+        Assert.Null((await JsonOf(await Client.GetAsync(Users.Alice, $"/docs?hashes=big.bin&size=3&piece={piece}")))["hashes"]);
         Assert.Null((await JsonOf(await Client.GetAsync(Users.Alice, $"/docs?hashes=nothing.bin&size=3&piece={piece}")))["hashes"]);
     }
 

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Notes.Features.Auth;
 using Notes.Features.Bridges;
 using Notes.Features.Configuration;
@@ -31,15 +31,33 @@ public interface ITransferService
 /// </remarks>
 public sealed class TransferService(TransferTexts texts, TransferPlanner planner, TransferExecutor executor, StructureLock structureLock, FolderConfigStore configs,
     HistoryService history, PasswordLocks passwordLocks, EntryLocations locations, IPathService paths, ZippedFolders.ArchivedFolders archives,
-    AccessTree tree, EntryTexts entryTexts, ILogger<TransferService> logger) : ITransferService
+    AccessTree tree, EntryTexts entryTexts, ILogger<TransferService> logger, Operations.StorageOperations? operations = null) : ITransferService
 {
     public async Task<TransferResult> RunAsync(ClaimsPrincipal user, TransferKind kind, string physicalTarget,
         IReadOnlyList<string> virtualPaths, Action<double>? reportProgress = null)
     {
-        Action<double> report = reportProgress ?? (_ => { });
+        // In the list of operations while it runs (also while it waits for the lock), where it can be cancelled while that changes nothing
+        using CancellationTokenSource cancellation = new();
+        double done = 0;
+        string phase = kind switch { TransferKind.Copy => WorkPhases.CopyingEntries, TransferKind.Move => WorkPhases.MovingEntries, _ => WorkPhases.DeletingEntries };
+        WorkStatus status = new(WorkPhases.Waiting);
+        using IDisposable? operation = operations?.Begin(kind switch
+            {
+                TransferKind.Copy => Operations.OperationKind.Copying,
+                TransferKind.Move => Operations.OperationKind.Moving,
+                _ => Operations.OperationKind.Deleting
+            }, physicalTarget, () => Volatile.Read(ref done), () => Volatile.Read(ref status), () => cancellation.Cancel(), user);
+        Action<double> report = progress =>
+        {
+            Volatile.Write(ref done, progress);
+            reportProgress?.Invoke(progress);
+        };
         // Once started, a transfer is never abandoned half way because the request that asked for it went away
         using (await structureLock.EnterAsync())
         {
+            if (cancellation.IsCancellationRequested)
+                return new TransferResult(StatusCodes.Status409Conflict, texts.Cancelled);
+            Volatile.Write(ref status, new WorkStatus(phase, 0, virtualPaths.Count));
             // The target may have been made an archived folder while this waited: then it is in its unzipped copy now
             if (kind != TransferKind.Delete)
                 physicalTarget = archives.WhereItIsNow(physicalTarget);
@@ -72,7 +90,7 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
                 // A copy copies what is in them, as for any directory: the copy is a normal one (archiving is a setting of the folder)
                 if (kind == TransferKind.Copy)
                 {
-                    TransferResult copied = await Task.Run(() => Run(user, kind, physicalTarget, plan, report));
+                    TransferResult copied = await Task.Run(() => Run(user, kind, physicalTarget, plan, report, cancellation.Token));
                     // Below an onLowestLevel folder, what holds files now is archived right away
                     await archives.ArchiveLowestLevelAfterChangeAsync(physicalTarget);
                     return copied;
@@ -84,7 +102,7 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
             {
                 TransferResult result = await archives.WhileZippedAsync([.. plan.Items.Select(item => item.Source)], folders =>
                     Task.Run(() => Run(user, kind, physicalTarget,
-                        plan with { Items = [.. plan.Items.Select((item, i) => AsZipped(item, folders[i]))] }, report)));
+                        plan with { Items = [.. plan.Items.Select((item, i) => AsZipped(item, folders[i]))] }, report, cancellation.Token)));
 
                 // One archived by an onLowestLevel folder above that was moved out from under it is an ordinary folder again where it is now
                 // (and one moved under such a folder may be archived by it)
@@ -136,7 +154,8 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
         return item with { Source = source, Contents = contents };
     }
 
-    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, TransferPlan plan, Action<double> reportProgress)
+    private TransferResult Run(ClaimsPrincipal user, TransferKind kind, string physicalTarget, TransferPlan plan, Action<double> reportProgress,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -144,7 +163,15 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
             history.BeforeChange(user, changed);
             // (Found before: a move takes the originals, and their entries, away)
             List<CarriedPassword> passwords = kind == TransferKind.Delete ? [] : PasswordsOf(physicalTarget, plan.Items);
-            executor.Execute(kind, physicalTarget, plan.Items, reportProgress);
+            try
+            {
+                executor.Execute(kind, physicalTarget, plan.Items, reportProgress, cancellationToken);
+            }
+            finally
+            {
+                // (Also after a failure, which puts things back: the disk is what counts. Before anything reads the configurations again.)
+                IndexTransferred(kind, physicalTarget, plan.Items);
+            }
             KeepFileEntriesInStep(kind, physicalTarget, plan.Items);
             CarryPasswords(passwords);
             history.AfterChange(user, changed, kind == TransferKind.Delete ? HistoryChangeKind.Delete : HistoryChangeKind.Change);
@@ -154,12 +181,29 @@ public sealed class TransferService(TransferTexts texts, TransferPlanner planner
         {
             return new TransferResult(e.StatusCode, e.Message);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Stopped while copying: nothing changed (the staging copies are deleted)
+            return new TransferResult(StatusCodes.Status409Conflict, texts.Cancelled);
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // The exception's message names paths on the server, which are for the log only
             logger.LogError(e, "{kind} into {target} failed", kind, physicalTarget);
             return new TransferResult(StatusCodes.Status500InternalServerError,
                 texts.FailedAndUndone(kind switch { TransferKind.Copy => WhatIsDone.Copy, TransferKind.Move => WhatIsDone.Move, _ => WhatIsDone.Delete }));
+        }
+    }
+
+    /// <summary>Tells the configurations' index of the directories that came and went (their configurations, and those inside, with them).</summary>
+    private void IndexTransferred(TransferKind kind, string physicalTarget, IEnumerable<TransferItem> items)
+    {
+        foreach (TransferItem item in items.Where(item => item.IsDirectory))
+        {
+            if (kind != TransferKind.Copy)
+                configs.TreeChanged(item.Source);
+            if (kind != TransferKind.Delete)
+                configs.TreeChanged(Path.Combine(physicalTarget, item.Name));
         }
     }
 

@@ -188,7 +188,9 @@ public sealed class ArchiveUiTests(UiFixture fixture) : UiTest(fixture), IClassF
         {
             if (!letThrough.Task.IsCompleted)
             {
-                await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = """{"done":false,"progress":0.4}""" });
+                await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = """
+                    {"done":false,"progress":0.4,"status":{"phase":"writing","files":12,"totalFiles":340,"bytes":1258291,"totalBytes":41943040}}
+                    """ });
                 return;
             }
             await route.ContinueAsync();
@@ -201,6 +203,8 @@ public sealed class ArchiveUiTests(UiFixture fixture) : UiTest(fixture), IClassF
         await Expect(bar).ToBeVisibleAsync();
         await Expect(bar).ToHaveAttributeAsync("aria-valuenow", "40");
         await Expect(Page.Locator("#busy-overlay-spinner")).ToBeHiddenAsync();
+        // ...and in words what it is doing
+        await Expect(Page.Locator("#busy-overlay-detail")).ToHaveTextAsync("Writing the archive: 12 of 340 files, 1.2 MiB of 40.0 MiB (40%)");
 
         IDownload download = await Page.RunAndWaitForDownloadAsync(() =>
         {

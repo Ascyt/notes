@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using Notes.Features.Bridges;
 using Notes.Features.Configuration.Migrations;
@@ -18,11 +18,14 @@ namespace Notes.Features.Configuration;
 /// any write (reads don't write: they don't hold the lock).
 /// </remarks>
 public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator migrator, ILogger<FolderConfigStore> logger,
-    ConfigTexts? texts = null)
+    ConfigTexts? texts = null, RequestLookups? lookups = null)
 {
     private sealed record Cached(DateTime LastWriteUtc, long Length, FolderConfigState State);
 
     private readonly ConcurrentDictionary<string, Cached> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Which folders have a configuration file: for those it knows, no look at the disk is needed to find out.</summary>
+    private readonly ConfigIndex _index = new(locations);
 
     /// <summary>How many times a configuration file was written by the app, so that a read knows whether a write came in between.</summary>
     private long _writes;
@@ -33,7 +36,7 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
 
     /// <summary>
     /// What the folder's configuration says: nothing if there is no file, otherwise what is in it, or why that can't be used. Inside a
-    /// <see cref="ConfigReadScope"/> a folder is looked at on disk only the first time.
+    /// <see cref="ConfigReadScope"/>, and inside a request (<see cref="RequestLookups"/>), a folder is looked at on disk only the first time.
     /// </summary>
     public FolderConfigState Get(string physicalDirectory)
     {
@@ -41,14 +44,31 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
         if (ConfigReadScope.TryGet(physicalDirectory, out FolderConfigState known))
             return known;
 
-        FolderConfigState state = Read(physicalDirectory);
+        FolderConfigState state = lookups is null ? Read(physicalDirectory) : lookups.Get("config", physicalDirectory, Read);
         ConfigReadScope.Remember(physicalDirectory, state);
         return state;
     }
 
+    /// <summary>How many times a configuration was looked at on disk (for the tests that check a request reads each once).</summary>
+    public long DiskReads => Interlocked.Read(ref _diskReads);
+
+    private long _diskReads;
+
     private FolderConfigState Read(string physicalDirectory)
     {
         string path = ConfigPathOf(physicalDirectory);
+        string configDirectory = Path.GetDirectoryName(path)!;
+        if (_index.Knows(configDirectory))
+        {
+            // Most folders have no configuration of their own, and those that have one are read once: until the app changes it (or the
+            // rescan finds it changed on the server), what was read is what it says
+            if (!_index.Has(configDirectory))
+                return FolderConfigState.Missing;
+            if (_cache.TryGetValue(physicalDirectory, out Cached? known))
+                return known.State;
+        }
+
+        _ = Interlocked.Increment(ref _diskReads);
         FileInfo file = new(path);
         if (!file.Exists)
         {
@@ -108,56 +128,169 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
     }
 
     /// <summary>
-    /// Brings every configuration file under the root directory up to date on disk, which reading does only in memory. Done once when the app
-    /// starts, before anything else uses the entries. A file that can't be brought up to date is left as it is, and logged (<see cref="Get"/>
-    /// treats it as invalid).
+    /// Brings every configuration file of every location up to date on disk, which reading does only in memory, and finds them for the index
+    /// (from then on, finding out whether a folder has one needs no look at the disk). Done when the app starts, before anything else uses the
+    /// entries, and by the soft restart. A file that can't be brought up to date is left as it is, and logged (<see cref="Get"/> treats it as
+    /// invalid). A location that can't be walked completely is logged, and looked at on disk as before.
     /// </summary>
     /// <returns>How many files were rewritten.</returns>
     public int MigrateAll()
-        => locations.All.Sum(location => MigrateAllIn(location.PhysicalPath));
+        => locations.All.Sum(location => MigrateAllIn(location));
 
-    /// <summary><see cref="MigrateAll"/> for the physical directory of one location (the root, or a bridge).</summary>
-    private int MigrateAllIn(string root)
+    /// <summary><see cref="MigrateAll"/> for one location (the root, a bridge, an unzipped archived folder).</summary>
+    private int MigrateAllIn(EntryLocation location)
     {
-        EnumerationOptions options = new()
-        {
-            RecurseSubdirectories = true,
-            MatchCasing = MatchCasing.CaseInsensitive,
-            // Links are never followed, they could lead out of the root (see PathService)
-            AttributesToSkip = FileAttributes.ReparsePoint,
-            IgnoreInaccessible = true
-        };
+        if (WalkLocation(location) is not { } found)
+            return 0;
 
         int migratedCount = 0;
-        // (Listed before anything is written, so that writing doesn't change what is listed)
-        foreach (string path in Directory.EnumerateFiles(root, PathService.ConfigFileName, options).ToList())
+        foreach (FileInfo file in found)
         {
-            string directory = Path.GetDirectoryName(path)!;
-            // The folder of the app's own data is no part of the entries, nor is what a bridge hides
-            if (Path.GetRelativePath(root, directory).Split(Path.DirectorySeparatorChar)[0] == PathService.ReservedName
-                || locations.IsHiddenByBridge(directory))
-                continue;
-
+            string directory = file.DirectoryName!;
             try
             {
-                string text = ReadFile(path);
+                string text = ReadFile(file.FullName);
                 MigrationResult migrated = migrator.Migrate(text);
                 if (migrated.Error is not null)
-                    logger.LogError("The configuration {path} was not migrated: {error}", path, migrated.Error);
+                    logger.LogError("The configuration {path} was not migrated: {error}", file.FullName, migrated.Error);
                 else if (migrated.Changed)
                 {
                     WriteText(directory, migrated.Text);
                     migratedCount++;
-                    logger.LogInformation("Migrated the configuration {path} from {from} to {to}", path, migrated.From, migrator.Current);
+                    logger.LogInformation("Migrated the configuration {path} from {from} to {to}", file.FullName, migrated.From, migrator.Current);
                 }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                logger.LogError(e, "Could not migrate {path}", path);
+                logger.LogError(e, "Could not migrate {path}", file.FullName);
             }
         }
 
         return migratedCount;
+    }
+
+    /// <summary>
+    /// Walks the location for its configuration files and puts them in the index, which from then on is the truth for it. Null (and the
+    /// location is looked at on disk as before) if it can't be walked completely.
+    /// </summary>
+    private List<FileInfo>? WalkLocation(EntryLocation location)
+    {
+        long changesBefore = _index.Changes;
+        List<FileInfo> found;
+        try
+        {
+            found = ConfigIndex.Walk(location.PhysicalPath, isLocationRoot: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(e, "Could not look through {location} for its configurations; they are looked for on disk each time",
+                location.PhysicalPath);
+            _index.SetWalked(location.PhysicalPath, walked: false);
+            return null;
+        }
+
+        // (What the app changed meanwhile was told to the index: what the walk didn't see yet is in it already, and is kept)
+        string[] directories = [.. found.Select(file => file.DirectoryName!)];
+        if (_index.Changes == changesBefore)
+            _index.Replace(location.PhysicalPath, directories);
+        else
+            foreach (string directory in directories)
+                _index.Add(directory);
+        _index.SetWalked(location.PhysicalPath, walked: true);
+        return found;
+    }
+
+    // ---- Keeping the index in step with what the operations change on disk. Each is told while the operation still holds the lock
+    // ---- (StructureLock, or the archived folder's gate), right after the change.
+
+    /// <summary>
+    /// What is at and below the path changed (copied there, unzipped there, put back after a failure, or gone): it is looked through again.
+    /// Costs a walk of it, as part of the operation that changed it.
+    /// </summary>
+    public void TreeChanged(string physicalPath)
+    {
+        string path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(physicalPath));
+        ForgetCachedBelow(path);
+        if (!_index.Knows(path))
+            return;
+        try
+        {
+            _index.Replace(path, Directory.Exists(path)
+                ? [.. ConfigIndex.Walk(path, isLocationRoot: false).Select(file => file.DirectoryName!)]
+                : []);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // What is in it can't be known for certain any more: its location is looked at on disk until the next rescan
+            logger.LogWarning(e, "Could not look through {path} for its configurations", path);
+            if (locations.LocationOf(path) is { } location)
+                _index.SetWalked(location.PhysicalPath, walked: false);
+        }
+    }
+
+    /// <summary>The directory was renamed or moved (to a path in the same location, or another one), and nothing else changed.</summary>
+    public void TreeMoved(string fromPhysicalPath, string toPhysicalPath)
+    {
+        string from = Path.TrimEndingDirectorySeparator(Path.GetFullPath(fromPhysicalPath));
+        string to = Path.TrimEndingDirectorySeparator(Path.GetFullPath(toPhysicalPath));
+        ForgetCachedBelow(from);
+        ForgetCachedBelow(to);
+        if (_index.Knows(from) && _index.Knows(to))
+            _index.Move(from, to);
+        else
+        {
+            _index.Forget(from);
+            TreeChanged(to);
+        }
+    }
+
+    /// <summary>An archived folder's unzipped copy was mounted (as a location of its own): it is walked for the index.</summary>
+    public void LocationMounted(EntryLocation location)
+    {
+        ForgetCachedBelow(location.PhysicalPath);
+        _ = WalkLocation(location);
+    }
+
+    /// <summary>An archived folder's unzipped copy was unmounted: nothing is known of it any more.</summary>
+    public void LocationUnmounted(EntryLocation location)
+    {
+        ForgetCachedBelow(location.PhysicalPath);
+        _index.Forget(location.PhysicalPath);
+        _index.SetWalked(location.PhysicalPath, walked: false);
+    }
+
+    private void ForgetCachedBelow(string path)
+    {
+        foreach (string directory in _cache.Keys)
+            if (string.Equals(directory, path, StringComparison.OrdinalIgnoreCase)
+                || directory.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                _ = _cache.TryRemove(directory, out _);
+        RequestLookups.Changed();
+    }
+
+    /// <summary>
+    /// Brings the index in line with the disk (a background job): finds the configuration files added, changed or deleted on the server by hand.
+    /// Waits for nothing. What the app changed while it walked was told to the index already, and is kept.
+    /// </summary>
+    public void Rescan()
+    {
+        foreach (EntryLocation location in locations.All)
+        {
+            HashSet<string> before = new(_index.In(location), StringComparer.OrdinalIgnoreCase);
+            if (WalkLocation(location) is not { } found)
+                continue;
+
+            // Changed on disk since it was read: read again when it is asked for next
+            Dictionary<string, FileInfo> files = found.ToDictionary(file => file.FullName, StringComparer.OrdinalIgnoreCase);
+            foreach ((string directory, Cached cached) in _cache)
+                if (files.TryGetValue(ConfigPathOf(directory), out FileInfo? file)
+                    && (cached.LastWriteUtc != file.LastWriteTimeUtc || cached.Length != file.Length))
+                    _ = _cache.TryRemove(directory, out _);
+            // Deleted: what was read of it is forgotten too
+            foreach (string gone in before.Except(found.Select(file => file.DirectoryName!), StringComparer.OrdinalIgnoreCase))
+                ForgetCachedBelow(gone);
+        }
+        RequestLookups.Changed();
     }
 
     /// <summary>
@@ -189,6 +322,12 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
 
         // (After the file is in place: a read that began before it may have read the old one)
         _ = Interlocked.Increment(ref _writes);
+        _index.Add(Path.GetDirectoryName(path)!);
+        RequestLookups.Changed();
+        // Also what was read of it under another path: an archived folder's unzipped copy has the configuration next to its archive
+        foreach (string directory in _cache.Keys)
+            if (string.Equals(ConfigPathOf(directory), path, StringComparison.OrdinalIgnoreCase))
+                _ = _cache.TryRemove(directory, out _);
         _ = _cache.TryRemove(Path.TrimEndingDirectorySeparator(physicalDirectory), out _);
     }
 
@@ -254,6 +393,10 @@ public sealed class FolderConfigStore(EntryLocations locations, ConfigMigrator m
             ConfigText.RemoveFileProperties(text, name, [ConfigParser.UnzipPendingKey]) is { } cleared
                 ? ConfigText.SetFileProperty(cleared, name, ConfigParser.UnzipErrorKey, JsonQuote(reason))
                 : null);
+
+    /// <summary>Unzipping the file was cancelled: it is a file like any other (its entry says nothing about unzipping any more).</summary>
+    public void UnzipCancelled(string physicalDirectory, string name)
+        => Update(physicalDirectory, "unmark the unzipping of", text => ConfigText.RemoveFileProperties(text, name, ConfigParser.UnzipKeys));
 
     private static string JsonQuote(string value)
         => System.Text.Json.JsonSerializer.Serialize(value, new System.Text.Json.JsonSerializerOptions

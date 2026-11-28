@@ -1,10 +1,13 @@
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Notes.Features.Auth;
 
 public class _Account : PageModel
 {
     public bool IsAuthenticated { get; init; }
+
+    /// <summary>Whether a storage operation that the user may see runs now (the button of their list shows, see _Operations).</summary>
+    public bool HasOperations { get; init; }
 
      /// <summary>Gets the kill switch (and the admin icon).</summary>
     public bool IsAdmin { get; init; }

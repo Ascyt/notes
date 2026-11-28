@@ -253,7 +253,7 @@
             if (!response.ok)
                 return { message: await messageOf(response) };
             const state = await response.json();
-            setProgress(state.progress);
+            setProgress(state.progress, state.status);
             if (state.done)
                 return { id, leftOutUnreadable: state.leftOutUnreadable };
         }

@@ -3,12 +3,15 @@
 @using Notes.Features.Components.Busy
 @using Notes.Features.Components.Toast
 @inject Notes.Features.ZippedFolders.UnzipTexts UnzipTexts
+@inject Notes.Features.Components.Busy.ProgressTexts ProgressTexts
 @* What the pages of the app put over themselves, at the start of the body of every layout (docs/library.md): the stack of messages,
    the dialog that asks for the password of a locked entry, the notice of a session that ended, and for admins the dialog of the kill
    switch. It needs nothing of the page. *@
 
 <partial name="/Features/Components/Toast/_Toasts.cshtml" model="new _Toasts()"/>
 <partial name="/Features/Components/Busy/_BusyOverlay.cshtml" model="new _BusyOverlay()"/>
+@* What long work is doing, in words, under its bars (describeProgress in site.js) *@
+<script-texts id="progress-texts" texts="@ProgressTexts"/>
 <partial name="/Features/Passwords/_PasswordModal.cshtml" model="new Notes.Features.Passwords._PasswordModal()"/>
 @* Waits for an archived folder that a request needs to be unzipped (after the password dialog's script, which asks for passwords first) *@
 <script-texts id="unzip-texts" texts="@UnzipTexts"/>
@@ -17,6 +20,8 @@
 @if (User.Identity?.IsAuthenticated == true)
 {
     <partial name="/Features/Components/Upload/_UploadResume.cshtml"/>
+    @* The storage operations that run now, for the button of the toolbar *@
+    <partial name="/Features/Operations/_Operations.cshtml" model="new Notes.Features.Operations._Operations()"/>
 }
 @if (User.IsInRole(AppAccess.AdminRole))
 {
