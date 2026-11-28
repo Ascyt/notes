@@ -2,7 +2,7 @@ using Microsoft.Playwright;
 
 namespace Notes.Tests.Ui;
 
-/// <summary>What helps typing in the editor of a file: the indent buttons of the simple view (text-area-indent.js), and the code editor's suggestions.</summary>
+/// <summary>What helps typing in the editor of a file: the indent buttons of the simple view (text-area-indent.ts), and the code editor's suggestions.</summary>
 public sealed class EditorTypingUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     private ILocator SimpleEditor => Page.Locator("#simple-editor");

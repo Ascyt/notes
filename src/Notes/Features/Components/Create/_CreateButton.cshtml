@@ -5,7 +5,7 @@
     string label = Texts.Create(Model.IsFile);
 }
 
-@* Icon only (the label is its tooltip and aria-label), unless it stands in for an empty group. Disabled like the toolbar buttons (site.js):
+@* Icon only (the label is its tooltip and aria-label), unless it stands in for an empty group. Disabled like the toolbar buttons (site.ts):
    it says why on hover, and clicking it does nothing *@
 <form method="post" class="d-flex gap-3">
     <button type="submit" formaction="?create=@(Model.IsFile ? "file" : "directory")" class="btn btn-sm p-0" key="@(Model.IsFile ? "+n" : "n")"

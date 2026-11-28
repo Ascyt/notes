@@ -1,0 +1,10 @@
+// The name field of the breadcrumb (_RenameInput.cshtml)
+
+#rename {
+  max-width: 32rem;
+}
+
+// Only shown: the reason is its tooltip
+#rename-input[readonly] {
+  cursor: not-allowed;
+}

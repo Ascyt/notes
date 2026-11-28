@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+        <!-- The packages that build the styles and scripts are no part of the project -->
+        <DefaultItemExcludes>$(DefaultItemExcludes);node_modules/**</DefaultItemExcludes>
     </PropertyGroup>
 
     <ItemGroup>
@@ -26,16 +28,44 @@
         <Using Include="Microsoft.Extensions.Logging" />
     </ItemGroup>
 
-    <!-- The styles and scripts of the components, in their folders next to their views (Features/…, Pages/…), served like those of
-         wwwroot: at _content/Notes/ and their path, such as _content/Notes/Features/Components/Toolbar/_Toolbar.css. (The SDK's own
-         *.cshtml.css are scoped styles, which a site couldn't override, so these have names of their own.) -->
+    <!-- The styles and scripts of the components are written as SCSS and TypeScript (_Name.scss, _Name.ts) in their folders next to their
+         views (Features/…, Pages/…) and built by npm (BuildClientAssets) into the _Name.css and _Name.js beside them, which are not kept
+         in git. Those are served like the files of wwwroot: at _content/Notes/ and their path, such as
+         _content/Notes/Features/Components/Toolbar/_Toolbar.css. (The SDK's own *.cshtml.css are scoped styles, which a site couldn't
+         override, so these have names of their own.) -->
+    <PropertyGroup>
+        <ComponentAssetPatterns>Features/**/*.css;Features/**/*.js;Pages/**/*.css;Pages/**/*.js</ComponentAssetPatterns>
+        <ComponentAssetExcluded>**/*.cshtml.css;**/*.cshtml.js;**/*.razor.css;**/*.razor.js</ComponentAssetExcluded>
+    </PropertyGroup>
+
+    <!-- The files that exist when the project is read (those of an earlier build) are kept out of the SDK's own items -->
     <ItemGroup>
-        <ComponentAsset Include="Features/**/*.css;Features/**/*.js;Pages/**/*.css;Pages/**/*.js" Exclude="**/*.cshtml.css;**/*.cshtml.js;**/*.razor.css;**/*.razor.js" />
+        <ComponentAsset Include="$(ComponentAssetPatterns)" Exclude="$(ComponentAssetExcluded)" />
         <Content Remove="@(ComponentAsset)" />
         <None Remove="@(ComponentAsset)" />
     </ItemGroup>
 
-    <Target Name="DefineComponentAssets" AfterTargets="ResolveProjectStaticWebAssets" Condition="'$(NoBuild)' != 'true'">
+    <ItemGroup>
+        <ClientAssetSource Include="Features/**/*.scss;Pages/**/*.scss;Styles/**/*.scss;Features/**/*.ts;Pages/**/*.ts;Typings/**/*.ts" />
+    </ItemGroup>
+
+    <!-- The packages that build the styles and scripts, when package-lock.json says something other than what is installed -->
+    <Target Name="RestoreClientTools" Inputs="package.json;package-lock.json" Outputs="node_modules/.package-lock.json">
+        <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    </Target>
+
+    <!-- Builds the CSS and JS of the components from their sources, when one of them changed. A type error in a script fails the build. -->
+    <Target Name="BuildClientAssets" DependsOnTargets="RestoreClientTools" Inputs="@(ClientAssetSource);package.json;tsconfig.json;build-styles.mjs" Outputs="$(IntermediateOutputPath)client-assets.stamp">
+        <Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)" />
+        <Touch Files="$(IntermediateOutputPath)client-assets.stamp" AlwaysCreate="true" />
+    </Target>
+
+    <!-- The files are looked for again here, as a first build only now has them -->
+    <Target Name="DefineComponentAssets" DependsOnTargets="BuildClientAssets" AfterTargets="ResolveProjectStaticWebAssets" Condition="'$(NoBuild)' != 'true'">
+        <ItemGroup>
+            <ComponentAsset Remove="@(ComponentAsset)" />
+            <ComponentAsset Include="$(ComponentAssetPatterns)" Exclude="$(ComponentAssetExcluded)" />
+        </ItemGroup>
         <DefineStaticWebAssets CandidateAssets="@(ComponentAsset)" RelativePathPattern="**" SourceType="Discovered" SourceId="$(PackageId)" ContentRoot="$(MSBuildProjectDirectory)\" BasePath="$(StaticWebAssetBasePath)" AssetMergeSource="$(StaticWebAssetMergeTarget)" FingerprintCandidates="$(StaticWebAssetsFingerprintContent)" FingerprintPatterns="@(StaticWebAssetFingerprintPattern)">
             <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
             <Output TaskParameter="Assets" ItemName="_ComponentStaticWebAsset" />

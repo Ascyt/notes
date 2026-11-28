@@ -6,7 +6,7 @@ namespace Notes.Features.Passwords;
 
 /// <summary>
 /// What a request for a locked entry is answered with: 403, with the address of the entry whose password is needed in
-/// <see cref="RequiredHeader"/>, which the scripts of the pages see (<c>_PasswordModal.js</c>) and ask for it, then send the request again.
+/// <see cref="RequiredHeader"/>, which the scripts of the pages see (<c>_PasswordModal.ts</c>) and ask for it, then send the request again.
 /// A request that brought a password along that couldn't be checked yet (too many wrong ones) gets 429, with how long to wait in
 /// <c>Retry-After</c>.
 /// </summary>

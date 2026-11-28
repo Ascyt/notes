@@ -1,7 +1,7 @@
 namespace Notes.Features.Components.Busy;
 
 /// <summary>
-/// How the text under a bar says what long work is doing (<see cref="Helpers.WorkStatus"/>, <c>describeProgress</c> in site.js), on every
+/// How the text under a bar says what long work is doing (<see cref="Helpers.WorkStatus"/>, <c>describeProgress</c> in site.ts), on every
 /// page. A site with texts of its own derives from this class and registers it in place of this one, as for <see cref="BusyTexts"/>.
 /// </summary>
 public class ProgressTexts

@@ -1,0 +1,11 @@
+// The card of the earlier state that is shown (_EarlierStateCard.cshtml)
+
+#history-card {
+  // Its kind at a glance, as for the messages
+  border-right: 0.25rem solid var(--bs-primary);
+
+  // So that a long description is cut off rather than widening the card
+  .history-card-text {
+    min-width: 0;
+  }
+}

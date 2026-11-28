@@ -36,7 +36,7 @@ These are guidelines rather than laws: where breaking one makes the interface cl
 
 ### 6. Everything works with the keyboard
 
-Every action has a shortcut: a `key` attribute on the button, link or field (the top of `Features/Shortcuts/shortcuts.js` says how to write one). Holding Right Ctrl shows all shortcuts of the page.
+Every action has a shortcut: a `key` attribute on the button, link or field (the top of `Features/Shortcuts/shortcuts.ts` says how to write one). Holding Right Ctrl shows all shortcuts of the page.
 
 - **The rarer an action, the longer its shortcut.** A single key is for what is done all the time on that page (`e` to edit, `Delete`, the numbers for the entries). Something done now and then gets a modifier (Alt+PageDown to download). Something rare or dangerous gets several (Ctrl+Alt+Shift+Delete for the kill switch).
 - **A group of rarely used links gets one shortcut for all of them.** The shortcut is on the element around them (`tabindex="-1"`), which it focuses, and Tab and Enter go from there. The links in the footer work like this.
@@ -76,7 +76,7 @@ No animations: things appear, move and go away at once, without sliding, fading 
 
 ### 13. Long operations show that they run, and check again at the end
 
-Whatever may take a while shows that it is running: a progress bar where it can be told how far it is (an upload, a copy or move, preparing an archive), a spinner only where that can't be told without great effort (renaming a directory with much in it). When building something long, plan for the bar: it is often only counting what was done against what was measured before. In the scripts, `whileBusy` (`site.js`) does this for one request:
+Whatever may take a while shows that it is running: a progress bar where it can be told how far it is (an upload, a copy or move, preparing an archive), a spinner only where that can't be told without great effort (renaming a directory with much in it). When building something long, plan for the bar: it is often only counting what was done against what was measured before. In the scripts, `whileBusy` (`site.ts`) does this for one request:
 
 - While it runs, leaving the page asks first (the browser's own warning), as its answer would be lost with the page.
 - Where using the page meanwhile could get in its way (renaming again, changing what is being copied or archived), the page is covered until it is done (`blockPage`, with `_BusyOverlay`), and its shortcuts do nothing. The messages and the card of the selection stay above it, so its progress can still be seen.
@@ -106,7 +106,7 @@ Some virtual directories are stored in physical directories of their own ([bridg
 
 Scripts, styles and fonts come from the app itself (put in `wwwroot/lib` with LibMan), never from a CDN at runtime, so the browser only talks to the app and to Keycloak. Content that users put into their notes, such as an image in a Markdown file, may come from anywhere.
 
-Scripts and styles are files next to the component they belong to (`_Name.js`, `_Name.css`, see [Components](components.md)), served as static assets of the app. Scripts are never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`), and no `<style>` in a view. What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block (its texts with `<script-texts>`), and a toolbar button gets its listener with `onClickOf` (`site.js`).
+Scripts and styles are files next to the component they belong to, written in TypeScript and SCSS (`_Name.ts`, `_Name.scss`, see [Components](components.md)) and built into the `_Name.js` and `_Name.css` beside them, which are served as static assets of the app. Scripts are never inline: no `<script>` with code in a view and no `onclick=` and the like, which the site's policy doesn't run (`script-src 'self'`), and no `<style>` in a view. What a script needs from the server goes into `data-` attributes or a `<script type="application/json">` block (its texts with `<script-texts>`), and a toolbar button gets its listener with `onClickOf` (`site.ts`).
 
 ### 18. Existing installations keep working
 

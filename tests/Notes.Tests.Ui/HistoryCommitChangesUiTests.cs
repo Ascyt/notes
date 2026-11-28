@@ -7,7 +7,7 @@ namespace Notes.Tests.Ui;
 
 /// <summary>
 /// The scripts of the changes of a commit (<c>?commit=&amp;changes</c>): the compare button of the list of changes and its Shift+Enter, the
-/// diff editor (file-changes.js), the card keeping the changes on the links, and the way between the state and the changes.
+/// diff editor (_FileChanges.ts), the card keeping the changes on the links, and the way between the state and the changes.
 /// </summary>
 public sealed class HistoryCommitChangesUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {

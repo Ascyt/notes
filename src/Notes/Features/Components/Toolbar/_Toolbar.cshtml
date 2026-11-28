@@ -2,7 +2,7 @@
 
 @* The row of small icons under the breadcrumb. They are buttons, but look like icons (no frame, no text): the label is the tooltip.
    The buttons are made by the page (with ToolbarButtons); the scripts of the page and of its components find them by id and use
-   setButtonDisabled / setButtonBusy (site.js) to change what they can do. *@
+   setButtonDisabled / setButtonBusy (site.ts) to change what they can do. *@
 
 
 <div class="toolbar d-flex align-items-center gap-1 mb-2" role="toolbar">
@@ -15,7 +15,7 @@
             _ => "text-body"
         };
         bool disabled = button.DisabledReason is not null;
-        @* data-label and data-disabled-reason are all the state site.js needs: it makes the tooltip and the disabled look from them *@
+        @* data-label and data-disabled-reason are all the state site.ts needs: it makes the tooltip and the disabled look from them *@
         if (button.Href is not null)
         {
             <a id="@button.Id" href="@button.Href" download="@(button.IsDownload ? "" : null)" class="toolbar-button @tone" key="@button.Key"

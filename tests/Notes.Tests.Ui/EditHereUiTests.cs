@@ -4,7 +4,7 @@ namespace Notes.Tests.Ui;
 
 /// <summary>
 /// The ways between the rendered markdown and the place in its text: the button that edits a part where it is written
-/// (markdown-edit-here.js, editor-start-position.js), and the preview that starts where the editor's cursor was (markdown-start-position.js).
+/// (markdown-edit-here.ts, editor-start-position.ts), and the preview that starts where the editor's cursor was (markdown-start-position.ts).
 /// </summary>
 public sealed class EditHereUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {

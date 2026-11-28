@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Notes.Pages.ConfigEditor;
 
-/// <summary>What the editor's script (config-editor.js) is told about the configuration.</summary>
+/// <summary>What the editor's script (ConfigEditorView.ts) is told about the configuration.</summary>
 /// <param name="MonacoPath">Where Monaco is served from.</param>
 /// <param name="Schema">The JSON schema, as text.</param>
 public sealed record ConfigEditorOptions(string MonacoPath, string Contents, string DefaultContents, string Schema);

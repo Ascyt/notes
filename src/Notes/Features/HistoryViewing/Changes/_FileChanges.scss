@@ -1,0 +1,16 @@
+@use 'mixins' as *;
+
+// The changes of a commit to a file (_FileChanges.cshtml)
+
+#changes-editor {
+  @include focus-framed-editor;
+}
+
+// A side that is binary, as the page of the file shows it, without taking more than the screen
+.change-side-media {
+  max-height: 75vh;
+}
+
+.change-side-pdf {
+  height: 75vh;
+}

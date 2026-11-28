@@ -1,0 +1,17 @@
+@use 'mixins' as *;
+
+// The page that waits for an archived folder to be unzipped (_Unzipping.cshtml)
+
+.unzipping-progress {
+  @include waiting-progress;
+}
+
+// The bar after the name of an archived folder that is being zipped (_ArchivedMark.cshtml), as high as the text
+
+.archived-zipping {
+  white-space: nowrap;
+}
+
+.archived-zipping-progress {
+  @include inline-progress;
+}

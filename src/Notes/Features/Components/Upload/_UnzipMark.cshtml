@@ -2,7 +2,7 @@
 @model _UnzipMark
 @inject UploadTexts Texts
 
-@* The bar stays where it is until _UnzipMark.js sees it ended: then the page is loaded again (the archive has become a folder) *@
+@* The bar stays where it is until _UnzipMark.ts sees it ended: then the page is loaded again (the archive has become a folder) *@
 @if (Model.Progress is { } progress)
 {
     int percent = (int)Math.Round(progress * 100);

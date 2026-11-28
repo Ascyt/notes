@@ -14,6 +14,14 @@
 # Client-side libraries restored via LibMan (see src/Notes/libman.json)
 **/wwwroot/lib/
 
+# Tools that build the styles and scripts of the components (see src/Notes/package.json), and what they build: the .css and .js next to
+# the .scss and .ts of the components
+**/node_modules/
+src/Notes/Features/**/*.css
+src/Notes/Features/**/*.js
+src/Notes/Pages/**/*.css
+src/Notes/Pages/**/*.js
+
 # Local secrets for docker compose (see .env.example)
 .env
 

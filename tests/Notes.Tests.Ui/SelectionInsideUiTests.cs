@@ -4,7 +4,7 @@ using Notes.Features.Components.Selection;
 
 namespace Notes.Tests.Ui;
 
-/// <summary>A directory with something selected inside it shows a dash in its box (_SelectionBar.js), found from the selected paths alone.</summary>
+/// <summary>A directory with something selected inside it shows a dash in its box (_SelectionBar.ts), found from the selected paths alone.</summary>
 public sealed class SelectionInsideUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     private ILocator Box(string path) => Page.Locator($"tr.entry-row[data-path='{path}'] .entry-select");

@@ -1,0 +1,16 @@
+// The z-index of what sits over the page, from the lowest. Bootstrap's own lie in between: the navbar is 1020, its menus 1000 to 1055, the
+// modals 1055 and the toasts 1090. Kept in one place so that it is clear what covers what.
+
+// Under the navbar and its menu, over the page
+$breadcrumb: 1019;
+$commit-sidebar: 1030;
+// Over modals, under the messages, which say how it went
+$busy-overlay: 1080;
+// Over what covers the page while something runs, as what runs may be what needs the password; under the messages
+$password-modal: 1085;
+// The messages: over modals
+$floating-cards: 1090;
+$upload-drop-overlay: 1900;
+$key-hint: 2000;
+// A hint that is hovered, over the others
+$key-hint-expanded: 2001;

@@ -3,7 +3,7 @@
 
 @* The dialog that asks how to make an archive before it is downloaded: format, compression and a password, and what to do with the
    archived folders in it. Opened by the toolbar's download button of a directory (where OpensFromToolbar), and by the selection card
-   (archiveDownload.open in _ArchiveModal.js). Scrolls within the screen (modal-dialog-scrollable), as the list of folders may be long. *@
+   (archiveDownload.open in _ArchiveModal.ts). Scrolls within the screen (modal-dialog-scrollable), as the list of folders may be long. *@
 
 @Html.AntiForgeryToken()
 <div class="modal" id="archive-modal" tabindex="-1" aria-labelledby="archive-title" aria-hidden="true"
@@ -15,7 +15,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Texts.Close"></button>
             </div>
             <form id="archive-form" class="modal-body d-flex flex-column gap-3" autocomplete="off">
-                @* The archived folders in what is downloaded (GET ?archive=folders), filled in by _ArchiveModal.js; hidden while there are
+                @* The archived folders in what is downloaded (GET ?archive=folders), filled in by _ArchiveModal.ts; hidden while there are
                    none. For admins, a box for each: ticked, it is unzipped and what is in it goes in; not ticked (at first), it goes in as it
                    is kept. Everyone else is told that they are unzipped for it. *@
                 <div id="archive-folders" hidden>
@@ -45,7 +45,7 @@
                     </fieldset>
                     <div>
                         <label class="form-label" for="archive-compression">@Texts.Compression</label>
-                        @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.js): a zip can
+                        @* The lowest level depends on the format (only one of the two is there at a time, see _ArchiveModal.ts): a zip can
                            be stored without compression, a 7z only compressed as little as can be *@
                         <select id="archive-compression" class="form-select">
                             <option value="min" id="archive-compression-min">@Texts.Min</option>

@@ -1,7 +1,7 @@
 @inject UploadTexts Texts
 
 @* On every page (_Overlays): asks whether an upload that didn't finish (the tab was closed, or the page left) is to be continued, which
-   upload-operation.js keeps in the browser's storage. Continuing goes to its directory, where the upload dialog asks for the files again. *@
+   upload-operation.ts keeps in the browser's storage. Continuing goes to its directory, where the upload dialog asks for the files again. *@
 <div class="modal" id="upload-resume-modal" tabindex="-1" aria-labelledby="upload-resume-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">

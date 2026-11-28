@@ -8,7 +8,7 @@ namespace Notes.Features.Markdown;
 
 /// <summary>
 /// Marks the blocks of the rendered markdown with where they start in the text (line and column, both counted from 1), so that the
-/// preview can open the editor there (markdown-edit-here.js).
+/// preview can open the editor there (markdown-edit-here.ts).
 /// </summary>
 /// <param name="text">The text the blocks were parsed from.</param>
 internal sealed class SourcePositions(string text)

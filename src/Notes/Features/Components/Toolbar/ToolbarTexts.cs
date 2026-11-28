@@ -16,7 +16,7 @@ public class ToolbarTexts
     public virtual string ViewSource => "View the source of this file";
     public virtual string Preview => "Preview this file";
 
-    /// <summary>The editor's script (file-editor.js) changes it to the label of the view it leads to.</summary>
+    /// <summary>The editor's script (FileView.ts) changes it to the label of the view it leads to.</summary>
     public virtual string SimpleView => "Switch to the simple editor (for phones)";
 
     public virtual string Indent => "Indent";

@@ -42,7 +42,7 @@
     }
     if (isEditing)
     {
-        // Only in the simple view, which has no Tab key on a phone (file-editor.js shows them), and only where there is something to change
+        // Only in the simple view, which has no Tab key on a phone (FileView.ts shows them), and only where there is something to change
         if (Model.CanWrite)
         {
             if (Model.IsMarkdown)
@@ -115,7 +115,7 @@
                     @Html.Raw(Model.Preview.Html)
                 }
             </article>
-            @* Next to the part of the text that is pointed at or tapped: opens the editor where that part is written (markdown-edit-here.js),
+            @* Next to the part of the text that is pointed at or tapped: opens the editor where that part is written (markdown-edit-here.ts),
                read-only for whoever can't change the file *@
             @if (Model.CanWrite)
             {
@@ -132,7 +132,7 @@
             }
         </div>
     </div>
-    @* The scripts that render math and diagrams are large, so they are only loaded for a file that has some (and markdown.js only
+    @* The scripts that render math and diagrams are large, so they are only loaded for a file that has some (and markdown.ts only
        for a file that has anything for it to do) *@
     @if (Model.Preview.HasMath)
     {

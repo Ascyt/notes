@@ -1,0 +1,7 @@
+// The choice of an earlier state (_HistoryModal.cshtml)
+
+// The times at which the entry can be seen, which can be many
+#history-times {
+  max-height: 10rem;
+  overflow-y: auto;
+}

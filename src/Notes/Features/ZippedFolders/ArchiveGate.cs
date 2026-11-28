@@ -20,7 +20,7 @@ public sealed record ArchiveGateAnswer(IActionResult? Result, _Unzipping? Page)
 /// <list type="bullet">
 /// <item>a page, with the page that shows how far it got (<see cref="_Unzipping"/>);</item>
 /// <item>anything else with 503, <see cref="UnzippingHeader"/> (the address of the folder) and <c>Retry-After</c>: the page's scripts wait
-/// and send it again (<c>_Unzipping.js</c>), a program asks again later;</item>
+/// and send it again (<c>_Unzipping.ts</c>), a program asks again later;</item>
 /// <item><c>GET &lt;folder&gt;?unzip</c> with how far it got: <c>{ "done": bool, "progress": 0…1 }</c>.</item>
 /// </list>
 /// Only who may open the folder (and has its password, where it has one) gets it unzipped. For everyone else the request goes on as if it

@@ -1,0 +1,43 @@
+@use 'layers';
+@use 'mixins' as *;
+
+// Uploading files (_Upload.cshtml)
+
+$drop-color: var(--bs-primary, #0d6efd);
+
+// Shown over the page while files are dragged onto it
+.upload-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: layers.$upload-drop-overlay;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 110, 253, 0.12);
+  border: 3px dashed $drop-color;
+  pointer-events: none;
+
+  @include hidden-attribute-hides;
+}
+
+.upload-drop-message {
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  background: var(--bs-body-bg);
+  color: $drop-color;
+  font-size: 1.25rem;
+}
+
+// The bar after the name of an uploaded archive that is being unzipped (_UnzipMark.cshtml), as high as the text
+.upload-unzipping {
+  white-space: nowrap;
+}
+
+.upload-unzipping-progress {
+  @include inline-progress;
+}
+
+// The progress and errors of the dialog stay at its bottom, under the list, which scrolls
+.upload-status-area {
+  padding: 0 var(--bs-modal-padding, 1rem);
+}

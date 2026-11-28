@@ -11,7 +11,7 @@ using Notes.Features.Media;
 
 namespace Notes.Pages.Editor;
 
-/// <summary>What the editor's script (file-editor.js) is told about the file.</summary>
+/// <summary>What the editor's script (FileView.ts) is told about the file.</summary>
 /// <param name="CanWrite">Whether it may be changed; otherwise the editor is read-only and Save stays disabled.</param>
 /// <param name="MonacoPath">Where Monaco is served from.</param>
 /// <param name="ReadOnlyMessage">What the editor says when typing into it while it is read-only.</param>

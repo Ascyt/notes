@@ -11,7 +11,7 @@ public sealed record CancelOperationRequest(Guid Id);
 
 /// <summary>
 /// <c>GET /?operations</c>: the storage operations running now that the user may see (<see cref="StorageOperations.VisibleTo"/>), the most
-/// recent first, for the list of the navbar button (_Operations.js): <c>[ { id, title, directory, user, progress, status, canCancel,
+/// recent first, for the list of the navbar button (_Operations.ts): <c>[ { id, title, directory, user, progress, status, canCancel,
 /// cancelling } ]</c>. <c>POST /?operations=cancel</c> with <c>{ "id": … }</c> cancels one, if the user may (who started it, and admins).
 /// Asked of any entry; nobody who isn't logged in has any (404).
 /// </summary>

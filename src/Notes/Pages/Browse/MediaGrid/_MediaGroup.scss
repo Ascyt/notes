@@ -1,0 +1,101 @@
+// The media of a listing (_MediaGroup.cshtml, _MediaTile.cshtml): a grid of pictures (or icons, for audio), each with its number and name
+// below it. The header is like those of the tables of the directories and files.
+
+.media-group-header {
+  padding: 0.5rem;
+  border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+  cursor: default;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.media-tile {
+  position: relative;
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  min-width: 0; // so that a long name is cut off instead of widening the column
+
+  // Selected, like a row of the tables (the selection script sets the same class)
+  &.table-active {
+    background: var(--bs-secondary-bg);
+  }
+}
+
+.media-link {
+  display: block;
+
+  // The name is the link, in its color like those of the other entries; the number stays as it is in the rows
+  .entry-index {
+    color: var(--bs-body-color);
+  }
+
+  &:hover .media-name,
+  &:focus-visible .media-name {
+    text-decoration: underline;
+  }
+}
+
+.media-picture {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background: var(--bs-tertiary-bg);
+
+  // Over the icon, which shows until the picture is there
+  img,
+  video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none; // the click is the link's
+  }
+}
+
+.media-placeholder {
+  font-size: 2rem;
+  color: var(--bs-secondary-color);
+}
+
+// Tells a video from an image at a glance
+.media-video-mark {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  padding: 0.25rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.media-caption {
+  display: flex;
+  align-items: baseline;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+}
+
+.media-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Over the corner of the picture, where it doesn't cover what it shows
+.media-select {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  margin: 0;
+  cursor: pointer;
+}

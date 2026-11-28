@@ -15,12 +15,12 @@
         model="item"/>;
 }
 
-@* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.css) *@
-@* Always one line: where the parents don't fit, _Breadcrumb.js shortens them (a dot each, then "…" for the outer ones), so that the name
+@* Stays at the top of the screen as part of the navbar while the page scrolls, with the same height everywhere (_Breadcrumb.scss) *@
+@* Always one line: where the parents don't fit, _Breadcrumb.ts shortens them (a dot each, then "…" for the outer ones), so that the name
    at the end keeps its room *@
 <div class="sticky-breadcrumb breadcrumb-row">
     @* The links of the site before the start, as if they were directories above it. They lead out of the app, so an earlier state shown
-       stays behind (data-outside-app, see earlier-state-card.js), and _Breadcrumb.js never shortens them. *@
+       stays behind (data-outside-app, see _EarlierStateCard.ts), and _Breadcrumb.ts never shortens them. *@
     @foreach (BreadcrumbParent parent in Model.VirtualParents)
     {
         <a class="text-decoration-none breadcrumb-virtual-parent" href="@parent.Address" data-outside-app>@parent.Name</a>
@@ -64,7 +64,7 @@
         {
             string? key = virtualPath == Model.ParentVirtualPath ? "!ArrowUp Backspace" : null;
             string address = VirtualPaths.ToAddress(virtualPath);
-            @* The name, or in its place a dot (_Breadcrumb.js), which has the name as its tooltip *@
+            @* The name, or in its place a dot (_Breadcrumb.ts), which has the name as its tooltip *@
             Func<object?, object> dot = @<i class="fa-solid fa-circle breadcrumb-dot" title="@name" aria-label="@name" hidden></i>;
             <span class="breadcrumb-part breadcrumb-parent" data-name="@name" data-address="@address">
                 @if (!Model.ParentsWithoutHistory.TryGetValue(virtualPath, out ParentWithoutHistory? withoutHistory))

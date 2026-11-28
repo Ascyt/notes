@@ -1,0 +1,17 @@
+{
+  // Every .ts of the components becomes the .js next to it, which the library serves. The scripts are plain scripts that share their
+  // top-level names (not modules), as the pages load them one by one with <script>, so there is no bundling and no import.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmitOnError": true,
+    "removeComments": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["Features/**/*.ts", "Pages/**/*.ts", "Typings/**/*.d.ts"]
+}

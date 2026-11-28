@@ -1,0 +1,328 @@
+@use 'sass:list';
+@use 'sass:map';
+@use 'mixins' as *;
+
+// The rendered markdown of a file (see MarkdownRenderer). Bootstrap's reboot styles the text; this is what it leaves out.
+
+// The kinds of alerts (> [!NOTE]) and containers (:::name), by the color of their bar. Containers of other names are gray.
+$accents: (
+  'primary': (markdown-alert-note, markdown-container-note, markdown-container-info),
+  'success': (markdown-alert-tip, markdown-container-tip),
+  'purple': (markdown-alert-important, markdown-container-important),
+  'warning': (markdown-alert-warning, markdown-container-warning),
+  'danger': (markdown-alert-caution, markdown-container-caution, markdown-container-danger)
+);
+
+// Highlighted code (ColorCode's classes, see MarkdownRenderer): the colors of Visual Studio's light and dark themes.
+// Each group is the classes that share a color, and the color in the light theme and in the dark one.
+$code-colors: (
+  (classes: (comment, xmlDocComment, htmlComment, xmlComment), light: #008000, dark: #57a64a),
+  (classes: (xmlDocTag, stringEscape, xmlCDataSection), light: #808080, dark: #9b9b9b),
+  (classes: (string, stringCSharpVerbatim), light: #a31515, dark: #d69d85),
+  (classes: (htmlElementName, xmlName, cssSelector), light: #a31515, dark: #d7ba7d),
+  (classes: (keyword, controlKeyword, preprocessorKeyword, htmlTagDelimiter, xmlDelimiter, htmlAttributeValue, xmlAttributeValue,
+    cssPropertyValue, markdownHeader), light: #0000ff, dark: #569cd6),
+  (classes: (htmlAttributeName, xmlAttribute, cssPropertyName, htmlEntity), light: #e50000, dark: #9cdcfe),
+  (classes: (type, typeVariable, className, powershellType), light: #267f99, dark: #4ec9b0),
+  (classes: (markdownCode), light: #267f99, dark: #d69d85),
+  (classes: (number, jsonNumber), light: #098658, dark: #b5cea8),
+  (classes: (jsonKey, powershellVariable), light: #b35900, dark: #ff8700),
+  (classes: (jsonString), light: #008b8b, dark: #4ec9b0),
+  (classes: (builtinFunction, sqlSystemFunction), light: #795e26, dark: #dcdcaa)
+);
+
+// A selector for several classes: ".a, .b"
+@function class-selector($classes) {
+  $selectors: ();
+  @each $class in $classes {
+    $selectors: list.append($selectors, '.#{$class}', comma);
+  }
+  @return $selectors;
+}
+
+.markdown-body {
+  max-width: 60rem;
+  overflow-wrap: anywhere;
+}
+
+// The button that edits a part of the text where it is written (markdown-edit-here.ts) sits in a gutter left of the text. Where the
+// page already leaves that much room beside the text (a wide screen), no room is added; otherwise only what is missing.
+// The frame is the full width of the page's content, which the text's container is centered in.
+.markdown-frame {
+  container-type: inline-size;
+}
+
+.markdown-edit-gutter {
+  --markdown-edit-gutter: 2rem;
+  padding-left: max(0px, calc(var(--markdown-edit-gutter) - var(--bs-gutter-x) * 0.5 - (100cqw - 100%) / 2));
+
+  // On a narrow screen the room is worth more than the gutter: the button is shown over the text instead, where it is tapped.
+  // The width is the one markdown-edit-here.ts asks for (NARROW_SCREEN).
+  @include on-phone {
+    padding-left: 0;
+  }
+}
+
+.markdown-edit-here {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  text-decoration: none;
+  opacity: 0.6;
+
+  // Over the text the button needs a background of its own, so that the text under it doesn't show through
+  &.is-over-text {
+    background: var(--bs-secondary-bg);
+    opacity: 1;
+  }
+
+  // While Alt is held it stands where the mouse is, and the click goes through it to the page (markdown-edit-here.ts)
+  &.is-at-pointer {
+    pointer-events: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--bs-secondary-bg);
+    opacity: 1;
+  }
+}
+
+// The mouse is over the button then, so it looks as it would over a link: the click opens the editor, whatever is under it
+html.has-edit-here-at-pointer,
+html.has-edit-here-at-pointer * {
+  cursor: pointer !important;
+}
+
+.markdown-body {
+  img {
+    max-width: 100%;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--bs-border-color);
+  }
+
+  th {
+    background: var(--bs-tertiary-bg);
+  }
+
+  pre {
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    border-radius: 0.25rem;
+    background: var(--bs-tertiary-bg);
+  }
+
+  code {
+    overflow-wrap: normal;
+  }
+
+  blockquote {
+    padding-left: 1rem;
+    border-left: 0.25rem solid var(--bs-border-color);
+    color: var(--bs-secondary-color);
+  }
+
+  hr {
+    margin: 1.5rem 0;
+  }
+
+  // A list belongs to the line right above it, so there is no gap between them; the gap is after the list instead. Also for sub-lists,
+  // except one that ends an item of a tight list (no paragraphs in its items), whose items have no gaps between them either.
+  p:has(+ ul, + ol) {
+    margin-bottom: 0;
+  }
+
+  ul,
+  ol {
+    margin-bottom: 1rem;
+  }
+
+  li:not(:has(> p)) > :is(ul, ol):last-child {
+    margin-bottom: 0;
+  }
+
+  ul.contains-task-list {
+    padding-left: 1.25rem;
+    list-style: none;
+  }
+
+  .footnotes {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+  }
+
+  // Figures (an image with a caption) and footers (^^ text)
+  figure {
+    margin: 0 0 1rem;
+
+    p {
+      margin-bottom: 0.25rem;
+    }
+  }
+
+  figcaption,
+  footer {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+  }
+
+  footer {
+    margin-bottom: 1rem;
+  }
+
+  // Display math starts where the text does, like everything else, instead of in the middle
+  .katex-display,
+  .katex-display > .katex {
+    text-align: left;
+  }
+
+  .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  // Diagrams (mermaid), at most as wide as the text
+  .markdown-diagram {
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+
+  // Alerts (> [!NOTE]) and custom containers (:::name): a colored bar at the left, the color by kind
+  .markdown-alert,
+  .markdown-container {
+    --markdown-accent: var(--bs-border-color);
+    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
+    border-left: 0.25rem solid var(--markdown-accent);
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .markdown-container {
+    border-radius: 0 0.25rem 0.25rem 0;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .markdown-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    color: var(--markdown-accent);
+
+    svg {
+      fill: currentColor;
+    }
+  }
+
+  @each $color, $classes in $accents {
+    #{class-selector($classes)} {
+      --markdown-accent: var(--bs-#{$color});
+    }
+  }
+
+  pre {
+    @each $group in $code-colors {
+      #{class-selector(map.get($group, classes))} {
+        color: map.get($group, light);
+      }
+    }
+
+    [data-bs-theme='dark'] & {
+      @each $group in $code-colors {
+        #{class-selector(map.get($group, classes))} {
+          color: map.get($group, dark);
+        }
+      }
+    }
+
+    #{class-selector((typeVariable, attribute, italic))} {
+      font-style: italic;
+    }
+
+    #{class-selector((markdownHeader, markdownListItem, bold))} {
+      font-weight: bold;
+    }
+  }
+}
+
+// Printing, and so saving as a PDF (markdown-print.ts): only the text, over the whole width of the paper. The page around it (navigation,
+// breadcrumb, toolbar, notices, footer) is left out, and what scrolls on the screen wraps or grows instead, as paper can't scroll.
+@media print {
+  // A header and footer of its own: the browser's are drawn right at the edge of the paper, whatever the margins. Defining these replaces
+  // them (where the browser supports it). The header is put in by markdown-print.ts, as CSS can't know the file name or the date.
+  @page {
+    margin: 2cm;
+
+    @bottom-right {
+      content: counter(page) ' / ' counter(pages);
+      font: 9pt sans-serif;
+      color: #6c757d;
+    }
+  }
+
+  body > :not(.container-fluid:has(.markdown-frame)),
+  main > :not(.markdown-frame),
+  .markdown-edit-here {
+    display: none !important;
+  }
+
+  .container-fluid:has(.markdown-frame),
+  .markdown-frame .container {
+    max-width: none;
+    padding: 0;
+  }
+
+  .markdown-body {
+    max-width: none;
+    padding-left: 0 !important;
+
+    pre {
+      overflow: visible;
+      white-space: pre-wrap;
+    }
+
+    table {
+      display: table;
+      overflow: visible;
+    }
+
+    pre,
+    blockquote,
+    tr,
+    img,
+    .markdown-diagram,
+    .katex-display {
+      break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      break-after: avoid;
+    }
+  }
+}

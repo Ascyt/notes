@@ -8,12 +8,17 @@ EXPOSE 8081
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
+# Node builds the styles and scripts of the components (src/Notes/package.json), which the build of the library runs
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 # The project files first, so that the restore is only done again when they change
 COPY ["global.json", "./"]
 COPY ["src/Notes/Notes.csproj", "src/Notes/"]
 COPY ["src/Notes.Host/Notes.Host.csproj", "src/Notes.Host/"]
 RUN dotnet restore "src/Notes.Host/Notes.Host.csproj"
+# The same for the packages of the styles and scripts
+COPY ["src/Notes/package.json", "src/Notes/package-lock.json", "src/Notes/"]
+RUN npm ci --prefix src/Notes
 COPY . .
 WORKDIR "/src/src/Notes.Host"
 RUN dotnet build "./Notes.Host.csproj" -c $BUILD_CONFIGURATION -o /app/build

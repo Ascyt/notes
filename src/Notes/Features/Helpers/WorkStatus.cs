@@ -3,7 +3,7 @@ namespace Notes.Features.Helpers;
 /// <summary>
 /// What long work (zipping and unzipping archived folders, making an archive to download, unzipping an upload) is doing now, for the text under
 /// its bar: the step (<see cref="WorkPhases"/>), and how much of it is done where that is counted. The pages say it in words
-/// (<c>describeProgress</c> in site.js, with <see cref="Components.Busy.ProgressTexts"/>); a count of 0 of 0 is left out.
+/// (<c>describeProgress</c> in site.ts, with <see cref="Components.Busy.ProgressTexts"/>); a count of 0 of 0 is left out.
 /// </summary>
 /// <param name="Phase">One of <see cref="WorkPhases"/>.</param>
 /// <param name="WaitingFor">While it is <see cref="WorkPhases.Waiting"/>: the title of the operation it waits for, where that is known.</param>

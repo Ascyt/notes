@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace Notes.Features.Components.Busy;
 
 /// <summary>
-/// What covers the page while something long runs (see <c>whileBusy</c> in site.js). It needs nothing of the page, so every layout has it
+/// What covers the page while something long runs (see <c>whileBusy</c> in site.ts). It needs nothing of the page, so every layout has it
 /// (through <c>_Overlays</c>).
 /// </summary>
 public class _BusyOverlay : PageModel

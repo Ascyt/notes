@@ -5,7 +5,7 @@
 @* After the name of an archived folder (where its archive begins), in the listing and the breadcrumb. Zipped: solid and in color, as going
    into it takes a moment (it is unzipped first). Unzipped: gray, as it only tells how it is kept. An encrypted one has a shield in place of
    the zipper (whole when zipped, halved when unzipped); its password lock is a mark of its own. Being zipped (in the listing): the unzipped
-   mark with a bar of how far it got (yellow, like the shield, for an encrypted one), which _Unzipping.js keeps up to date and turns into the mark it ends as. *@
+   mark with a bar of how far it got (yellow, like the shield, for an encrypted one), which _Unzipping.ts keeps up to date and turns into the mark it ends as. *@
 @if (Model.State == ArchiveState.Zipped)
 {
     <i class="@Model.IconClasses(zipped: true)" title="@Model.Title(Texts, zipped: true)" aria-label="@Model.Title(Texts, zipped: true)"

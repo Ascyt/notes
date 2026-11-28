@@ -1,7 +1,7 @@
 @model _RenameInput
 @inject RenameTexts Texts
 
-@* The buttons are shown by _RenameInput.js once the name differs from the one the entry has *@
+@* The buttons are shown by _RenameInput.ts once the name differs from the one the entry has *@
 <div id="rename" class="input-group input-group-sm" data-is-file="@(Model.IsFile ? "true" : "false")">
     @Html.AntiForgeryToken()
     @if (Model.DisabledReason is not null)

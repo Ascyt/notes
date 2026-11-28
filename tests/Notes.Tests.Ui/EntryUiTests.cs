@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 
 namespace Notes.Tests.Ui;
 
-/// <summary>The scripts of a single entry: the editor and saving, renaming, deleting, and the disabled buttons and shortcuts (site.js, shortcuts.js).</summary>
+/// <summary>The scripts of a single entry: the editor and saving, renaming, deleting, and the disabled buttons and shortcuts (site.ts, shortcuts.ts).</summary>
 public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     private ILocator SaveButton => Page.Locator("#save-button");
@@ -405,7 +405,7 @@ public sealed class EntryUiTests(UiFixture fixture) : UiTest(fixture), IClassFix
         await ExpectDisabledWithReason(Page.Locator("#rename-input"));
     }
 
-    // ---- Disabled buttons (site.js) and shortcuts (shortcuts.js)
+    // ---- Disabled buttons (site.ts) and shortcuts (shortcuts.ts)
 
     [Fact]
     public async Task A_disabled_button_says_why_and_does_nothing_when_clicked()

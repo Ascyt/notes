@@ -1,6 +1,6 @@
 namespace Notes.Tests.Ui;
 
-/// <summary>Enter goes on with a list of a Markdown file (markdown-lists.js), in both editors.</summary>
+/// <summary>Enter goes on with a list of a Markdown file (markdown-lists.ts), in both editors.</summary>
 public sealed class ListContinuationUiTests(UiFixture fixture) : UiTest(fixture), IClassFixture<UiFixture>
 {
     // The simple view (which the browser keeps once chosen), with the cursor at the end of the text

@@ -1,0 +1,14 @@
+{
+  "name": "notes-client-assets",
+  "private": true,
+  "description": "Builds the styles (SCSS) and scripts (TypeScript) of the components, next to their sources. Run by the build of Notes.csproj.",
+  "scripts": {
+    "build": "npm run build:styles && npm run build:scripts",
+    "build:styles": "node build-styles.mjs",
+    "build:scripts": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "sass": "^1.108.2",
+    "typescript": "^7.0.2"
+  }
+}

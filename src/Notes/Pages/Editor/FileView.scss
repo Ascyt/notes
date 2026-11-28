@@ -1,0 +1,14 @@
+@use 'mixins' as *;
+
+// The editors of the page of a file (FileView.cshtml)
+
+#editor {
+  @include focus-framed-editor;
+}
+
+// The simple editor, for phones
+#simple-editor {
+  height: 75vh;
+  resize: none;
+  font-size: 1rem;
+}

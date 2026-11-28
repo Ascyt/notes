@@ -4,7 +4,7 @@
 @inject BreadcrumbStarts BreadcrumbStarts
 @inject UnzipTexts Texts
 
-@* The page of an entry in an archived folder that is still being unzipped. _Unzipping.js asks how far it got (by #unzipping) and loads the
+@* The page of an entry in an archived folder that is still being unzipped. _Unzipping.ts asks how far it got (by #unzipping) and loads the
    page again once it is done. *@
 @{
     string unzipping = Texts.Unzipping.Replace("{entry}", Model.Display);

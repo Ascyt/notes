@@ -1,0 +1,33 @@
+@use 'layers';
+@use 'mixins' as *;
+
+// The stack of cards at the bottom of every page (_Toasts.cshtml)
+
+.floating-cards {
+  position: fixed;
+  bottom: 1rem;
+  // Centered without left: 50%, which would leave only half the viewport for the cards to be as wide as they want
+  left: 0;
+  right: 0;
+  width: max-content;
+  margin-inline: auto;
+  z-index: layers.$floating-cards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100vw - 2rem);
+  pointer-events: none; // only the cards take clicks, not the empty space around them
+
+  > * {
+    pointer-events: auto;
+  }
+}
+
+.floating-card {
+  @include hidden-attribute-hides;
+}
+
+.toast-card {
+  cursor: pointer;
+}

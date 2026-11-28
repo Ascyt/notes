@@ -19,7 +19,7 @@ public class _ArchivedMark : PageModel
     /// </summary>
     public string? Address { get; init; }
 
-    /// <summary>The icon's classes for the zipped mark (solid) or the unzipped one; _Unzipping.js has the same.</summary>
+    /// <summary>The icon's classes for the zipped mark (solid) or the unzipped one; _Unzipping.ts has the same.</summary>
     public string IconClasses(bool zipped) => (Encrypted, zipped) switch
     {
         (true, true) => "fa-solid fa-shield fa-xs ms-1 text-warning",

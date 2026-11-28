@@ -1,0 +1,27 @@
+@use 'layers';
+@use 'mixins' as *;
+
+// What covers the page while something long runs (_BusyOverlay.cshtml)
+
+.busy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: layers.$busy-overlay;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: rgba(var(--bs-body-bg-rgb), 0.6);
+  cursor: progress;
+
+  @include hidden-attribute-hides;
+}
+
+.busy-overlay-box {
+  max-width: 100%;
+}
+
+// Wide enough that a step of a percent can be seen
+.busy-overlay-progress {
+  @include waiting-progress;
+}

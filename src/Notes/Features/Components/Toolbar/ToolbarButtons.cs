@@ -50,7 +50,7 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
         => new(Id: "simple-view-button", Icon: "fa-solid fa-mobile-screen-button", Label: texts.SimpleView, Key: "!+E");
     
     /// <summary>
-    /// Makes the text of the editor larger (see editorZoom in editor.js, which keeps the zoom). Plus is typed with Shift on some layouts.
+    /// Makes the text of the editor larger (see editorZoom in editor.ts, which keeps the zoom). Plus is typed with Shift on some layouts.
     /// </summary>
     public ToolbarButton ZoomIn()
         => new(Id: "zoom-in-button", Icon: "fa-solid fa-magnifying-glass-plus", Label: texts.ZoomIn, Key: "!=");
@@ -61,7 +61,7 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
 
     /// <summary>
     /// From a media file to the one before it in the grid of its directory, disabled at the first. The arrow keys are left to a video or audio
-    /// player that has the focus (see shortcuts.js), which seeks with them.
+    /// player that has the focus (see shortcuts.ts), which seeks with them.
     /// </summary>
     /// <param name="href">The address of the media before it, or null if it is the first.</param>
     public ToolbarButton PreviousMedia(string? href)
@@ -86,7 +86,7 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
         => new(Id: "raw-button", Icon: "fa-regular fa-file-code", Label: texts.Raw, Key: "^u", Href: "?raw");
 
     /// <summary>
-    /// Saves the rendered markdown as a PDF, through the browser's print dialog (markdown-print.js). Ctrl+P, which prints anyway, goes
+    /// Saves the rendered markdown as a PDF, through the browser's print dialog (markdown-print.ts). Ctrl+P, which prints anyway, goes
     /// through it too, so that the PDF always looks the same.
     /// </summary>
     public ToolbarButton SaveAsPdf()
@@ -145,13 +145,13 @@ public sealed class ToolbarButtons(ToolbarTexts texts)
 
     /// <summary>
     /// Locks the entry's own password, which is unlocked now (and what is unlocked inside it), and goes to the folder it is in (POST
-    /// ?lock=entry, _PasswordModal.js). Only where the entry has a password of its own that is unlocked.
+    /// ?lock=entry, _PasswordModal.ts). Only where the entry has a password of its own that is unlocked.
     /// </summary>
     public ToolbarButton LockEntry(bool isFile)
         => new(Id: "lock-entry-button", Icon: "fa-solid fa-lock", Label: texts.LockEntry(isFile), Tone: ToolbarTone.Warning);
 
     /// <summary>
-    /// Zips the directory, an archived folder that is unzipped now, and goes to the folder it is in (POST ?zip=entry, _Unzipping.js). Only
+    /// Zips the directory, an archived folder that is unzipped now, and goes to the folder it is in (POST ?zip=entry, _Unzipping.ts). Only
     /// there.
     /// </summary>
     public ToolbarButton ZipEntry(bool encrypted)

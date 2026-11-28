@@ -25,7 +25,7 @@ public sealed record FileChangeSide(ChangeSideKind Kind, bool IsBinary, string T
     };
 }
 
-/// <summary>What the script of the page (file-changes.js) is told: the two sides of text, or the one that is shown.</summary>
+/// <summary>What the script of the page (_FileChanges.ts) is told: the two sides of text, or the one that is shown.</summary>
 /// <param name="ShowsBoth">Whether both sides are shown in the diff editor; otherwise only <paramref name="Modified"/>, in the read-only
 /// editor.</param>
 /// <param name="Original">The text before the commit ("" where it wasn't there).</param>

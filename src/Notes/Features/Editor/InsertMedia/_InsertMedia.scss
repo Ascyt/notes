@@ -1,0 +1,14 @@
+// What the chosen file looks like, small enough to leave room for the rest of the dialog
+.insert-media-preview {
+  img,
+  video {
+    display: block;
+    max-width: 100%;
+    max-height: 12rem;
+    border-radius: var(--bs-border-radius);
+  }
+
+  audio {
+    width: 100%;
+  }
+}

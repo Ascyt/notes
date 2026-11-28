@@ -18,10 +18,10 @@ public enum ToolbarTone
 /// be used right now is disabled (with the reason) or shows a spinner.
 /// </summary>
 /// <param name="Id">Id of the element, for the scripts of the page to find it. A button without <paramref name="Href"/> does what the script
-/// of the page attaches to it (<c>onClickOf</c> in site.js).</param>
+/// of the page attaches to it (<c>onClickOf</c> in site.ts).</param>
 /// <param name="Icon">Font Awesome classes of the icon, e.g. "fa-solid fa-download".</param>
 /// <param name="Label">What the button does. Shown as its tooltip, as there is no text on it.</param>
-/// <param name="Key">Shortcut (see shortcuts.js), if any.</param>
+/// <param name="Key">Shortcut (see shortcuts.ts), if any.</param>
 /// <param name="Href">Makes the button a link to this address.</param>
 /// <param name="IsDownload">Whether the link downloads what it points at.</param>
 /// <param name="Tone">Colors the icon.</param>

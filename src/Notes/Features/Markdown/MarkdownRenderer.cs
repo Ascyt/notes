@@ -52,7 +52,7 @@ public static class MarkdownRenderer
         .UsePipeTables()
         .UseSoftlineBreakAsHardlineBreak() // a line break in the text is one in the preview, as such text is written line by line
         .UseTaskLists()
-        // Highlighted on the server, with classes that markdown.css colors in both themes. Languages it doesn't know stay plain code blocks.
+        // Highlighted on the server, with classes that markdown.scss colors in both themes. Languages it doesn't know stay plain code blocks.
         .UseColorCode(HtmlFormatterType.Css)
         .Use<SourcePositions.CodeBlockExtension>() // after the highlighting, whose output it puts into an element of its own
         .Use<MarkdownMedia>() // an image that is a video or audio file gets a player
