@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS base
 # Mount points for the notes and the data protection keys, writable by the app user (named volumes copy this ownership)
 RUN mkdir /data /keys && chown $APP_UID:$APP_UID /data /keys
 USER $APP_UID
@@ -6,7 +6,7 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 # The project files first, so that the restore is only done again when they change

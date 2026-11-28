@@ -95,9 +95,10 @@
 
     const CLICKABLE = 'a, button, input, select, textarea, summary, label, [role=button], [onclick]';
 
+    // Monaco takes typing in an element that is no field (it uses the browser's EditContext), so anything inside it counts
     function isEditable(target) {
         return target instanceof Element && target.closest(TYPING_INPUT
-            + ', textarea, select, [contenteditable=""], [contenteditable="true"]') !== null;
+            + ', textarea, select, [contenteditable=""], [contenteditable="true"], .monaco-editor') !== null;
     }
 
     function trigger(el) {

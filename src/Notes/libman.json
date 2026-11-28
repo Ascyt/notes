@@ -3,11 +3,11 @@
   "defaultProvider": "cdnjs",
   "libraries": [
     {
-      "library": "twitter-bootstrap@5.3.3",
+      "library": "twitter-bootstrap@5.3.9",
       "destination": "wwwroot/lib/bootstrap/"
     },
     {
-      "library": "monaco-editor@0.52.2",
+      "library": "monaco-editor@0.58.0",
       "destination": "wwwroot/lib/monaco-editor/",
       "files": [
         "min/vs/**"
@@ -26,7 +26,7 @@
     },
     {
       "provider": "jsdelivr",
-      "library": "katex@0.16.22",
+      "library": "katex@0.19.1",
       "destination": "wwwroot/lib/katex",
       "files": [
         "dist/katex.min.css",
@@ -36,7 +36,7 @@
     },
     {
       "provider": "jsdelivr",
-      "library": "mermaid@11.4.1",
+      "library": "mermaid@12.4.0",
       "destination": "wwwroot/lib/mermaid",
       "files": [
         "dist/mermaid.min.js"

@@ -3,7 +3,7 @@
     <!-- The notes as a library: its pages, features, scripts and styles, for a site to use (see Notes.Host). Its files in wwwroot are served
          at _content/Notes/. -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
@@ -50,10 +50,10 @@
         <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
         <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
         <PackageReference Include="LibGit2Sharp" Version="0.32.0" />
-        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.1.0" />
+        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.1.1" />
         <PackageReference Include="Markdig" Version="1.6.0" />
         <PackageReference Include="Markdown.ColorCode" Version="3.0.1" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="Semver" Version="3.0.0" />
         <PackageReference Include="SharpCompress" Version="0.51.0-beta.174" />
